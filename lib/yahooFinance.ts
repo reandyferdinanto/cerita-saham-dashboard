@@ -81,9 +81,12 @@ export async function searchStocks(query: string) {
     const jkQuery = query.toUpperCase().endsWith(".JK") ? query : query + ".JK";
 
     // Search with both the .JK ticker and the plain name for better results
+    // validateResult: false — Yahoo changed typeDisp casing ("equity" vs "Equity"),
+    // which breaks the built-in schema check even though the data is valid.
+    const searchOpts = { validateResult: false } as any;
     const [resultJK, resultPlain] = await Promise.all([
-      yahooFinance.search(jkQuery).catch(() => ({ quotes: [] })),
-      yahooFinance.search(query).catch(() => ({ quotes: [] })),
+      yahooFinance.search(jkQuery, {}, searchOpts).catch(() => ({ quotes: [] })),
+      yahooFinance.search(query, {}, searchOpts).catch(() => ({ quotes: [] })),
     ]);
 
     const allQuotes = [
@@ -97,7 +100,8 @@ export async function searchStocks(query: string) {
       .filter((q: any) => {
         // Only include Indonesian stocks (.JK suffix) and EQUITY/INDEX
         const isJK = (q.symbol || "").toUpperCase().endsWith(".JK");
-        const isValidType = q.quoteType === "EQUITY" || q.quoteType === "INDEX";
+        const qt = (q.quoteType || "").toUpperCase();
+        const isValidType = qt === "EQUITY" || qt === "INDEX";
         if (!isJK || !isValidType) return false;
         if (seen.has(q.symbol)) return false;
         seen.add(q.symbol);
