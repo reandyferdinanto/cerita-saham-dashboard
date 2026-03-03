@@ -1,67 +1,57 @@
-import { promises as fs } from "fs";
-import path from "path";
 import { WatchlistEntry } from "./types";
 
-const DATA_DIR = path.join(process.cwd(), "data");
-const WATCHLIST_FILE = path.join(DATA_DIR, "watchlist.json");
+// ── Storage backend ────────────────────────────────────────────────────────────
+// Production (Vercel): uses @vercel/kv (Redis) — requires KV_REST_API_URL env var
+// Development         : falls back to local JSON file in /data/watchlist.json
+// ──────────────────────────────────────────────────────────────────────────────
 
-async function ensureDataDir() {
+const IS_PROD = !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
+const KV_KEY = "watchlist";
+
+// ── KV helpers ────────────────────────────────────────────────────────────────
+
+async function kvRead(): Promise<WatchlistEntry[]> {
+  const { kv } = await import("@vercel/kv");
+  const data = await kv.get<WatchlistEntry[]>(KV_KEY);
+  return data ?? [];
+}
+
+async function kvWrite(entries: WatchlistEntry[]): Promise<void> {
+  const { kv } = await import("@vercel/kv");
+  await kv.set(KV_KEY, entries);
+}
+
+// ── Local file helpers (dev) ──────────────────────────────────────────────────
+
+async function localRead(): Promise<WatchlistEntry[]> {
+  const { promises: fs } = await import("fs");
+  const path = await import("path");
+  const dir = path.join(process.cwd(), "data");
+  const file = path.join(dir, "watchlist.json");
   try {
-    await fs.access(DATA_DIR);
+    const raw = await fs.readFile(file, "utf-8");
+    return JSON.parse(raw);
   } catch {
-    await fs.mkdir(DATA_DIR, { recursive: true });
+    return [];
   }
 }
 
+async function localWrite(entries: WatchlistEntry[]): Promise<void> {
+  const { promises: fs } = await import("fs");
+  const path = await import("path");
+  const dir = path.join(process.cwd(), "data");
+  try { await fs.mkdir(dir, { recursive: true }); } catch { /* exists */ }
+  await fs.writeFile(path.join(dir, "watchlist.json"), JSON.stringify(entries, null, 2));
+}
+
+// ── Public API ────────────────────────────────────────────────────────────────
+
 async function readWatchlist(): Promise<WatchlistEntry[]> {
-  await ensureDataDir();
-  try {
-    const data = await fs.readFile(WATCHLIST_FILE, "utf-8");
-    return JSON.parse(data);
-  } catch {
-    // Return default watchlist with some popular Indonesian stocks
-    const defaults: WatchlistEntry[] = [
-      {
-        ticker: "BBCA.JK",
-        name: "Bank Central Asia",
-        tp: 10500,
-        sl: 9200,
-        bandarmology: "Akumulasi oleh foreign. Volume meningkat konsisten.",
-        addedAt: new Date().toISOString(),
-      },
-      {
-        ticker: "BBRI.JK",
-        name: "Bank Rakyat Indonesia",
-        tp: 5800,
-        sl: 4900,
-        bandarmology: "Big player distribusi ringan. Perhatikan support area.",
-        addedAt: new Date().toISOString(),
-      },
-      {
-        ticker: "TLKM.JK",
-        name: "Telkom Indonesia",
-        tp: 4200,
-        sl: 3600,
-        bandarmology: "Akumulasi kembali setelah koreksi. Bandar mulai entry.",
-        addedAt: new Date().toISOString(),
-      },
-      {
-        ticker: "ASII.JK",
-        name: "Astra International",
-        tp: 6000,
-        sl: 4800,
-        bandarmology: "Sideways. Tunggu konfirmasi breakout.",
-        addedAt: new Date().toISOString(),
-      },
-    ];
-    await writeWatchlist(defaults);
-    return defaults;
-  }
+  return IS_PROD ? kvRead() : localRead();
 }
 
 async function writeWatchlist(entries: WatchlistEntry[]): Promise<void> {
-  await ensureDataDir();
-  await fs.writeFile(WATCHLIST_FILE, JSON.stringify(entries, null, 2));
+  IS_PROD ? await kvWrite(entries) : await localWrite(entries);
 }
 
 export async function getAll(): Promise<WatchlistEntry[]> {
@@ -75,42 +65,28 @@ export async function getByTicker(ticker: string): Promise<WatchlistEntry | unde
 
 export async function add(entry: WatchlistEntry): Promise<WatchlistEntry[]> {
   const entries = await readWatchlist();
-  const exists = entries.find(
-    (e) => e.ticker.toUpperCase() === entry.ticker.toUpperCase()
-  );
-  if (exists) {
-    throw new Error(`Ticker ${entry.ticker} already exists in watchlist`);
-  }
-  entries.push(entry);
-  await writeWatchlist(entries);
-  return entries;
+  const exists = entries.find((e) => e.ticker.toUpperCase() === entry.ticker.toUpperCase());
+  if (exists) throw new Error(`${entry.ticker} sudah ada di watchlist`);
+  const updated = [...entries, entry];
+  await writeWatchlist(updated);
+  return updated;
 }
 
 export async function update(
   ticker: string,
-  updates: Partial<Omit<WatchlistEntry, "ticker">>
+  patch: Partial<Pick<WatchlistEntry, "name" | "tp" | "sl" | "bandarmology">>
 ): Promise<WatchlistEntry[]> {
   const entries = await readWatchlist();
-  const index = entries.findIndex(
-    (e) => e.ticker.toUpperCase() === ticker.toUpperCase()
-  );
-  if (index === -1) {
-    throw new Error(`Ticker ${ticker} not found in watchlist`);
-  }
-  entries[index] = { ...entries[index], ...updates };
+  const idx = entries.findIndex((e) => e.ticker.toUpperCase() === ticker.toUpperCase());
+  if (idx === -1) throw new Error(`${ticker} tidak ditemukan`);
+  entries[idx] = { ...entries[idx], ...patch };
   await writeWatchlist(entries);
   return entries;
 }
 
 export async function remove(ticker: string): Promise<WatchlistEntry[]> {
   const entries = await readWatchlist();
-  const filtered = entries.filter(
-    (e) => e.ticker.toUpperCase() !== ticker.toUpperCase()
-  );
-  if (filtered.length === entries.length) {
-    throw new Error(`Ticker ${ticker} not found in watchlist`);
-  }
-  await writeWatchlist(filtered);
-  return filtered;
+  const updated = entries.filter((e) => e.ticker.toUpperCase() !== ticker.toUpperCase());
+  await writeWatchlist(updated);
+  return updated;
 }
-

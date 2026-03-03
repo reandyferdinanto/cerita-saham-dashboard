@@ -89,15 +89,23 @@ export default function SearchPage() {
   };
 
   const fetchChart = useCallback(
-    async (ticker: string, tf: typeof TIMEFRAMES[0]) => {
+    async (ticker: string, tf: typeof TIMEFRAMES[0], livePrice?: number) => {
       setLoadingChart(true);
       try {
         const res = await fetch(
           `/api/stocks/history/${encodeURIComponent(ticker)}?range=${tf.range}&interval=${tf.interval}`
         );
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          setHistory(data.filter((d: OHLCData) => d.close != null));
+        const raw: OHLCData[] = await res.json();
+        if (Array.isArray(raw) && raw.length > 0) {
+          // Patch last candle with live quote price
+          if (livePrice != null && livePrice > 0) {
+            const last = { ...raw[raw.length - 1] };
+            last.close = livePrice;
+            last.high = Math.max(last.high, livePrice);
+            last.low = Math.min(last.low, livePrice);
+            raw[raw.length - 1] = last;
+          }
+          setHistory(raw.filter((d: OHLCData) => d.close != null));
         }
       } catch {
         console.error("Failed to fetch chart");
@@ -116,27 +124,29 @@ export default function SearchPage() {
       setQuote(null);
       setHistory([]);
 
+      let livePrice: number | undefined;
       try {
-        const quoteRes = await fetch(
-          `/api/stocks/quote/${encodeURIComponent(ticker)}`
-        );
+        const quoteRes = await fetch(`/api/stocks/quote/${encodeURIComponent(ticker)}`);
         const quoteData = await quoteRes.json();
-        if (!quoteData.error) setQuote(quoteData);
+        if (!quoteData.error) {
+          setQuote(quoteData);
+          livePrice = quoteData.price;
+        }
       } catch {
         console.error("Failed to fetch quote");
       }
 
-      await fetchChart(ticker, activeTimeframe);
+      await fetchChart(ticker, activeTimeframe, livePrice);
     },
     [activeTimeframe, fetchChart]
   );
 
-  // Re-fetch when timeframe changes
+  // Re-fetch when timeframe changes — pass current live price
   useEffect(() => {
-    if (selectedTicker) {
-      fetchChart(selectedTicker, activeTimeframe);
+    if (selectedTicker && quote?.price) {
+      fetchChart(selectedTicker, activeTimeframe, quote.price);
     }
-  }, [activeTimeframe, selectedTicker, fetchChart]);
+  }, [activeTimeframe, selectedTicker, fetchChart]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const change = quote?.change || 0;
   const changePercent = quote?.changePercent || 0;
