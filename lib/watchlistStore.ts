@@ -1,35 +1,47 @@
 import { WatchlistEntry } from "./types";
+import { promises as fs } from "fs";
+import path from "path";
 
 // ── Storage backend ────────────────────────────────────────────────────────────
-// Production (Vercel): uses @vercel/kv (Redis) — requires KV_REST_API_URL env var
-// Development         : falls back to local JSON file in /data/watchlist.json
+// Production : @upstash/redis — set UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN
+// Development: local JSON file  data/watchlist.json
 // ──────────────────────────────────────────────────────────────────────────────
 
-const IS_PROD = !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
+const IS_PROD = !!(
+  process.env.UPSTASH_REDIS_REST_URL &&
+  process.env.UPSTASH_REDIS_REST_TOKEN
+);
 const KV_KEY = "watchlist";
 
-// ── KV helpers ────────────────────────────────────────────────────────────────
+// ── Redis helpers ─────────────────────────────────────────────────────────────
 
 async function kvRead(): Promise<WatchlistEntry[]> {
-  const { kv } = await import("@vercel/kv");
-  const data = await kv.get<WatchlistEntry[]>(KV_KEY);
+  const { Redis } = await import("@upstash/redis");
+  const redis = new Redis({
+    url: process.env.UPSTASH_REDIS_REST_URL!,
+    token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+  });
+  const data = await redis.get<WatchlistEntry[]>(KV_KEY);
   return data ?? [];
 }
 
 async function kvWrite(entries: WatchlistEntry[]): Promise<void> {
-  const { kv } = await import("@vercel/kv");
-  await kv.set(KV_KEY, entries);
+  const { Redis } = await import("@upstash/redis");
+  const redis = new Redis({
+    url: process.env.UPSTASH_REDIS_REST_URL!,
+    token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+  });
+  await redis.set(KV_KEY, entries);
 }
 
 // ── Local file helpers (dev) ──────────────────────────────────────────────────
 
+const DATA_DIR = path.join(process.cwd(), "data");
+const WATCHLIST_FILE = path.join(DATA_DIR, "watchlist.json");
+
 async function localRead(): Promise<WatchlistEntry[]> {
-  const { promises: fs } = await import("fs");
-  const path = await import("path");
-  const dir = path.join(process.cwd(), "data");
-  const file = path.join(dir, "watchlist.json");
   try {
-    const raw = await fs.readFile(file, "utf-8");
+    const raw = await fs.readFile(WATCHLIST_FILE, "utf-8");
     return JSON.parse(raw);
   } catch {
     return [];
@@ -37,11 +49,8 @@ async function localRead(): Promise<WatchlistEntry[]> {
 }
 
 async function localWrite(entries: WatchlistEntry[]): Promise<void> {
-  const { promises: fs } = await import("fs");
-  const path = await import("path");
-  const dir = path.join(process.cwd(), "data");
-  try { await fs.mkdir(dir, { recursive: true }); } catch { /* exists */ }
-  await fs.writeFile(path.join(dir, "watchlist.json"), JSON.stringify(entries, null, 2));
+  try { await fs.mkdir(DATA_DIR, { recursive: true }); } catch { /* exists */ }
+  await fs.writeFile(WATCHLIST_FILE, JSON.stringify(entries, null, 2));
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
