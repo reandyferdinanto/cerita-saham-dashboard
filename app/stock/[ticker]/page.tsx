@@ -190,14 +190,14 @@ export default function StockDetailPage({
             <h2 className="text-base font-bold text-silver-200">Price Chart</h2>
           </div>
 
-          {/* Timeframe groups */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex items-center gap-0.5 rounded-lg p-0.5"
+          {/* Timeframe groups — scrollable on mobile */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
+            <div className="flex items-center gap-0.5 rounded-lg p-0.5 flex-shrink-0"
               style={{ background: "rgba(6,78,59,0.25)", border: "1px solid rgba(16,185,129,0.08)" }}>
-              <span className="text-[10px] px-1.5 font-medium" style={{ color: "#334155" }}>Intraday</span>
+              <span className="text-[10px] px-1.5 font-medium flex-shrink-0" style={{ color: "#334155" }}>Intraday</span>
               {intradayTF.map((tf) => (
                 <button key={tf.label} onClick={() => setActiveTimeframe(tf)}
-                  className="px-2.5 py-1 rounded-md text-xs font-semibold transition-all"
+                  className="px-2.5 py-1 rounded-md text-xs font-semibold transition-all flex-shrink-0"
                   style={activeTimeframe.label === tf.label
                     ? { background: "rgba(249,115,22,0.18)", color: "#fb923c", border: "1px solid rgba(249,115,22,0.3)" }
                     : { color: "#64748b" }}>
@@ -205,12 +205,12 @@ export default function StockDetailPage({
                 </button>
               ))}
             </div>
-            <div className="flex items-center gap-0.5 rounded-lg p-0.5"
+            <div className="flex items-center gap-0.5 rounded-lg p-0.5 flex-shrink-0"
               style={{ background: "rgba(6,78,59,0.25)", border: "1px solid rgba(16,185,129,0.08)" }}>
-              <span className="text-[10px] px-1.5 font-medium" style={{ color: "#334155" }}>Swing</span>
+              <span className="text-[10px] px-1.5 font-medium flex-shrink-0" style={{ color: "#334155" }}>Swing</span>
               {swingTF.map((tf) => (
                 <button key={tf.label} onClick={() => setActiveTimeframe(tf)}
-                  className="px-2.5 py-1 rounded-md text-xs font-semibold transition-all"
+                  className="px-2.5 py-1 rounded-md text-xs font-semibold transition-all flex-shrink-0"
                   style={activeTimeframe.label === tf.label
                     ? { background: "rgba(249,115,22,0.18)", color: "#fb923c", border: "1px solid rgba(249,115,22,0.3)" }
                     : { color: "#64748b" }}>
