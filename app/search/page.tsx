@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import GlassCard from "@/components/ui/GlassCard";
@@ -92,8 +93,20 @@ const TIMEFRAMES = [
   { label: "1W",  group: "swing",   range: "1y",  interval: "1wk" },
   { label: "1M",  group: "swing",   range: "5y",  interval: "1mo" },
 ];
-
 export default function SearchPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center py-20">
+        <div className="w-8 h-8 border-2 rounded-full animate-spin"
+          style={{ borderColor: "rgba(251,146,60,0.2)", borderTopColor: "#fb923c" }} />
+      </div>
+    }>
+      <SearchPageInner />
+    </Suspense>
+  );
+}
+
+function SearchPageInner() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -108,6 +121,8 @@ export default function SearchPage() {
   const [fundamental, setFundamental] = useState<FundamentalData | null>(null);
   const [loadingFundamental, setLoadingFundamental] = useState(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchParams = useSearchParams();
+  const initializedRef = useRef(false);
 
   // Debounced search — auto-add .JK
   const handleSearch = useCallback((searchQuery: string) => {
@@ -233,6 +248,19 @@ export default function SearchPage() {
     },
     [activeTimeframe, fetchChart, fetchStockNews, fetchFundamental]
   );
+
+  // ── Auto-select from URL param ?q=BBCA ──────────────────────────────────────
+  useEffect(() => {
+    if (initializedRef.current) return;
+    const q = searchParams.get("q");
+    if (!q) return;
+    initializedRef.current = true;
+    // Normalise: add .JK if not already present and not a global index
+    const ticker = q.toUpperCase().endsWith(".JK") ? q.toUpperCase() : `${q.toUpperCase()}.JK`;
+    setQuery(q.toUpperCase());
+    selectStock(ticker);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   // Re-fetch when timeframe changes — pass current live price
   useEffect(() => {
