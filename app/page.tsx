@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import GlassCard from "@/components/ui/GlassCard";
+import { TitleWithPills, StockQuickModal } from "@/components/ui/TickerPill";
 import { StockQuote, IndexData } from "@/lib/types";
 
 interface NewsItem {
@@ -52,6 +53,7 @@ export default function DashboardPage() {
   const [news, setNews] = useState<NewsItem[]>([]);
   const [newsLoading, setNewsLoading] = useState(true);
   const [globalQuotes, setGlobalQuotes] = useState<GlobalQuote[]>([]);
+  const [modalTicker, setModalTicker] = useState<{ ticker: string; fullTicker: string } | null>(null);
 
   const fetchGlobalIndices = useCallback(async () => {
     try {
@@ -190,6 +192,7 @@ export default function DashboardPage() {
   const swingTF = IHSG_TIMEFRAMES.filter((t) => t.group === "swing");
 
   return (
+    <>
     <div className="space-y-6">
       {/* Hero Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -605,10 +608,13 @@ export default function DashboardPage() {
                       )}
                     </div>
 
-                    {/* Title */}
-                    <h3 className="text-sm font-semibold leading-snug line-clamp-2 transition-colors group-hover:text-orange-400"
+                    {/* Title with ticker pills */}
+                    <h3 className="text-sm font-semibold leading-snug line-clamp-3 transition-colors group-hover:text-orange-400"
                       style={{ color: "#cbd5e1" }}>
-                      {item.title}
+                      <TitleWithPills
+                        text={item.title}
+                        onOpen={(t, ft) => setModalTicker({ ticker: t, fullTicker: ft })}
+                      />
                     </h3>
 
                     {/* Description */}
@@ -636,5 +642,15 @@ export default function DashboardPage() {
         )}
       </GlassCard>
     </div>
+
+    {/* Stock Quick Modal — opens when ticker pill clicked */}
+    {modalTicker && (
+      <StockQuickModal
+        ticker={modalTicker.ticker}
+        fullTicker={modalTicker.fullTicker}
+        onClose={() => setModalTicker(null)}
+      />
+    )}
+    </>
   );
 }

@@ -1,7 +1,9 @@
-import YahooFinanceModule from "yahoo-finance2";
-
-// yahoo-finance2 v3 requires instantiation
-const yahooFinance = new (YahooFinanceModule as any)({ suppressNotices: ["ripHistorical"] });
+// yahoo-finance2 v3: default export is the YahooFinance class itself
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const YahooFinance = require("yahoo-finance2").default ?? require("yahoo-finance2");
+const yahooFinance = new YahooFinance({
+  suppressNotices: ["ripHistorical", "yahooSurvey"],
+});
 
 export async function getQuote(ticker: string) {
   try {

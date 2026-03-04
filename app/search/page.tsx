@@ -41,6 +41,19 @@ interface NewsItemWithSentiment {
   sentimentReason: string;
 }
 
+interface FundamentalData {
+  majorHolders: {
+    insidersPercentHeld: number | null;
+    institutionsPercentHeld: number | null;
+    institutionsFloatPercentHeld: number | null;
+    institutionsCount: number | null;
+  } | null;
+  topInstitutions: { name: string; pctHeld: number; shares: number; value: number }[];
+  topInsiders: { name: string; relation: string; shares: number; pctHeld: number | null }[];
+  recommendationTrend: { period: string; strongBuy: number; buy: number; hold: number; sell: number; strongSell: number }[];
+  upgradeHistory: { date: string; firm: string; toGrade: string; fromGrade: string; action: string }[];
+}
+
 // Timeframe config: { label, range (for API period), interval (for API) }
 const TIMEFRAMES = [
   // Intraday
@@ -66,6 +79,8 @@ export default function SearchPage() {
   const [loadingChart, setLoadingChart] = useState(false);
   const [stockNews, setStockNews] = useState<NewsItemWithSentiment[]>([]);
   const [loadingNews, setLoadingNews] = useState(false);
+  const [fundamental, setFundamental] = useState<FundamentalData | null>(null);
+  const [loadingFundamental, setLoadingFundamental] = useState(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Debounced search — auto-add .JK
@@ -99,6 +114,7 @@ export default function SearchPage() {
       setQuote(null);
       setHistory([]);
       setStockNews([]);
+      setFundamental(null);
     }
     handleSearch(value);
   };
@@ -115,6 +131,20 @@ export default function SearchPage() {
       console.error("Failed to fetch stock news");
     } finally {
       setLoadingNews(false);
+    }
+  }, []);
+
+  const fetchFundamental = useCallback(async (ticker: string) => {
+    setLoadingFundamental(true);
+    setFundamental(null);
+    try {
+      const res = await fetch(`/api/stocks/fundamental/${encodeURIComponent(ticker)}`);
+      const data = await res.json();
+      if (!data.error) setFundamental(data as FundamentalData);
+    } catch {
+      console.error("Failed to fetch fundamental");
+    } finally {
+      setLoadingFundamental(false);
     }
   }, []);
 
@@ -154,6 +184,7 @@ export default function SearchPage() {
       setQuote(null);
       setHistory([]);
       setStockNews([]);
+      setFundamental(null);
 
       let livePrice: number | undefined;
       let companyName: string | undefined;
@@ -170,10 +201,11 @@ export default function SearchPage() {
       }
 
       await fetchChart(ticker, activeTimeframe, livePrice);
-      // Fetch news in parallel — don't await to avoid blocking chart render
+      // Fetch news + fundamental in parallel — don't await
       fetchStockNews(ticker, companyName);
+      fetchFundamental(ticker);
     },
-    [activeTimeframe, fetchChart, fetchStockNews]
+    [activeTimeframe, fetchChart, fetchStockNews, fetchFundamental]
   );
 
   // Re-fetch when timeframe changes — pass current live price
@@ -224,7 +256,7 @@ export default function SearchPage() {
             <div className="w-5 h-5 border-2 rounded-full animate-spin" style={{ borderColor: "rgba(251,146,60,0.3)", borderTopColor: "#fb923c" }} />
           ) : query ? (
             <button
-              onClick={() => { setQuery(""); setResults([]); setSelectedTicker(null); setQuote(null); setHistory([]); }}
+              onClick={() => { setQuery(""); setResults([]); setSelectedTicker(null); setQuote(null); setHistory([]); setFundamental(null); }}
               className="p-1 rounded-lg hover:bg-green-800/30 transition-all"
               style={{ color: "#64748b" }}
             >
@@ -305,7 +337,7 @@ export default function SearchPage() {
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
             <div>
               <button
-                onClick={() => { setSelectedTicker(null); setQuote(null); setHistory([]); setQuery(""); }}
+                onClick={() => { setSelectedTicker(null); setQuote(null); setHistory([]); setQuery(""); setFundamental(null); }}
                 className="flex items-center gap-1.5 text-xs mb-2 transition-colors hover:text-orange-400"
                 style={{ color: "#64748b" }}
               >
@@ -683,6 +715,226 @@ export default function SearchPage() {
                     </a>
                   );
                 })}
+              </div>
+            )}
+          </GlassCard>
+
+
+          {/* ── Major Holders & Institutional ── */}
+          <GlassCard hover={false}>
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+                style={{ background: "rgba(168,85,247,0.12)", border: "1px solid rgba(168,85,247,0.2)" }}>
+                <svg className="w-4 h-4" style={{ color: "#a855f7" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-sm font-bold" style={{ color: "#e2e8f0" }}>Major Holders & <span style={{ color: "#a855f7" }}>Institutional</span></h3>
+                <p className="text-[10px]" style={{ color: "#475569" }}>Kepemilikan saham oleh institusi dan insider</p>
+              </div>
+            </div>
+            {loadingFundamental ? (
+              <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-8 rounded-lg animate-pulse" style={{ background: "rgba(255,255,255,0.04)" }} />)}</div>
+            ) : !fundamental?.majorHolders && (fundamental?.topInstitutions?.length ?? 0) === 0 ? (
+              <p className="text-xs text-center py-6" style={{ color: "#334155" }}>Data kepemilikan tidak tersedia untuk saham ini</p>
+            ) : (
+              <div className="space-y-4">
+                {/* Breakdown bars */}
+                {fundamental?.majorHolders && (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {[
+                      { label: "Insider", value: fundamental.majorHolders.insidersPercentHeld, color: "#f59e0b" },
+                      { label: "Institusi", value: fundamental.majorHolders.institutionsPercentHeld, color: "#a855f7" },
+                      { label: "Float Inst.", value: fundamental.majorHolders.institutionsFloatPercentHeld, color: "#3b82f6" },
+                      { label: "# Institusi", value: null, count: fundamental.majorHolders.institutionsCount, color: "#10b981" },
+                    ].map(item => (
+                      <div key={item.label} className="p-3 rounded-xl" style={{ background: "rgba(6,20,50,0.35)", border: `1px solid ${item.color}18` }}>
+                        <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: "#475569" }}>{item.label}</p>
+                        {item.count != null ? (
+                          <p className="text-sm font-bold tabular-nums" style={{ color: item.color }}>{item.count.toLocaleString()}</p>
+                        ) : item.value != null ? (
+                          <>
+                            <p className="text-sm font-bold tabular-nums" style={{ color: item.color }}>{(item.value * 100).toFixed(2)}%</p>
+                            <div className="mt-1.5 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                              <div className="h-full rounded-full" style={{ width: `${Math.min(item.value * 100, 100)}%`, background: item.color }} />
+                            </div>
+                          </>
+                        ) : (
+                          <p className="text-xs" style={{ color: "#334155" }}>N/A</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Top Institutions table */}
+                {(fundamental?.topInstitutions?.length ?? 0) > 0 && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider font-semibold mb-2" style={{ color: "#475569" }}>Top Pemegang Institusi</p>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr style={{ borderBottom: "1px solid rgba(226,232,240,0.06)" }}>
+                            {["Institusi", "% Kepemilikan", "Jumlah Saham"].map(h => (
+                              <th key={h} className="text-left pb-2 pr-3 text-[10px] uppercase tracking-wider" style={{ color: "#334155" }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {fundamental!.topInstitutions.map((inst, i) => (
+                            <tr key={i} style={{ borderBottom: "1px solid rgba(226,232,240,0.04)" }}>
+                              <td className="py-2 pr-3 font-medium" style={{ color: "#94a3b8" }}>{inst.name || "—"}</td>
+                              <td className="py-2 pr-3 tabular-nums" style={{ color: "#a855f7" }}>
+                                {inst.pctHeld > 0 ? `${(inst.pctHeld * 100).toFixed(2)}%` : "—"}
+                              </td>
+                              <td className="py-2 tabular-nums" style={{ color: "#64748b" }}>
+                                {inst.shares > 0 ? inst.shares.toLocaleString() : "—"}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Top Insiders */}
+                {(fundamental?.topInsiders?.length ?? 0) > 0 && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider font-semibold mb-2" style={{ color: "#475569" }}>Insider / Orang Dalam</p>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr style={{ borderBottom: "1px solid rgba(226,232,240,0.06)" }}>
+                            {["Nama", "Posisi", "Jumlah Saham"].map(h => (
+                              <th key={h} className="text-left pb-2 pr-3 text-[10px] uppercase tracking-wider" style={{ color: "#334155" }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {fundamental!.topInsiders.map((ins, i) => (
+                            <tr key={i} style={{ borderBottom: "1px solid rgba(226,232,240,0.04)" }}>
+                              <td className="py-2 pr-3 font-medium" style={{ color: "#94a3b8" }}>{ins.name || "—"}</td>
+                              <td className="py-2 pr-3 text-[10px]" style={{ color: "#64748b" }}>{ins.relation || "—"}</td>
+                              <td className="py-2 tabular-nums" style={{ color: "#f59e0b" }}>
+                                {ins.shares > 0 ? ins.shares.toLocaleString() : "—"}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </GlassCard>
+
+          {/* ── Analyst Recommendations ── */}
+          <GlassCard hover={false}>
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+                style={{ background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.2)" }}>
+                <svg className="w-4 h-4" style={{ color: "#10b981" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-sm font-bold" style={{ color: "#e2e8f0" }}>Analyst <span style={{ color: "#10b981" }}>Recommendations</span></h3>
+                <p className="text-[10px]" style={{ color: "#475569" }}>Riwayat upgrade/downgrade dari analis sekuritas</p>
+              </div>
+            </div>
+            {loadingFundamental ? (
+              <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-8 rounded-lg animate-pulse" style={{ background: "rgba(255,255,255,0.04)" }} />)}</div>
+            ) : (fundamental?.recommendationTrend?.length ?? 0) === 0 && (fundamental?.upgradeHistory?.length ?? 0) === 0 ? (
+              <div className="text-center py-6">
+                <p className="text-xs" style={{ color: "#334155" }}>Data rekomendasi tidak tersedia</p>
+                <p className="text-[10px] mt-1" style={{ color: "#1e293b" }}>Data ini lebih lengkap untuk saham US. Saham IDX lapis 2–3 umumnya tidak ter-cover analis asing.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Recommendation trend — stacked bar per period */}
+                {(fundamental?.recommendationTrend?.length ?? 0) > 0 && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider font-semibold mb-3" style={{ color: "#475569" }}>Konsensus Analis (per periode)</p>
+                    <div className="space-y-2">
+                      {fundamental!.recommendationTrend.map((t) => {
+                        const total = t.strongBuy + t.buy + t.hold + t.sell + t.strongSell || 1;
+                        const bars = [
+                          { label: "Strong Buy", val: t.strongBuy, color: "#10b981" },
+                          { label: "Buy",        val: t.buy,       color: "#6ee7b7" },
+                          { label: "Hold",       val: t.hold,      color: "#f59e0b" },
+                          { label: "Sell",       val: t.sell,      color: "#f87171" },
+                          { label: "Strong Sell",val: t.strongSell,color: "#ef4444" },
+                        ];
+                        const periodLabel: Record<string, string> = { "0m": "Bulan ini", "-1m": "1 bln lalu", "-2m": "2 bln lalu", "-3m": "3 bln lalu" };
+                        return (
+                          <div key={t.period}>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[10px]" style={{ color: "#64748b" }}>{periodLabel[t.period] || t.period}</span>
+                              <span className="text-[10px]" style={{ color: "#334155" }}>{total} analis</span>
+                            </div>
+                            <div className="flex h-5 rounded-lg overflow-hidden gap-px">
+                              {bars.map(b => b.val > 0 && (
+                                <div key={b.label} className="flex items-center justify-center text-[9px] font-bold transition-all"
+                                  style={{ width: `${(b.val / total) * 100}%`, background: b.color, color: "rgba(0,0,0,0.7)", minWidth: b.val > 0 ? "18px" : 0 }}
+                                  title={`${b.label}: ${b.val}`}>
+                                  {b.val}
+                                </div>
+                              ))}
+                            </div>
+                            <div className="flex flex-wrap gap-x-2 mt-1">
+                              {bars.map(b => b.val > 0 && (
+                                <span key={b.label} className="text-[9px]" style={{ color: b.color }}>{b.label}: {b.val}</span>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Upgrade/Downgrade history */}
+                {(fundamental?.upgradeHistory?.length ?? 0) > 0 && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider font-semibold mb-2" style={{ color: "#475569" }}>Riwayat Upgrade / Downgrade</p>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr style={{ borderBottom: "1px solid rgba(226,232,240,0.06)" }}>
+                            {["Tanggal", "Firm", "Dari", "Ke", "Aksi"].map(h => (
+                              <th key={h} className="text-left pb-2 pr-3 text-[10px] uppercase tracking-wider" style={{ color: "#334155" }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {fundamental!.upgradeHistory.map((h, i) => {
+                            const isUp = h.action === "up";
+                            const isDown = h.action === "down";
+                            const actionColor = isUp ? "#10b981" : isDown ? "#ef4444" : "#94a3b8";
+                            const actionLabel = isUp ? "▲ Upgrade" : isDown ? "▼ Downgrade" : "→ Reiterate";
+                            return (
+                              <tr key={i} style={{ borderBottom: "1px solid rgba(226,232,240,0.04)" }}>
+                                <td className="py-2 pr-3 tabular-nums text-[10px]" style={{ color: "#64748b" }}>{h.date}</td>
+                                <td className="py-2 pr-3 font-medium" style={{ color: "#94a3b8" }}>{h.firm}</td>
+                                <td className="py-2 pr-3 text-[10px]" style={{ color: "#475569" }}>{h.fromGrade || "—"}</td>
+                                <td className="py-2 pr-3 text-[10px] font-semibold" style={{ color: actionColor }}>{h.toGrade || "—"}</td>
+                                <td className="py-2">
+                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                                    style={{ background: `${actionColor}15`, color: actionColor, border: `1px solid ${actionColor}25` }}>
+                                    {actionLabel}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </GlassCard>
