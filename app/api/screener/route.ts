@@ -1,20 +1,58 @@
 import { NextResponse } from "next/server";
-import { getQuote, getHistory } from "@/lib/yahooFinance";
 import { calcTechnicalSignals, OHLCVBar } from "@/lib/technicalSignals";
 
-// LQ45 + popular IDX stocks
+// yahoo-finance2 v3
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const YF = require("yahoo-finance2").default ?? require("yahoo-finance2");
+const yf = new YF({ suppressNotices: ["ripHistorical", "yahooSurvey"] });
+
+// ── Comprehensive IDX universe ~200 most-traded stocks ────────────────────────
+// Source: BEI LQ45, IDX30, IDX80, IDX SMC Composite + aktif diperdagangkan
 const IDX_UNIVERSE = [
-  "BBCA.JK","BBRI.JK","BMRI.JK","BBNI.JK","TLKM.JK",
-  "ASII.JK","UNVR.JK","GOTO.JK","BREN.JK","AMRT.JK",
-  "ADRO.JK","ANTM.JK","INDF.JK","ICBP.JK","KLBF.JK",
-  "PGAS.JK","PTBA.JK","SMGR.JK","JSMR.JK","EXCL.JK",
-  "ISAT.JK","CPIN.JK","MDKA.JK","TOWR.JK","PWON.JK",
-  "CTRA.JK","BSDE.JK","SMRA.JK","MNCN.JK","EMTK.JK",
-  "MAPI.JK","ACES.JK","LSIP.JK","AALI.JK","TBIG.JK",
-  "HRUM.JK","INCO.JK","MEDC.JK","INTP.JK","SIDO.JK",
-  "MYOR.JK","GGRM.JK","HMSP.JK","BNGA.JK","BDMN.JK",
-  "BJTM.JK","BJBR.JK","PNBN.JK","JPFA.JK","TBLA.JK",
+  // LQ45 / Blue chip
+  "BBCA.JK","BBRI.JK","BMRI.JK","BBNI.JK","TLKM.JK","ASII.JK","UNVR.JK","GOTO.JK",
+  "BREN.JK","AMRT.JK","ADRO.JK","ANTM.JK","INDF.JK","ICBP.JK","KLBF.JK","PGAS.JK",
+  "PTBA.JK","SMGR.JK","JSMR.JK","EXCL.JK","ISAT.JK","CPIN.JK","MDKA.JK","TOWR.JK",
+  "PWON.JK","CTRA.JK","BSDE.JK","SMRA.JK","MNCN.JK","EMTK.JK","MAPI.JK","ACES.JK",
+  "LSIP.JK","AALI.JK","TBIG.JK","HRUM.JK","INCO.JK","MEDC.JK","INTP.JK","SIDO.JK",
+  "MYOR.JK","GGRM.JK","HMSP.JK","BNGA.JK","BDMN.JK","BJTM.JK","BJBR.JK","PNBN.JK",
+  "JPFA.JK","TBLA.JK",
+  // IDX80 tambahan
+  "ITMG.JK","BUMI.JK","PTPP.JK","WIKA.JK","WSKT.JK","ADHI.JK","NRCA.JK","TOTL.JK",
+  "SSIA.JK","ACST.JK","ERAA.JK","MIKA.JK","HEAL.JK","SILO.JK","RALS.JK","LPPF.JK",
+  "MPPA.JK","HERO.JK","ACES.JK","MIDI.JK","CSAP.JK","RANC.JK","DMAS.JK","BEST.JK",
+  "KIJA.JK","LPKR.JK","MTLA.JK","GPRA.JK","ARMY.JK","APLN.JK","DILD.JK","PPRO.JK",
+  "BKSL.JK","MKPI.JK","ASRI.JK","GMTD.JK","PLIN.JK","DART.JK","COWL.JK","JRPT.JK",
+  // Perbankan & keuangan
+  "BNLI.JK","NISP.JK","BTPS.JK","BRIS.JK","MEGA.JK","BACA.JK","AGRO.JK","BBYB.JK",
+  "BBKP.JK","BNBA.JK","BGTG.JK","BMAS.JK","BBMD.JK","NOBU.JK","DNAR.JK","LIFE.JK",
+  "BFIN.JK","ADMF.JK","CFIN.JK","MFIN.JK","VRNA.JK","IMJS.JK","PNLF.JK","LPPS.JK",
+  // Energi & tambang
+  "INDY.JK","DOID.JK","TOBA.JK","SMMT.JK","BOSS.JK","GEMS.JK","KKGI.JK","MYOH.JK",
+  "FIRE.JK","BSSR.JK","MCOL.JK","HPMA.JK","GTBO.JK","PKPK.JK","MBAP.JK","ARII.JK",
+  "PSAB.JK","SMCB.JK","MITI.JK","MITI.JK","RUIS.JK","ENRG.JK","ELSA.JK","PKTT.JK",
+  // Konsumer & retail
+  "ICBP.JK","ULTJ.JK","CAMP.JK","CLEO.JK","GOOD.JK","KEJU.JK","SKLT.JK","SMAR.JK",
+  "AISA.JK","DLTA.JK","MLBI.JK","RDTX.JK","SKBM.JK","ROTI.JK","TBIG.JK","ALTO.JK",
+  "ADES.JK","HOKI.JK","BTEK.JK","PCAR.JK","MGNA.JK","KINO.JK","KBLI.JK","SCCO.JK",
+  // Teknologi & telko
+  "DNET.JK","EDGE.JK","MTDL.JK","MLPT.JK","ATIC.JK","DOOH.JK","AXIO.JK","NFCX.JK",
+  "PTSN.JK","ITSB.JK","MTEL.JK","WIFI.JK","RUNS.JK","INET.JK","LSAT.JK","CBPE.JK",
+  // Farmasi & kesehatan
+  "KAEF.JK","INAF.JK","MERK.JK","PYFA.JK","TSPC.JK","DVLA.JK","SCPI.JK","SIDO.JK",
+  "SOHO.JK","KPAS.JK","PRIM.JK","PMMP.JK","CSLI.JK","ATIC.JK","PEHA.JK","BIOS.JK",
+  // Properti & konstruksi
+  "DUTI.JK","SMDM.JK","BIPP.JK","OMRE.JK","NIRO.JK","LCGP.JK","SATU.JK","IDEA.JK",
+  // Otomotif & industri
+  "AUTO.JK","IMAS.JK","INDS.JK","LPIN.JK","SMSM.JK","GJTL.JK","GDYR.JK","MASA.JK",
+  "KBLM.JK","VOKS.JK","GMFI.JK","INTA.JK","MDRN.JK","HEXA.JK","TURI.JK","UNTR.JK",
+  // Agribisnis & perkebunan
+  "SSMS.JK","DSNG.JK","SIMP.JK","PALM.JK","TAPG.JK","UNSP.JK","SGRO.JK","SMAR.JK",
+  "BWPT.JK","GZCO.JK","JAWA.JK","ANDI.JK","TBLA.JK","MAGP.JK","CSRA.JK","PANI.JK",
 ];
+
+// Deduplicate
+const UNIVERSE = [...new Set(IDX_UNIVERSE)];
 
 export interface ScreenerRow {
   ticker: string;
@@ -36,74 +74,86 @@ export interface ScreenerRow {
 }
 
 export async function GET() {
-  // Fetch quotes in parallel batches of 10
-  const batches: string[][] = [];
-  for (let i = 0; i < IDX_UNIVERSE.length; i += 10) {
-    batches.push(IDX_UNIVERSE.slice(i, i + 10));
-  }
-
   const rows: ScreenerRow[] = [];
 
-  for (const batch of batches) {
+  // ── Batch fetch quotes (10 at a time to avoid rate limit) ─────────────────
+  const BATCH = 10;
+  for (let i = 0; i < UNIVERSE.length; i += BATCH) {
+    const batch = UNIVERSE.slice(i, i + BATCH);
     await Promise.allSettled(
       batch.map(async (ticker) => {
         try {
-          const [quote, history] = await Promise.all([
-            getQuote(ticker),
-            getHistory(ticker, new Date(Date.now() - 90 * 86400000).toISOString().split("T")[0], undefined, "1d"),
-          ]);
+          // 1. Quote — gives us price, change%, vol, 52W high/low, avg vol, P/E
+          const q: any = await yf.quote(ticker);
+          if (!q || !q.regularMarketPrice) return;
 
-          if (!quote || !history || history.length < 20) return;
+          const price = q.regularMarketPrice ?? 0;
+          const changePercent = (() => {
+            const prev = q.regularMarketPreviousClose ?? 0;
+            return prev > 0 ? ((price - prev) / prev) * 100 : 0;
+          })();
+          const volume = q.regularMarketVolume ?? 0;
+          const avgVolume = q.averageDailyVolume3Month ?? q.averageDailyVolume10Day ?? 1;
+          const volSpikeRatio = avgVolume > 0 ? volume / avgVolume : 1;
+          const high52 = q.fiftyTwoWeekHigh ?? price;
+          const low52 = q.fiftyTwoWeekLow ?? price;
+          const pctFrom52High = high52 > 0 ? ((price - high52) / high52) * 100 : 0;
+          const isBreakout52W = price >= high52 * 0.98;
+          const trailingPE = q.trailingPE ?? null;
 
-          const bars: OHLCVBar[] = history.map((h: any) => ({
-            time: h.time, open: h.open, high: h.high, low: h.low,
-            close: h.close, volume: h.volume ?? 0,
-          }));
+          // 2. Short history for RSI/MACD (60 days, fail silently)
+          let rsi: number | null = null;
+          let macdSignal: "bull" | "bear" | null = null;
+          let signalLabel: "BUY" | "SELL" | "WAIT" = "WAIT";
+          let score = 50;
 
-          const signals = calcTechnicalSignals(bars);
-
-          // Volume spike: last bar vs 20-day avg
-          const volumes = bars.map(b => b.volume);
-          const avg20Vol = volumes.slice(-21, -1).reduce((a, b) => a + b, 0) / 20;
-          const lastVol = volumes[volumes.length - 1];
-          const volSpikeRatio = avg20Vol > 0 ? lastVol / avg20Vol : 1;
-
-          // 52W metrics
-          const highs = bars.map(b => b.high);
-          const lows  = bars.map(b => b.low);
-          const high52 = Math.max(...highs);
-          const low52  = Math.min(...lows);
-          const pctFrom52High = high52 > 0 ? ((quote.price - high52) / high52) * 100 : 0;
-          const isBreakout52W = quote.price >= high52 * 0.98;
+          try {
+            const period1 = new Date(Date.now() - 90 * 86400000).toISOString().split("T")[0];
+            const hist: any = await yf.chart(ticker, { period1, interval: "1d" });
+            const quotes = (hist?.quotes ?? []).filter((b: any) => b.close != null);
+            if (quotes.length >= 20) {
+              const bars: OHLCVBar[] = quotes.map((b: any) => ({
+                time: new Date(b.date).toISOString().split("T")[0],
+                open: b.open ?? b.close,
+                high: b.high ?? b.close,
+                low: b.low ?? b.close,
+                close: b.close,
+                volume: b.volume ?? 0,
+              }));
+              const sig = calcTechnicalSignals(bars);
+              rsi = sig.rsi;
+              macdSignal = sig.macdHist != null ? (sig.macdHist > 0 ? "bull" : "bear") : null;
+              signalLabel = sig.label;
+              score = sig.score;
+            }
+          } catch { /* RSI optional */ }
 
           rows.push({
             ticker,
-            name: quote.name,
-            price: quote.price,
-            changePercent: quote.changePercent,
-            volume: lastVol,
-            avgVolume: avg20Vol,
+            name: q.shortName || q.longName || ticker,
+            price,
+            changePercent,
+            volume,
+            avgVolume,
             volSpikeRatio,
             fiftyTwoWeekHigh: high52,
             fiftyTwoWeekLow: low52,
             pctFrom52High,
             isBreakout52W,
-            rsi: signals.rsi,
-            macdSignal: signals.macdHist != null ? (signals.macdHist > 0 ? "bull" : "bear") : null,
-            trailingPE: null, // optional — skip PE to keep fast
-            signalLabel: signals.label,
-            score: signals.score,
+            rsi,
+            macdSignal,
+            trailingPE,
+            signalLabel,
+            score,
           });
         } catch { /* skip failed tickers */ }
       })
     );
   }
 
-  // Sort by score descending by default
   rows.sort((a, b) => b.score - a.score);
 
   return NextResponse.json(rows, {
-    headers: { "Cache-Control": "s-maxage=300, stale-while-revalidate=60" },
+    headers: { "Cache-Control": "s-maxage=600, stale-while-revalidate=120" },
   });
 }
-

@@ -97,8 +97,8 @@ export default function ScreenerPage() {
           <div className="flex flex-col items-center gap-3 py-16">
             <div className="w-10 h-10 border-2 rounded-full animate-spin"
               style={{ borderColor: "rgba(251,146,60,0.2)", borderTopColor: "#fb923c" }} />
-            <p className="text-sm" style={{ color: "#64748b" }}>Menganalisa {50} saham IDX...</p>
-            <p className="text-xs" style={{ color: "#334155" }}>Proses ini memakan waktu ~15–30 detik</p>
+            <p className="text-sm" style={{ color: "#64748b" }}>Menganalisa ~200 saham IDX...</p>
+            <p className="text-xs" style={{ color: "#334155" }}>Proses ini memakan waktu ~30–60 detik (RSI + MACD per saham)</p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-16">
@@ -265,7 +265,7 @@ export default function ScreenerPage() {
 
             {/* Footer count */}
             <div className="px-4 py-2.5 text-[10px]" style={{ color: "#334155", borderTop: "1px solid rgba(226,232,240,0.06)" }}>
-              Menampilkan {filtered.length} dari {rows.length} saham · Data diperbarui setiap 5 menit
+              Menampilkan {filtered.length} dari {rows.length} saham · Universe: ~200 saham IDX aktif · Cache 10 menit
             </div>
           </>
         )}
