@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { WatchlistWithQuote } from "@/lib/types";
+import { calcTechnicalSignals, OHLCVBar } from "@/lib/technicalSignals";
 
 interface StockCardProps {
   stock: WatchlistWithQuote;
@@ -18,6 +20,29 @@ export default function StockCard({ stock }: StockCardProps) {
   const tpDistance = stock.tp && price ? (((stock.tp - price) / price) * 100) : null;
   const slDistance = stock.sl && price ? (((price - stock.sl) / price) * 100) : null;
 
+  // ── Technical signal badge ─────────────────────────────────────────────────
+  const [signal, setSignal] = useState<{ label: "BUY"|"SELL"|"WAIT"; score: number } | null>(null);
+  useEffect(() => {
+    fetch(`/api/stocks/history/${encodeURIComponent(stock.ticker)}?range=3mo&interval=1d`)
+      .then(r => r.json())
+      .then(data => {
+        if (!Array.isArray(data) || data.length < 20) return;
+        const bars: OHLCVBar[] = data.map((h: any) => ({
+          time: h.time, open: h.open, high: h.high, low: h.low,
+          close: h.close, volume: h.volume ?? 0,
+        }));
+        const result = calcTechnicalSignals(bars);
+        setSignal({ label: result.label, score: result.score });
+      })
+      .catch(() => {});
+  }, [stock.ticker]);
+
+  const sigStyle = signal ? {
+    BUY:  { bg: "rgba(16,185,129,0.15)", color: "#10b981", border: "rgba(16,185,129,0.25)", icon: "🟢" },
+    SELL: { bg: "rgba(239,68,68,0.15)",  color: "#f87171", border: "rgba(239,68,68,0.25)",  icon: "🔴" },
+    WAIT: { bg: "rgba(245,158,11,0.15)", color: "#f59e0b", border: "rgba(245,158,11,0.25)", icon: "🟡" },
+  }[signal.label] : null;
+
   return (
     <Link href={`/stock/${encodeURIComponent(stock.ticker)}`}>
       <div className="glass-card p-5 cursor-pointer group">
@@ -31,12 +56,21 @@ export default function StockCard({ stock }: StockCardProps) {
               {stock.name}
             </p>
           </div>
-          <div className={`px-2 py-1 rounded-lg text-xs font-bold ${
-            isPositive 
-              ? "bg-green-500/20 text-green-500 border border-green-500/20" 
-              : "bg-red-500/20 text-red-400 border border-red-500/20"
-          }`}>
-            {isPositive ? "▲" : "▼"} {Math.abs(changePercent).toFixed(2)}%
+          <div className="flex flex-col items-end gap-1">
+            <div className={`px-2 py-1 rounded-lg text-xs font-bold ${
+              isPositive
+                ? "bg-green-500/20 text-green-500 border border-green-500/20"
+                : "bg-red-500/20 text-red-400 border border-red-500/20"
+            }`}>
+              {isPositive ? "▲" : "▼"} {Math.abs(changePercent).toFixed(2)}%
+            </div>
+            {/* Signal badge */}
+            {sigStyle && signal && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md"
+                style={{ background: sigStyle.bg, color: sigStyle.color, border: `1px solid ${sigStyle.border}` }}>
+                {sigStyle.icon} {signal.label} {signal.score}
+              </span>
+            )}
           </div>
         </div>
 

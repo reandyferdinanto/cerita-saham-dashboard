@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import GlassCard from "@/components/ui/GlassCard";
 import FundamentalSection from "@/components/ui/FundamentalSection";
+import TechnicalSignalPanel from "@/components/ui/TechnicalSignalPanel";
 import { SearchResult, StockQuote, OHLCData } from "@/lib/types";
 
 const CandlestickChart = dynamic(
@@ -550,6 +551,11 @@ export default function SearchPage() {
                 Rp {(quote.marketCap / 1_000_000_000_000).toFixed(2)}T
               </p>
             </GlassCard>
+          )}
+
+          {/* ── Sinyal Teknikal ── */}
+          {history.length >= 20 && (
+            <TechnicalSignalPanel history={history} ticker={selectedTicker!} />
           )}
 
           {/* ── Related News & Sentiment ── */}

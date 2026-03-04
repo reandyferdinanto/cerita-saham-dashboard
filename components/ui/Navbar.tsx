@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 
-const navLinks = [
+const primaryLinks = [
 	{
 		href: "/",
 		label: "Dashboard",
@@ -62,6 +63,47 @@ const navLinks = [
 		),
 	},
 	{
+		href: "/screener",
+		label: "Screener",
+		icon: (
+			<svg
+				className="w-4 h-4"
+				fill="none"
+				viewBox="0 0 24 24"
+				stroke="currentColor"
+				strokeWidth={1.8}
+			>
+				<path
+					strokeLinecap="round"
+					strokeLinejoin="round"
+					d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"
+				/>
+			</svg>
+		),
+	},
+	{
+		href: "/compare",
+		label: "Bandingkan",
+		icon: (
+			<svg
+				className="w-4 h-4"
+				fill="none"
+				viewBox="0 0 24 24"
+				stroke="currentColor"
+				strokeWidth={1.8}
+			>
+				<path
+					strokeLinecap="round"
+					strokeLinejoin="round"
+					d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+				/>
+			</svg>
+		),
+	},
+];
+
+const moreLinks = [
+	{
 		href: "/guidance",
 		label: "Panduan",
 		icon: (
@@ -106,12 +148,15 @@ const navLinks = [
 	},
 ];
 
+const allLinks = [...primaryLinks, ...moreLinks];
+
 interface NavbarProps {
 	delayMinutes?: number | null;
 }
 
 export default function Navbar({ delayMinutes }: NavbarProps) {
 	const pathname = usePathname();
+	const [moreOpen, setMoreOpen] = useState(false);
 
 	return (
 		<>
@@ -141,14 +186,19 @@ export default function Navbar({ delayMinutes }: NavbarProps) {
 								}}
 							>
 								Cerita{" "}
-								<span style={{
-									color: "#D4AF37",
-									fontStyle: "italic",
-									background: "linear-gradient(135deg, #D4AF37 0%, #F5D876 50%, #B8860B 100%)",
-									WebkitBackgroundClip: "text",
-									WebkitTextFillColor: "transparent",
-									backgroundClip: "text",
-								}}>Saham</span>
+								<span
+									style={{
+										color: "#D4AF37",
+										fontStyle: "italic",
+										background:
+											"linear-gradient(135deg, #D4AF37 0%, #F5D876 50%, #B8860B 100%)",
+										WebkitBackgroundClip: "text",
+										WebkitTextFillColor: "transparent",
+										backgroundClip: "text",
+									}}
+								>
+									Saham
+								</span>
 							</h1>
 							<p
 								className="text-[10px] mt-0.5 hidden sm:block"
@@ -159,9 +209,9 @@ export default function Navbar({ delayMinutes }: NavbarProps) {
 						</div>
 					</Link>
 
-					{/* Nav links — hidden on mobile, shown on md+ */}
+					{/* Nav links — desktop */}
 					<div className="hidden md:flex items-center gap-1">
-						{navLinks.map((link) => {
+						{allLinks.map((link) => {
 							const isActive = pathname === link.href;
 							return (
 								<Link
@@ -188,7 +238,7 @@ export default function Navbar({ delayMinutes }: NavbarProps) {
 						})}
 					</div>
 
-					{/* Data delay badge */}
+					{/* Delay badge */}
 					<div
 						className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl"
 						style={{
@@ -238,21 +288,21 @@ export default function Navbar({ delayMinutes }: NavbarProps) {
 
 			{/* ── Bottom nav — mobile only ──────────────────────────── */}
 			<nav
-				className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-2 py-2"
+				className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-1 py-1"
 				style={{
-					background: "rgba(6,20,14,0.92)",
+					background: "rgba(6,20,14,0.95)",
 					borderTop: "1px solid rgba(16,185,129,0.12)",
 					backdropFilter: "blur(20px)",
 					WebkitBackdropFilter: "blur(20px)",
 				}}
 			>
-				{navLinks.map((link) => {
+				{primaryLinks.map((link) => {
 					const isActive = pathname === link.href;
 					return (
 						<Link
 							key={link.href}
 							href={link.href}
-							className="flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-all min-w-[60px]"
+							className="flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl transition-all min-w-[52px]"
 							style={{
 								color: isActive ? "#fb923c" : "#475569",
 								background: isActive ? "rgba(249,115,22,0.1)" : "transparent",
@@ -261,13 +311,93 @@ export default function Navbar({ delayMinutes }: NavbarProps) {
 							<span style={{ color: isActive ? "#fb923c" : "#475569" }}>
 								{link.icon}
 							</span>
-							<span className="text-[10px] font-medium leading-none">
+							<span className="text-[9px] font-medium leading-none">
 								{link.label}
 							</span>
 						</Link>
 					);
 				})}
+				{/* More button */}
+				<button
+					onClick={() => setMoreOpen((o) => !o)}
+					className="flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl transition-all min-w-[52px]"
+					style={{
+						color:
+							moreOpen || moreLinks.some((l) => l.href === pathname)
+								? "#fb923c"
+								: "#475569",
+					}}
+				>
+					<svg
+						className="w-4 h-4"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						strokeWidth={1.8}
+					>
+						<path
+							strokeLinecap="round"
+							strokeLinejoin="round"
+							d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z"
+						/>
+					</svg>
+					<span className="text-[9px] font-medium leading-none">
+						Lainnya
+					</span>
+				</button>
 			</nav>
+
+			{/* ── "More" slide-up sheet — mobile ───────────────────── */}
+			{moreOpen && (
+				<div
+					className="md:hidden fixed inset-0 z-40"
+					onClick={() => setMoreOpen(false)}
+				>
+					<div
+						className="absolute inset-0"
+						style={{ background: "rgba(0,0,0,0.5)" }}
+					/>
+					<div
+						className="absolute bottom-14 left-2 right-2 rounded-2xl overflow-hidden"
+						style={{
+							background: "rgba(6,20,14,0.98)",
+							border: "1px solid rgba(16,185,129,0.15)",
+						}}
+						onClick={(e) => e.stopPropagation()}
+					>
+						{moreLinks.map((link) => {
+							const isActive = pathname === link.href;
+							return (
+								<Link
+									key={link.href}
+									href={link.href}
+									onClick={() => setMoreOpen(false)}
+									className="flex items-center gap-3 px-5 py-4 transition-all"
+									style={{
+										borderBottom:
+											"1px solid rgba(226,232,240,0.06)",
+										color: isActive ? "#fb923c" : "#94a3b8",
+									}}
+								>
+									<span
+										style={{
+											color: isActive ? "#fb923c" : "#64748b",
+										}}
+									>
+										{link.icon}
+									</span>
+									<span className="text-sm font-medium">
+										{link.label}
+									</span>
+									{isActive && (
+										<span className="ml-auto w-1.5 h-1.5 rounded-full bg-orange-400" />
+									)}
+								</Link>
+							);
+						})}
+					</div>
+				</div>
+			)}
 		</>
 	);
 }
