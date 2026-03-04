@@ -24,6 +24,24 @@ const LineChart = dynamic(() => import("@/components/charts/LineChart"), {
   ),
 });
 
+// Global indices to display in the market ticker
+const GLOBAL_INDICES = [
+  { ticker: "^GSPC",  label: "S&P 500",    flag: "🇺🇸", region: "US"   },
+  { ticker: "^DJI",   label: "Dow Jones",   flag: "🇺🇸", region: "US"   },
+  { ticker: "^IXIC",  label: "Nasdaq",      flag: "🇺🇸", region: "US"   },
+  { ticker: "^VIX",   label: "VIX",         flag: "😱",  region: "US"   },
+  { ticker: "^N225",  label: "Nikkei 225",  flag: "🇯🇵", region: "Asia" },
+  { ticker: "^HSI",   label: "Hang Seng",   flag: "🇭🇰", region: "Asia" },
+  { ticker: "^KS11",  label: "KOSPI",       flag: "🇰🇷", region: "Asia" },
+];
+
+interface GlobalQuote {
+  ticker: string;
+  price: number;
+  change: number;
+  changePercent: number;
+}
+
 export default function DashboardPage() {
   const [ihsgData, setIhsgData] = useState<IndexData[]>([]);
   const [ihsgQuote, setIhsgQuote] = useState<StockQuote | null>(null);
@@ -33,6 +51,33 @@ export default function DashboardPage() {
   const [lastUpdated, setLastUpdated] = useState<string>("");
   const [news, setNews] = useState<NewsItem[]>([]);
   const [newsLoading, setNewsLoading] = useState(true);
+  const [globalQuotes, setGlobalQuotes] = useState<GlobalQuote[]>([]);
+
+  const fetchGlobalIndices = useCallback(async () => {
+    try {
+      const results = await Promise.allSettled(
+        GLOBAL_INDICES.map((idx) =>
+          fetch(`/api/stocks/quote/${encodeURIComponent(idx.ticker)}`).then((r) => r.json())
+        )
+      );
+      const quotes: GlobalQuote[] = results
+        .map((r, i) => {
+          if (r.status === "fulfilled" && !r.value.error) {
+            return {
+              ticker: GLOBAL_INDICES[i].ticker,
+              price: r.value.price ?? 0,
+              change: r.value.change ?? 0,
+              changePercent: r.value.changePercent ?? 0,
+            } as GlobalQuote;
+          }
+          return null;
+        })
+        .filter(Boolean) as GlobalQuote[];
+      setGlobalQuotes(quotes);
+    } catch {
+      console.error("Failed to fetch global indices");
+    }
+  }, []);
 
   const fetchData = useCallback(async () => {
     try {
@@ -89,14 +134,16 @@ export default function DashboardPage() {
   useEffect(() => {
     // Initial load: fetch quote first, then chart with live price
     fetchData().then((livePrice) => fetchIhsgChart(livePrice));
+    fetchGlobalIndices();
 
     const interval = setInterval(async () => {
       const livePrice = await fetchData();
       fetchIhsgChart(livePrice);
+      fetchGlobalIndices();
     }, 60_000);
 
     return () => clearInterval(interval);
-  }, [fetchData, fetchIhsgChart]);
+  }, [fetchData, fetchIhsgChart, fetchGlobalIndices]);
 
   // Re-fetch chart when timeframe changes (use current quote price if available)
   useEffect(() => {
@@ -198,6 +245,115 @@ export default function DashboardPage() {
           </Link>
         </div>
       </div>
+
+      {/* Global Markets Ticker */}
+      <GlassCard hover={false} className="!p-3 sm:!p-4">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0"
+              style={{ background: "rgba(249,115,22,0.12)", border: "1px solid rgba(249,115,22,0.2)" }}>
+              <svg className="w-3.5 h-3.5" style={{ color: "#fb923c" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064" />
+              </svg>
+            </div>
+            <span className="text-xs font-bold text-silver-300">Global Markets</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-green-500 pulse-dot" />
+            <span className="text-[10px] text-green-500 font-medium">Live</span>
+          </div>
+        </div>
+
+        {/* Two groups: US and Asia */}
+        {globalQuotes.length === 0 ? (
+          /* Skeleton */
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+            {GLOBAL_INDICES.map((idx) => (
+              <div key={idx.ticker} className="rounded-xl p-2.5 animate-pulse"
+                style={{ background: "rgba(6,78,59,0.2)", border: "1px solid rgba(226,232,240,0.06)" }}>
+                <div className="h-2.5 rounded w-3/4 mb-2" style={{ background: "rgba(255,255,255,0.06)" }} />
+                <div className="h-4 rounded w-full mb-1.5" style={{ background: "rgba(255,255,255,0.06)" }} />
+                <div className="h-2.5 rounded w-1/2" style={{ background: "rgba(255,255,255,0.06)" }} />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {/* US Markets */}
+            <div>
+              <p className="text-[9px] uppercase tracking-widest font-semibold mb-1.5" style={{ color: "#334155" }}>🇺🇸 US Markets</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {GLOBAL_INDICES.filter((idx) => idx.region === "US").map((idx) => {
+                  const q = globalQuotes.find((g) => g.ticker === idx.ticker);
+                  const isUp = (q?.changePercent ?? 0) >= 0;
+                  const isVix = idx.ticker === "^VIX";
+                  // VIX: up = bad (red), down = good (green) — flip colors
+                  const positiveColor = isVix ? (isUp ? "#ef4444" : "#10b981") : (isUp ? "#10b981" : "#ef4444");
+                  const negativeColor = positiveColor;
+                  return (
+                    <div key={idx.ticker} className="rounded-xl p-2.5 flex items-center justify-between gap-2"
+                      style={{ background: "rgba(6,78,59,0.15)", border: "1px solid rgba(226,232,240,0.06)" }}>
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-semibold text-silver-400 truncate">{idx.label}</p>
+                        <p className="text-sm font-bold text-silver-100 tabular-nums leading-tight">
+                          {q ? q.price.toLocaleString("en-US", { maximumFractionDigits: 2 }) : "—"}
+                        </p>
+                      </div>
+                      {q && (
+                        <div className="flex flex-col items-end flex-shrink-0">
+                          <span className="text-base leading-none" style={{ color: negativeColor }}>
+                            {isUp ? "▲" : "▼"}
+                          </span>
+                          <span className="text-[10px] font-bold tabular-nums" style={{ color: negativeColor }}>
+                            {Math.abs(q.changePercent).toFixed(2)}%
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Asia Markets */}
+            <div>
+              <p className="text-[9px] uppercase tracking-widest font-semibold mb-1.5" style={{ color: "#334155" }}>🌏 Asia Markets</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {GLOBAL_INDICES.filter((idx) => idx.region === "Asia").map((idx) => {
+                  const q = globalQuotes.find((g) => g.ticker === idx.ticker);
+                  const isUp = (q?.changePercent ?? 0) >= 0;
+                  const color = isUp ? "#10b981" : "#ef4444";
+                  return (
+                    <div key={idx.ticker} className="rounded-xl p-2.5 flex items-center justify-between gap-2"
+                      style={{ background: "rgba(6,78,59,0.15)", border: "1px solid rgba(226,232,240,0.06)" }}>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1">
+                          <span className="text-sm leading-none">{idx.flag}</span>
+                          <p className="text-[10px] font-semibold text-silver-400 truncate">{idx.label}</p>
+                        </div>
+                        <p className="text-sm font-bold text-silver-100 tabular-nums leading-tight mt-0.5">
+                          {q ? q.price.toLocaleString("en-US", { maximumFractionDigits: 2 }) : "—"}
+                        </p>
+                      </div>
+                      {q && (
+                        <div className="flex flex-col items-end flex-shrink-0">
+                          <span className="text-base leading-none" style={{ color }}>
+                            {isUp ? "▲" : "▼"}
+                          </span>
+                          <span className="text-[10px] font-bold tabular-nums" style={{ color }}>
+                            {Math.abs(q.changePercent).toFixed(2)}%
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+      </GlassCard>
 
       {/* IHSG Chart */}
       <GlassCard hover={false}>

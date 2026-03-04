@@ -29,6 +29,18 @@ const LineChart = dynamic(() => import("@/components/charts/LineChart"), {
 
 type ChartType = "candlestick" | "line";
 
+interface NewsItemWithSentiment {
+  title: string;
+  link: string;
+  pubDate: string;
+  description: string;
+  source: string;
+  image?: string;
+  sentiment: "positive" | "negative" | "neutral";
+  sentimentScore: number;
+  sentimentReason: string;
+}
+
 // Timeframe config: { label, range (for API period), interval (for API) }
 const TIMEFRAMES = [
   // Intraday
@@ -52,6 +64,8 @@ export default function SearchPage() {
   const [activeTimeframe, setActiveTimeframe] = useState(TIMEFRAMES[4]); // default 1Y daily
   const [chartType, setChartType] = useState<ChartType>("candlestick");
   const [loadingChart, setLoadingChart] = useState(false);
+  const [stockNews, setStockNews] = useState<NewsItemWithSentiment[]>([]);
+  const [loadingNews, setLoadingNews] = useState(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Debounced search — auto-add .JK
@@ -84,9 +98,25 @@ export default function SearchPage() {
       setSelectedTicker(null);
       setQuote(null);
       setHistory([]);
+      setStockNews([]);
     }
     handleSearch(value);
   };
+
+  const fetchStockNews = useCallback(async (ticker: string, companyName?: string) => {
+    setLoadingNews(true);
+    setStockNews([]);
+    try {
+      const nameParam = companyName ? `?name=${encodeURIComponent(companyName)}` : "";
+      const res = await fetch(`/api/news/stock/${encodeURIComponent(ticker)}${nameParam}`);
+      const data = await res.json();
+      if (Array.isArray(data)) setStockNews(data);
+    } catch {
+      console.error("Failed to fetch stock news");
+    } finally {
+      setLoadingNews(false);
+    }
+  }, []);
 
   const fetchChart = useCallback(
     async (ticker: string, tf: typeof TIMEFRAMES[0], livePrice?: number) => {
@@ -123,22 +153,27 @@ export default function SearchPage() {
       setLoadingChart(true);
       setQuote(null);
       setHistory([]);
+      setStockNews([]);
 
       let livePrice: number | undefined;
+      let companyName: string | undefined;
       try {
         const quoteRes = await fetch(`/api/stocks/quote/${encodeURIComponent(ticker)}`);
         const quoteData = await quoteRes.json();
         if (!quoteData.error) {
           setQuote(quoteData);
           livePrice = quoteData.price;
+          companyName = quoteData.name;
         }
       } catch {
         console.error("Failed to fetch quote");
       }
 
       await fetchChart(ticker, activeTimeframe, livePrice);
+      // Fetch news in parallel — don't await to avoid blocking chart render
+      fetchStockNews(ticker, companyName);
     },
-    [activeTimeframe, fetchChart]
+    [activeTimeframe, fetchChart, fetchStockNews]
   );
 
   // Re-fetch when timeframe changes — pass current live price
@@ -459,6 +494,198 @@ export default function SearchPage() {
               </p>
             </GlassCard>
           )}
+
+          {/* ── Related News & Sentiment ── */}
+          <GlassCard hover={false}>
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+                  style={{ background: "rgba(249,115,22,0.12)", border: "1px solid rgba(249,115,22,0.2)" }}>
+                  <svg className="w-4 h-4" style={{ color: "#fb923c" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold" style={{ color: "#e2e8f0" }}>
+                    Berita terkait{" "}
+                    <span style={{ color: "#fb923c" }}>{selectedTicker?.replace(".JK", "")}</span>
+                  </h3>
+                  <p className="text-[10px]" style={{ color: "#475569" }}>Dari Detik Finance · analisis sentimen otomatis</p>
+                </div>
+              </div>
+              {/* Sentiment summary badges — shown when news loaded */}
+              {!loadingNews && stockNews.length > 0 && (() => {
+                const pos = stockNews.filter((n) => n.sentiment === "positive").length;
+                const neg = stockNews.filter((n) => n.sentiment === "negative").length;
+                const neu = stockNews.filter((n) => n.sentiment === "neutral").length;
+                return (
+                  <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                    {pos > 0 && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                        style={{ background: "rgba(16,185,129,0.12)", color: "#10b981", border: "1px solid rgba(16,185,129,0.2)" }}>
+                        ▲ {pos} positif
+                      </span>
+                    )}
+                    {neg > 0 && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                        style={{ background: "rgba(239,68,68,0.12)", color: "#f87171", border: "1px solid rgba(239,68,68,0.2)" }}>
+                        ▼ {neg} negatif
+                      </span>
+                    )}
+                    {neu > 0 && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                        style={{ background: "rgba(100,116,139,0.12)", color: "#94a3b8", border: "1px solid rgba(100,116,139,0.2)" }}>
+                        ◆ {neu} netral
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Content */}
+            {loadingNews ? (
+              <div className="space-y-2">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="rounded-xl p-3 animate-pulse flex gap-3"
+                    style={{ background: "rgba(6,78,59,0.2)", border: "1px solid rgba(226,232,240,0.06)" }}>
+                    <div className="w-16 h-16 rounded-lg flex-shrink-0" style={{ background: "rgba(255,255,255,0.06)" }} />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-3 rounded w-1/4" style={{ background: "rgba(255,255,255,0.06)" }} />
+                      <div className="h-4 rounded w-full" style={{ background: "rgba(255,255,255,0.06)" }} />
+                      <div className="h-3 rounded w-3/4" style={{ background: "rgba(255,255,255,0.06)" }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : stockNews.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 gap-2">
+                <svg className="w-10 h-10" style={{ color: "#1e3a2f" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+                </svg>
+                <p className="text-sm" style={{ color: "#475569" }}>
+                  Tidak ada berita terbaru yang menyebut{" "}
+                  <span style={{ color: "#94a3b8", fontFamily: "monospace" }}>{selectedTicker?.replace(".JK", "")}</span>
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {stockNews.map((item, i) => {
+                  const sentColor =
+                    item.sentiment === "positive" ? "#10b981"
+                    : item.sentiment === "negative" ? "#f87171"
+                    : "#94a3b8";
+                  const sentBg =
+                    item.sentiment === "positive" ? "rgba(16,185,129,0.10)"
+                    : item.sentiment === "negative" ? "rgba(239,68,68,0.10)"
+                    : "rgba(100,116,139,0.10)";
+                  const sentBorder =
+                    item.sentiment === "positive" ? "rgba(16,185,129,0.20)"
+                    : item.sentiment === "negative" ? "rgba(239,68,68,0.20)"
+                    : "rgba(100,116,139,0.18)";
+                  const sentIcon =
+                    item.sentiment === "positive" ? "▲"
+                    : item.sentiment === "negative" ? "▼"
+                    : "◆";
+                  const sentLabel =
+                    item.sentiment === "positive" ? "Positif"
+                    : item.sentiment === "negative" ? "Negatif"
+                    : "Netral";
+
+                  const date = item.pubDate ? new Date(item.pubDate) : null;
+                  const timeAgo = date ? (() => {
+                    const diff = Date.now() - date.getTime();
+                    const mins = Math.floor(diff / 60000);
+                    const hrs = Math.floor(mins / 60);
+                    const days = Math.floor(hrs / 24);
+                    if (days > 0) return `${days}h lalu`;
+                    if (hrs > 0) return `${hrs}j lalu`;
+                    return `${mins}m lalu`;
+                  })() : "";
+
+                  return (
+                    <a
+                      key={i}
+                      href={item.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex gap-3 rounded-xl p-3 transition-all group"
+                      style={{ background: "rgba(6,78,59,0.12)", border: "1px solid rgba(226,232,240,0.06)" }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = "rgba(6,78,59,0.26)";
+                        e.currentTarget.style.borderColor = `${sentBorder}`;
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = "rgba(6,78,59,0.12)";
+                        e.currentTarget.style.borderColor = "rgba(226,232,240,0.06)";
+                      }}
+                    >
+                      {/* Sentiment color bar */}
+                      <div className="w-1 rounded-full flex-shrink-0 self-stretch" style={{ background: sentColor, opacity: 0.7 }} />
+
+                      {/* Thumbnail */}
+                      {item.image && (
+                        <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 hidden sm:block"
+                          style={{ background: "rgba(6,78,59,0.3)" }}>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={item.image} alt="" className="w-full h-full object-cover"
+                            onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = "none"; }} />
+                        </div>
+                      )}
+
+                      {/* Text */}
+                      <div className="flex-1 min-w-0">
+                        {/* Meta row */}
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          {/* Sentiment badge */}
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded flex-shrink-0"
+                            style={{ background: sentBg, color: sentColor, border: `1px solid ${sentBorder}` }}>
+                            {sentIcon} {sentLabel}
+                          </span>
+                          {/* Score bar */}
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <div className="w-12 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                              <div
+                                className="h-full rounded-full"
+                                style={{
+                                  width: `${Math.round(Math.abs(item.sentimentScore) * 100)}%`,
+                                  background: sentColor,
+                                  opacity: 0.8,
+                                }}
+                              />
+                            </div>
+                            <span className="text-[9px] tabular-nums" style={{ color: "#475569" }}>
+                              {Math.round(Math.abs(item.sentimentScore) * 100)}%
+                            </span>
+                          </div>
+                          {/* Source */}
+                          <span className="text-[10px] px-1.5 py-0.5 rounded flex-shrink-0"
+                            style={{ background: "rgba(249,115,22,0.10)", color: "#fb923c", border: "1px solid rgba(249,115,22,0.15)" }}>
+                            {item.source}
+                          </span>
+                          {timeAgo && (
+                            <span className="text-[10px] ml-auto flex-shrink-0" style={{ color: "#334155" }}>{timeAgo}</span>
+                          )}
+                        </div>
+                        {/* Title */}
+                        <p className="text-xs font-semibold leading-snug line-clamp-2 transition-colors group-hover:text-orange-400"
+                          style={{ color: "#cbd5e1" }}>
+                          {item.title}
+                        </p>
+                        {/* Reason hint */}
+                        {item.sentimentReason && (
+                          <p className="text-[10px] mt-1" style={{ color: "#334155" }}>
+                            Sinyal: <span style={{ color: "#475569" }}>{item.sentimentReason}</span>
+                          </p>
+                        )}
+                      </div>
+                    </a>
+                  );
+                })}
+              </div>
+            )}
+          </GlassCard>
 
           {/* Action buttons */}
           <div className="flex gap-3 flex-wrap">

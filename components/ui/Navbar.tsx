@@ -133,11 +133,22 @@ export default function Navbar({ delayMinutes }: NavbarProps) {
 						/>
 						<div>
 							<h1
-								className="text-base sm:text-lg font-bold leading-none"
-								style={{ color: "#e2e8f0" }}
+								className="text-base sm:text-lg font-bold leading-none tracking-wide"
+								style={{
+									fontFamily: "var(--font-playfair), Georgia, serif",
+									color: "#e2e8f0",
+									letterSpacing: "0.01em",
+								}}
 							>
 								Cerita{" "}
-								<span style={{ color: "#fb923c" }}>Saham</span>
+								<span style={{
+									color: "#D4AF37",
+									fontStyle: "italic",
+									background: "linear-gradient(135deg, #D4AF37 0%, #F5D876 50%, #B8860B 100%)",
+									WebkitBackgroundClip: "text",
+									WebkitTextFillColor: "transparent",
+									backgroundClip: "text",
+								}}>Saham</span>
 							</h1>
 							<p
 								className="text-[10px] mt-0.5 hidden sm:block"
