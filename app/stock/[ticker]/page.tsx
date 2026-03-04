@@ -25,8 +25,8 @@ const TIMEFRAMES = [
   { label: "1M",  group: "swing",    range: "1mo", interval: "1d"  },
   { label: "3M",  group: "swing",    range: "3mo", interval: "1d"  },
   { label: "6M",  group: "swing",    range: "6mo", interval: "1d"  },
-  { label: "1Y",  group: "swing",    range: "1y",  interval: "1wk" },
-  { label: "5Y",  group: "swing",    range: "5y",  interval: "1mo" },
+  { label: "1Y",  group: "swing",    range: "1y",  interval: "1d"  },
+  { label: "5Y",  group: "swing",    range: "5y",  interval: "1wk" },
 ];
 
 export default function StockDetailPage({
@@ -40,7 +40,7 @@ export default function StockDetailPage({
   const [quote, setQuote] = useState<StockQuote | null>(null);
   const [history, setHistory] = useState<OHLCData[]>([]);
   const [entry, setEntry] = useState<WatchlistEntry | null>(null);
-  const [activeTimeframe, setActiveTimeframe] = useState(TIMEFRAMES[0]); // default 1D
+  const [activeTimeframe, setActiveTimeframe] = useState(TIMEFRAMES[5]); // default 1Y daily
   const [loading, setLoading] = useState(true);
   const [chartLoading, setChartLoading] = useState(false);
 

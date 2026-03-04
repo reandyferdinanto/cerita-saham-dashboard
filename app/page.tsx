@@ -163,40 +163,40 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <GlassCard className="!p-4">
-          <p className="text-[10px] text-silver-500 uppercase tracking-wider font-medium">IHSG / Composite</p>
-          <p className="text-xl font-bold text-silver-100 mt-1">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+        <div className="glass-card p-3 md:p-4">
+          <p className="text-[9px] text-silver-500 uppercase tracking-wider font-medium leading-tight">IHSG / Composite</p>
+          <p className="text-base font-bold text-silver-100 mt-1 leading-tight tabular-nums truncate">
             {ihsgQuote ? ihsgQuote.price.toLocaleString("id-ID") : "—"}
           </p>
-          <p className={`text-xs mt-1 font-semibold ${isIhsgPositive ? "text-green-500" : "text-red-400"}`}>
+          <p className={`text-[10px] mt-1 font-semibold leading-tight truncate ${isIhsgPositive ? "text-green-500" : "text-red-400"}`}>
             {ihsgQuote ? `${isIhsgPositive ? "▲" : "▼"} ${Math.abs(ihsgChange).toFixed(2)} (${Math.abs(ihsgChangePercent).toFixed(2)}%)` : "—"}
           </p>
-        </GlassCard>
+        </div>
 
-        <GlassCard className="!p-4">
-          <p className="text-[10px] text-silver-500 uppercase tracking-wider font-medium">Day High</p>
-          <p className="text-xl font-bold text-silver-100 mt-1">
+        <div className="glass-card p-3 md:p-4">
+          <p className="text-[9px] text-silver-500 uppercase tracking-wider font-medium leading-tight">Day High</p>
+          <p className="text-base font-bold text-silver-100 mt-1 leading-tight tabular-nums truncate">
             {ihsgQuote ? ihsgQuote.high.toLocaleString("id-ID") : "—"}
           </p>
-          <p className="text-xs text-silver-500 mt-1">intraday high</p>
-        </GlassCard>
+          <p className="text-[10px] text-silver-500 mt-1">intraday high</p>
+        </div>
 
-        <GlassCard className="!p-4">
-          <p className="text-[10px] text-silver-500 uppercase tracking-wider font-medium">Day Low</p>
-          <p className="text-xl font-bold text-silver-100 mt-1">
+        <div className="glass-card p-3 md:p-4">
+          <p className="text-[9px] text-silver-500 uppercase tracking-wider font-medium leading-tight">Day Low</p>
+          <p className="text-base font-bold text-silver-100 mt-1 leading-tight tabular-nums truncate">
             {ihsgQuote ? ihsgQuote.low.toLocaleString("id-ID") : "—"}
           </p>
-          <p className="text-xs text-silver-500 mt-1">intraday low</p>
-        </GlassCard>
+          <p className="text-[10px] text-silver-500 mt-1">intraday low</p>
+        </div>
 
-        <GlassCard className="!p-4">
-          <p className="text-[10px] text-silver-500 uppercase tracking-wider font-medium">Watchlist</p>
-          <p className="text-xl font-bold text-orange-400 mt-1">{watchlistCount}</p>
-          <Link href="/watchlist" className="text-xs text-silver-500 mt-1 hover:text-orange-400 transition-colors">
+        <div className="glass-card p-3 md:p-4">
+          <p className="text-[9px] text-silver-500 uppercase tracking-wider font-medium leading-tight">Watchlist</p>
+          <p className="text-base font-bold text-orange-400 mt-1 leading-tight">{watchlistCount}</p>
+          <Link href="/watchlist" className="text-[10px] text-silver-500 mt-1 hover:text-orange-400 transition-colors block">
             stocks tracked →
           </Link>
-        </GlassCard>
+        </div>
       </div>
 
       {/* IHSG Chart */}

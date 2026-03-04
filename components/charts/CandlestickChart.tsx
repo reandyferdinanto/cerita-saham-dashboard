@@ -29,32 +29,54 @@ function calcMA(closes: number[], period: number): (number | null)[] {
   );
 }
 
-function calcEMA(closes: number[], period: number): number[] {
+function calcEMA(closes: number[], period: number): (number | null)[] {
   const k = 2 / (period + 1);
-  const ema: number[] = [];
-  closes.forEach((c, i) => {
-    if (i === 0) { ema.push(c); return; }
-    ema.push(c * k + ema[i - 1] * (1 - k));
-  });
-  return ema;
+  const result: (number | null)[] = new Array(closes.length).fill(null);
+  if (closes.length < period) return result;
+  result[period - 1] = closes.slice(0, period).reduce((s, v) => s + v, 0) / period;
+  for (let i = period; i < closes.length; i++) {
+    result[i] = closes[i] * k + result[i - 1]! * (1 - k);
+  }
+  return result;
 }
 
 interface MACDResult { macd: (number | null)[]; signal: (number | null)[]; histogram: (number | null)[]; }
 
 function calcMACD(closes: number[], fast = 12, slow = 26, sig = 9): MACDResult {
+  const n = closes.length;
   const emaFast = calcEMA(closes, fast);
   const emaSlow = calcEMA(closes, slow);
-  const macdLine = closes.map((_, i) => (i < slow - 1 ? null : emaFast[i] - emaSlow[i]));
-  const macdValues = macdLine.filter((v): v is number => v !== null);
-  const signalEMA = calcEMA(macdValues, sig);
-  let validSig = 0;
-  const signalFinal: (number | null)[] = macdLine.map((v) => {
-    if (v === null) return null;
-    const s = validSig < sig - 1 ? null : signalEMA[validSig];
-    validSig++;
-    return s;
-  });
-  const histogram: (number | null)[] = macdLine.map((m, i) => m != null && signalFinal[i] != null ? m - signalFinal[i]! : null);
+
+  const macdLine: (number | null)[] = closes.map((_, i) =>
+    emaFast[i] != null && emaSlow[i] != null ? emaFast[i]! - emaSlow[i]! : null
+  );
+
+  const k = 2 / (sig + 1);
+  const signalFinal: (number | null)[] = new Array(n).fill(null);
+  let sigEma: number | null = null;
+  let validCount = 0;
+  let seedSum = 0;
+
+  for (let i = 0; i < n; i++) {
+    if (macdLine[i] === null) continue;
+    validCount++;
+    const m = macdLine[i]!;
+    if (validCount < sig) {
+      seedSum += m;
+    } else if (validCount === sig) {
+      seedSum += m;
+      sigEma = seedSum / sig;
+      signalFinal[i] = sigEma;
+    } else {
+      sigEma = m * k + sigEma! * (1 - k);
+      signalFinal[i] = sigEma;
+    }
+  }
+
+  const histogram: (number | null)[] = macdLine.map((m, i) =>
+    m !== null && signalFinal[i] !== null ? m - signalFinal[i]! : null
+  );
+
   return { macd: macdLine, signal: signalFinal, histogram };
 }
 
@@ -109,10 +131,9 @@ const INDICATOR_CONFIG: { key: IndicatorKey; label: string; color: string }[] = 
 ];
 
 export default function CandlestickChart({ data, tp, sl, height = 500, mobileHeight = 320 }: CandlestickChartProps) {
-  const mainRef  = useRef<HTMLDivElement>(null);
-  const macdRef  = useRef<HTMLDivElement>(null);
-  const mainChart = useRef<IChartApi | null>(null);
-  const macdChart = useRef<IChartApi | null>(null);
+  // Single chart ref — MACD lives inside the same chart on a separate price scale
+  const chartRef = useRef<HTMLDivElement>(null);
+  const chartInst = useRef<IChartApi | null>(null);
 
   const [activeIndicators, setActiveIndicators] = useState<Set<IndicatorKey>>(
     new Set(["ma5", "ma20", "ma50", "macd", "sr"])
@@ -129,37 +150,81 @@ export default function CandlestickChart({ data, tp, sl, height = 500, mobileHei
   const showMACD = activeIndicators.has("macd");
 
   useEffect(() => {
-    if (!mainRef.current || data.length === 0) return;
+    if (!chartRef.current || data.length === 0) return;
 
     const isMobile = window.innerWidth < 768;
     const effectiveHeight = isMobile ? mobileHeight : height;
     const isIntraday = typeof data[0]?.time === "number";
     const closes = data.map((d) => d.close);
 
-    const sharedOpts = (h: number) => ({
-      layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: "#94a3b8", fontFamily: "Arial, sans-serif" },
-      grid: { vertLines: { color: "rgba(226,232,240,0.04)" }, horzLines: { color: "rgba(226,232,240,0.04)" } },
-      crosshair: { vertLine: { color: "rgba(249,115,22,0.3)", labelBackgroundColor: "#064e3b" }, horzLine: { color: "rgba(249,115,22,0.3)", labelBackgroundColor: "#064e3b" } },
+    // ── Single chart — MACD pane lives at the bottom via scaleMargins ──
+    // When MACD is on: price occupies top 62%, volume 8% overlay, MACD 30% bottom.
+    // When MACD is off: price occupies full height.
+    const MACD_PANE_RATIO = 0.30; // fraction of chart height for MACD
+    const PRICE_TOP    = 0;
+    const PRICE_BOTTOM = showMACD ? MACD_PANE_RATIO + 0.02 : 0; // gap between panes
+    const VOL_TOP      = showMACD ? 0.60 : 0.82;
+    const VOL_BOTTOM   = showMACD ? MACD_PANE_RATIO + 0.02 : 0;
+    const MACD_TOP     = 1 - MACD_PANE_RATIO;
+    const MACD_BOTTOM  = 0;
+
+    const chart = createChart(chartRef.current, {
+      layout: {
+        background: { type: ColorType.Solid, color: "transparent" },
+        textColor: "#94a3b8",
+        fontFamily: "Arial, sans-serif",
+      },
+      grid: {
+        vertLines: { color: "rgba(226,232,240,0.04)" },
+        horzLines: { color: "rgba(226,232,240,0.04)" },
+      },
+      crosshair: {
+        vertLine: { color: "rgba(249,115,22,0.3)", labelBackgroundColor: "#064e3b" },
+        horzLine: { color: "rgba(249,115,22,0.3)", labelBackgroundColor: "#064e3b" },
+      },
       rightPriceScale: { borderColor: "rgba(226,232,240,0.08)" },
-      timeScale: { borderColor: "rgba(226,232,240,0.08)", timeVisible: isIntraday, secondsVisible: false },
-      width: mainRef.current!.clientWidth,
-      height: h,
+      timeScale: {
+        borderColor: "rgba(226,232,240,0.08)",
+        timeVisible: isIntraday,
+        secondsVisible: false,
+      },
+      width: chartRef.current.clientWidth,
+      height: effectiveHeight,
+    });
+    chartInst.current = chart;
+
+    // Price scale margins — shrink the price pane to leave room for MACD at bottom
+    chart.priceScale("right").applyOptions({
+      scaleMargins: { top: PRICE_TOP, bottom: PRICE_BOTTOM },
     });
 
-    const chart = createChart(mainRef.current, sharedOpts(showMACD ? Math.round(effectiveHeight * 0.68) : effectiveHeight));
-    mainChart.current = chart;
-
+    // ── Candlestick ──
     const candleSeries = chart.addSeries(CandlestickSeries, {
       upColor: "#10b981", downColor: "#ef4444",
       borderUpColor: "#10b981", borderDownColor: "#ef4444",
       wickUpColor: "#10b981", wickDownColor: "#ef4444",
     });
-    candleSeries.setData(data.map((d) => ({ time: d.time, open: d.open, high: d.high, low: d.low, close: d.close })) as any);
+    candleSeries.setData(
+      data.map((d) => ({ time: d.time, open: d.open, high: d.high, low: d.low, close: d.close })) as any
+    );
 
-    const volSeries = chart.addSeries(HistogramSeries, { color: "rgba(249,115,22,0.18)", priceFormat: { type: "volume" }, priceScaleId: "vol" });
-    chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
-    volSeries.setData(data.map((d) => ({ time: d.time, value: d.volume, color: d.close >= d.open ? "rgba(16,185,129,0.25)" : "rgba(239,68,68,0.25)" })) as any);
+    // ── Volume ──
+    const volSeries = chart.addSeries(HistogramSeries, {
+      priceFormat: { type: "volume" },
+      priceScaleId: "vol",
+    });
+    chart.priceScale("vol").applyOptions({
+      scaleMargins: { top: VOL_TOP, bottom: VOL_BOTTOM },
+    });
+    volSeries.setData(
+      data.map((d) => ({
+        time: d.time,
+        value: d.volume,
+        color: d.close >= d.open ? "rgba(16,185,129,0.25)" : "rgba(239,68,68,0.25)",
+      })) as any
+    );
 
+    // ── Moving Averages ──
     const maPeriods: { key: IndicatorKey; period: number; color: string }[] = [
       { key: "ma5",   period: 5,   color: "#f59e0b" },
       { key: "ma20",  period: 20,  color: "#3b82f6" },
@@ -169,14 +234,21 @@ export default function CandlestickChart({ data, tp, sl, height = 500, mobileHei
     maPeriods.forEach(({ key, period, color }) => {
       if (!activeIndicators.has(key)) return;
       const values = calcMA(closes, period);
-      const maData = data.map((d, i) => values[i] != null ? { time: d.time, value: values[i]! } : null).filter(Boolean);
+      const maData = data
+        .map((d, i) => (values[i] != null ? { time: d.time, value: values[i]! } : null))
+        .filter(Boolean);
       if (maData.length === 0) return;
-      chart.addSeries(LineSeries, { color, lineWidth: 1, priceLineVisible: false, lastValueVisible: true, crosshairMarkerVisible: false }).setData(maData as any);
+      chart.addSeries(LineSeries, {
+        color, lineWidth: 1, priceLineVisible: false,
+        lastValueVisible: true, crosshairMarkerVisible: false,
+      }).setData(maData as any);
     });
 
+    // ── TP / SL lines ──
     if (tp) candleSeries.createPriceLine({ price: tp, color: "#10b981", lineWidth: 2, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: "TP" });
     if (sl) candleSeries.createPriceLine({ price: sl, color: "#ef4444", lineWidth: 2, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: "SL" });
 
+    // ── S/R Zones ──
     if (activeIndicators.has("sr") && data.length > 20) {
       const { res, sup } = calcSRZones(data);
       const atr14 = calcATR(data, 14);
@@ -187,8 +259,10 @@ export default function CandlestickChart({ data, tp, sl, height = 500, mobileHei
         const bot = centerPrice - half;
         const slice = data.slice(startIdx);
         if (slice.length < 1) return;
-        chart.addSeries(LineSeries, { color: lineColor, lineWidth: 1, lineStyle: LineStyle.Solid, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false }).setData(slice.map((d) => ({ time: d.time, value: top })) as any);
-        chart.addSeries(LineSeries, { color: lineColor, lineWidth: 1, lineStyle: LineStyle.Solid, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false }).setData(slice.map((d) => ({ time: d.time, value: bot })) as any);
+        chart.addSeries(LineSeries, { color: lineColor, lineWidth: 1, lineStyle: LineStyle.Solid, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false })
+          .setData(slice.map((d) => ({ time: d.time, value: top })) as any);
+        chart.addSeries(LineSeries, { color: lineColor, lineWidth: 1, lineStyle: LineStyle.Solid, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false })
+          .setData(slice.map((d) => ({ time: d.time, value: bot })) as any);
         chart.addSeries(BaselineSeries, {
           baseValue: { type: "price", price: bot },
           topFillColor1: fillColor, topFillColor2: fillColor, topLineColor: "rgba(0,0,0,0)",
@@ -202,31 +276,51 @@ export default function CandlestickChart({ data, tp, sl, height = 500, mobileHei
       sup.forEach((level, i) => drawZoneBand(level.idx, level.price, srHalf, "rgba(16,185,129,0.10)", "rgba(16,185,129,0.45)", i === 0 ? "S1" : "S2"));
     }
 
-    chart.timeScale().fitContent();
-
-    let macdChartInst: IChartApi | null = null;
-    if (showMACD && macdRef.current) {
-      macdChartInst = createChart(macdRef.current, { ...sharedOpts(Math.round(effectiveHeight * 0.28)), timeScale: { borderColor: "rgba(226,232,240,0.08)", timeVisible: isIntraday, secondsVisible: false, visible: true } });
-      macdChart.current = macdChartInst;
-
+    // ── MACD — same chart, dedicated "macd" price scale at the bottom ──
+    if (showMACD) {
       const { macd, signal, histogram } = calcMACD(closes);
-      const histSeries = macdChartInst.addSeries(HistogramSeries, { priceScaleId: "right", priceLineVisible: false, lastValueVisible: false });
-      histSeries.setData(data.map((d, i) => histogram[i] != null ? { time: d.time, value: histogram[i]!, color: histogram[i]! >= 0 ? "rgba(16,185,129,0.6)" : "rgba(239,68,68,0.6)" } : null).filter(Boolean) as any);
-      macdChartInst.addSeries(LineSeries, { color: "#3b82f6", lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false }).setData(data.map((d, i) => macd[i] != null ? { time: d.time, value: macd[i]! } : null).filter(Boolean) as any);
-      macdChartInst.addSeries(LineSeries, { color: "#f97316", lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false }).setData(data.map((d, i) => signal[i] != null ? { time: d.time, value: signal[i]! } : null).filter(Boolean) as any);
-      macdChartInst.timeScale().fitContent();
 
-      chart.subscribeCrosshairMove((param) => { if (param.time) macdChartInst!.setCrosshairPosition(0, param.time as any, histSeries as any); else macdChartInst!.clearCrosshairPosition(); });
-      macdChartInst.subscribeCrosshairMove((param) => { if (param.time) chart.setCrosshairPosition(0, param.time as any, candleSeries as any); else chart.clearCrosshairPosition(); });
-      chart.timeScale().subscribeVisibleLogicalRangeChange((range) => { if (range) macdChartInst!.timeScale().setVisibleLogicalRange(range); });
-      macdChartInst.timeScale().subscribeVisibleLogicalRangeChange((range) => { if (range) chart.timeScale().setVisibleLogicalRange(range); });
+      // Shared options for all MACD series: pinned to the "macd" scale
+      const macdScaleOpts = { priceScaleId: "macd", priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false };
+
+      // Histogram — add FIRST so the "macd" price scale is created, then configure it
+      const histSeries = chart.addSeries(HistogramSeries, { ...macdScaleOpts });
+
+      // Now the scale exists — safe to configure margins
+      chart.priceScale("macd").applyOptions({
+        scaleMargins: { top: MACD_TOP, bottom: MACD_BOTTOM },
+        borderColor: "rgba(226,232,240,0.06)",
+      });
+
+      histSeries
+        .setData(
+          data
+            .map((d, i) =>
+              histogram[i] != null
+                ? { time: d.time, value: histogram[i]!, color: histogram[i]! >= 0 ? "rgba(16,185,129,0.6)" : "rgba(239,68,68,0.6)" }
+                : null
+            )
+            .filter(Boolean) as any
+        );
+
+      // MACD line
+      chart.addSeries(LineSeries, { color: "#3b82f6", lineWidth: 1, ...macdScaleOpts })
+        .setData(
+          data.map((d, i) => (macd[i] != null ? { time: d.time, value: macd[i]! } : null)).filter(Boolean) as any
+        );
+
+      // Signal line
+      chart.addSeries(LineSeries, { color: "#f97316", lineWidth: 1, ...macdScaleOpts })
+        .setData(
+          data.map((d, i) => (signal[i] != null ? { time: d.time, value: signal[i]! } : null)).filter(Boolean) as any
+        );
     }
 
+    chart.timeScale().fitContent();
+
     const handleResize = () => {
-      if (mainRef.current) {
-        const w = mainRef.current.clientWidth;
-        chart.applyOptions({ width: w });
-        macdChartInst?.applyOptions({ width: w });
+      if (chartRef.current) {
+        chart.applyOptions({ width: chartRef.current.clientWidth });
       }
     };
     window.addEventListener("resize", handleResize);
@@ -234,13 +328,12 @@ export default function CandlestickChart({ data, tp, sl, height = 500, mobileHei
     return () => {
       window.removeEventListener("resize", handleResize);
       chart.remove();
-      macdChartInst?.remove();
     };
   }, [data, tp, sl, height, mobileHeight, activeIndicators, showMACD]);
 
   return (
     <div className="w-full">
-      {/* Indicator toggles — scrollable on mobile */}
+      {/* Indicator toggles */}
       <div className="flex items-center gap-2 mb-3 overflow-x-auto pb-1 scrollbar-hide">
         <span className="text-[10px] uppercase tracking-wider font-medium flex-shrink-0" style={{ color: "#334155" }}>Indikator:</span>
         {INDICATOR_CONFIG.map(({ key, label, color }) => {
@@ -248,7 +341,11 @@ export default function CandlestickChart({ data, tp, sl, height = 500, mobileHei
           return (
             <button key={key} onClick={() => toggleIndicator(key)}
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all flex-shrink-0"
-              style={{ background: active ? `${color}18` : "rgba(6,78,59,0.2)", color: active ? color : "#475569", border: `1px solid ${active ? `${color}40` : "rgba(226,232,240,0.06)"}` }}>
+              style={{
+                background: active ? `${color}18` : "rgba(6,78,59,0.2)",
+                color: active ? color : "#475569",
+                border: `1px solid ${active ? `${color}40` : "rgba(226,232,240,0.06)"}`,
+              }}>
               <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: active ? color : "#334155" }} />
               {label}
             </button>
@@ -256,17 +353,22 @@ export default function CandlestickChart({ data, tp, sl, height = 500, mobileHei
         })}
       </div>
 
-      <div ref={mainRef} className="w-full" />
+      {/* Single chart div — price + MACD both render here */}
+      <div ref={chartRef} className="w-full" />
 
+      {/* MACD legend */}
       {showMACD && (
-        <div className="w-full mt-1">
-          <div className="flex items-center gap-3 px-1 mb-1 overflow-x-auto scrollbar-hide">
-            <span className="text-[10px] font-semibold uppercase tracking-wider flex-shrink-0" style={{ color: "#334155" }}>MACD (12,26,9)</span>
-            <span className="flex items-center gap-1 text-[10px] flex-shrink-0" style={{ color: "#3b82f6" }}><span className="w-5 h-0.5 inline-block rounded" style={{ background: "#3b82f6" }} /> MACD</span>
-            <span className="flex items-center gap-1 text-[10px] flex-shrink-0" style={{ color: "#f97316" }}><span className="w-5 h-0.5 inline-block rounded" style={{ background: "#f97316" }} /> Signal</span>
-            <span className="flex items-center gap-1 text-[10px] flex-shrink-0" style={{ color: "#10b981" }}><span className="w-4 h-3 inline-block rounded-sm" style={{ background: "rgba(16,185,129,0.5)" }} /> Histogram</span>
-          </div>
-          <div ref={macdRef} className="w-full" />
+        <div className="flex items-center gap-3 px-1 mt-1 overflow-x-auto scrollbar-hide">
+          <span className="text-[10px] font-semibold uppercase tracking-wider flex-shrink-0" style={{ color: "#334155" }}>MACD (12,26,9)</span>
+          <span className="flex items-center gap-1 text-[10px] flex-shrink-0" style={{ color: "#3b82f6" }}>
+            <span className="w-5 h-0.5 inline-block rounded" style={{ background: "#3b82f6" }} /> MACD
+          </span>
+          <span className="flex items-center gap-1 text-[10px] flex-shrink-0" style={{ color: "#f97316" }}>
+            <span className="w-5 h-0.5 inline-block rounded" style={{ background: "#f97316" }} /> Signal
+          </span>
+          <span className="flex items-center gap-1 text-[10px] flex-shrink-0" style={{ color: "#10b981" }}>
+            <span className="w-4 h-3 inline-block rounded-sm" style={{ background: "rgba(16,185,129,0.5)" }} /> Histogram
+          </span>
         </div>
       )}
     </div>

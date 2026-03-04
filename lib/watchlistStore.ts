@@ -67,10 +67,6 @@ export async function getAll(): Promise<WatchlistEntry[]> {
   return readWatchlist();
 }
 
-export async function getByTicker(ticker: string): Promise<WatchlistEntry | undefined> {
-  const entries = await readWatchlist();
-  return entries.find((e) => e.ticker.toUpperCase() === ticker.toUpperCase());
-}
 
 export async function add(entry: WatchlistEntry): Promise<WatchlistEntry[]> {
   const entries = await readWatchlist();

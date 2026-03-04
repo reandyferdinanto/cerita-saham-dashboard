@@ -37,7 +37,7 @@ const TIMEFRAMES = [
   { label: "1h",  group: "intraday", range: "5d",  interval: "1h"  },
   { label: "4h",  group: "intraday", range: "1mo", interval: "4h"  },
   // Daily+
-  { label: "1D",  group: "swing",   range: "3mo", interval: "1d"  },
+  { label: "1Y",  group: "swing",   range: "1y",  interval: "1d"  },
   { label: "1W",  group: "swing",   range: "1y",  interval: "1wk" },
   { label: "1M",  group: "swing",   range: "5y",  interval: "1mo" },
 ];
@@ -49,7 +49,7 @@ export default function SearchPage() {
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
   const [quote, setQuote] = useState<StockQuote | null>(null);
   const [history, setHistory] = useState<OHLCData[]>([]);
-  const [activeTimeframe, setActiveTimeframe] = useState(TIMEFRAMES[4]); // default 1D
+  const [activeTimeframe, setActiveTimeframe] = useState(TIMEFRAMES[4]); // default 1Y daily
   const [chartType, setChartType] = useState<ChartType>("candlestick");
   const [loadingChart, setLoadingChart] = useState(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
