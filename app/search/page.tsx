@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import GlassCard from "@/components/ui/GlassCard";
+import FundamentalSection from "@/components/ui/FundamentalSection";
 import { SearchResult, StockQuote, OHLCData } from "@/lib/types";
 
 const CandlestickChart = dynamic(
@@ -52,6 +53,30 @@ interface FundamentalData {
   topInsiders: { name: string; relation: string; shares: number; pctHeld: number | null }[];
   recommendationTrend: { period: string; strongBuy: number; buy: number; hold: number; sell: number; strongSell: number }[];
   upgradeHistory: { date: string; firm: string; toGrade: string; fromGrade: string; action: string }[];
+  valuation: {
+    marketCap: number | null; enterpriseValue: number | null;
+    trailingPE: number | null; forwardPE: number | null;
+    priceToBook: number | null; priceToSales: number | null;
+    evToRevenue: number | null; evToEbitda: number | null;
+    beta: number | null; dividendYield: number | null;
+    payoutRatio: number | null;
+    fiftyTwoWeekHigh: number | null; fiftyTwoWeekLow: number | null;
+  } | null;
+  financials: {
+    revenue: number | null; revenueGrowth: number | null;
+    grossMargin: number | null; ebitda: number | null;
+    netIncome: number | null; profitMargin: number | null;
+    operatingMargin: number | null; roe: number | null;
+    roa: number | null; debtToEquity: number | null;
+    currentRatio: number | null; freeCashflow: number | null;
+    earningsGrowth: number | null;
+  } | null;
+  profile: {
+    longName: string | null; sector: string | null;
+    industry: string | null; website: string | null;
+    longBusinessSummary: string | null; country: string | null;
+    city: string | null; fullTimeEmployees: number | null;
+  } | null;
 }
 
 // Timeframe config: { label, range (for API period), interval (for API) }
@@ -719,6 +744,9 @@ export default function SearchPage() {
             )}
           </GlassCard>
 
+
+          {/* ── Fundamental & Metrik Valuasi ── */}
+          <FundamentalSection fundamental={fundamental} loading={loadingFundamental} />
 
           {/* ── Major Holders & Institutional ── */}
           <GlassCard hover={false}>

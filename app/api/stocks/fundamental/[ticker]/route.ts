@@ -12,7 +12,6 @@ export async function GET(
   const { ticker } = await params;
 
   try {
-    // ── quoteSummary — holders + recommendations ─────────────────────────────
     let majorHolders: {
       insidersPercentHeld: number | null;
       institutionsPercentHeld: number | null;
@@ -20,36 +19,56 @@ export async function GET(
       institutionsCount: number | null;
     } | null = null;
 
-    let topInstitutions: {
-      name: string;
-      pctHeld: number;
-      shares: number;
-      value: number;
-    }[] = [];
+    let topInstitutions: { name: string; pctHeld: number; shares: number; value: number }[] = [];
+    let topInsiders: { name: string; relation: string; shares: number; pctHeld: number | null }[] = [];
+    let recommendationTrend: { period: string; strongBuy: number; buy: number; hold: number; sell: number; strongSell: number }[] = [];
+    let upgradeHistory: { date: string; firm: string; toGrade: string; fromGrade: string; action: string }[] = [];
 
-    let topInsiders: {
-      name: string;
-      relation: string;
-      shares: number;
-      pctHeld: number | null;
-    }[] = [];
+    // ── Valuation & Metrics ───────────────────────────────────────────────────
+    let valuation: {
+      marketCap: number | null;
+      enterpriseValue: number | null;
+      trailingPE: number | null;
+      forwardPE: number | null;
+      priceToBook: number | null;
+      priceToSales: number | null;
+      evToRevenue: number | null;
+      evToEbitda: number | null;
+      beta: number | null;
+      dividendYield: number | null;
+      payoutRatio: number | null;
+      fiftyTwoWeekHigh: number | null;
+      fiftyTwoWeekLow: number | null;
+    } | null = null;
 
-    let recommendationTrend: {
-      period: string;
-      strongBuy: number;
-      buy: number;
-      hold: number;
-      sell: number;
-      strongSell: number;
-    }[] = [];
+    // ── Financial Performance ─────────────────────────────────────────────────
+    let financials: {
+      revenue: number | null;
+      revenueGrowth: number | null;
+      grossMargin: number | null;
+      ebitda: number | null;
+      netIncome: number | null;
+      profitMargin: number | null;
+      operatingMargin: number | null;
+      roe: number | null;
+      roa: number | null;
+      debtToEquity: number | null;
+      currentRatio: number | null;
+      freeCashflow: number | null;
+      earningsGrowth: number | null;
+    } | null = null;
 
-    let upgradeHistory: {
-      date: string;
-      firm: string;
-      toGrade: string;
-      fromGrade: string;
-      action: string;
-    }[] = [];
+    // ── Company Profile ───────────────────────────────────────────────────────
+    let profile: {
+      longName: string | null;
+      sector: string | null;
+      industry: string | null;
+      website: string | null;
+      longBusinessSummary: string | null;
+      country: string | null;
+      city: string | null;
+      fullTimeEmployees: number | null;
+    } | null = null;
 
     try {
       const summary = await yf.quoteSummary(ticker, {
@@ -59,10 +78,14 @@ export async function GET(
           "insiderHolders",
           "recommendationTrend",
           "upgradeDowngradeHistory",
+          "summaryDetail",
+          "defaultKeyStatistics",
+          "assetProfile",
+          "financialData",
         ],
       });
 
-      // Major holders breakdown
+      // Major holders
       const mh = (summary as any).majorHoldersBreakdown;
       if (mh) {
         majorHolders = {
@@ -73,7 +96,6 @@ export async function GET(
         };
       }
 
-      // Top institutional holders
       const io = (summary as any).institutionOwnership?.ownershipList || [];
       topInstitutions = io.slice(0, 8).map((h: any) => ({
         name: h.organization || "",
@@ -82,16 +104,14 @@ export async function GET(
         value: h.value ?? 0,
       }));
 
-      // Top insider holders
       const ih = (summary as any).insiderHolders?.holders || [];
       topInsiders = ih.slice(0, 8).map((h: any) => ({
         name: h.name || "",
         relation: h.relation || "",
         shares: h.positionDirect ?? h.positionIndirect ?? 0,
-        pctHeld: h.positionDirectDate ? null : null, // Yahoo doesn't expose % per insider
+        pctHeld: null,
       }));
 
-      // Recommendation trend (last 4 periods)
       const rt = (summary as any).recommendationTrend?.trend || [];
       recommendationTrend = rt.slice(0, 4).map((t: any) => ({
         period: t.period || "",
@@ -102,19 +122,67 @@ export async function GET(
         strongSell: t.strongSell ?? 0,
       }));
 
-      // Upgrade/downgrade history (last 10)
       const uh = (summary as any).upgradeDowngradeHistory?.history || [];
       upgradeHistory = uh.slice(0, 10).map((h: any) => ({
-        date: h.epochGradeDate
-          ? new Date(h.epochGradeDate * 1000).toISOString().split("T")[0]
-          : "",
+        date: h.epochGradeDate ? new Date(h.epochGradeDate * 1000).toISOString().split("T")[0] : "",
         firm: h.firm || "",
         toGrade: h.toGrade || "",
         fromGrade: h.fromGrade || "",
         action: h.action || "",
       }));
+
+      // Valuation — from summaryDetail + defaultKeyStatistics
+      const sd = (summary as any).summaryDetail ?? {};
+      const ks = (summary as any).defaultKeyStatistics ?? {};
+      valuation = {
+        marketCap: sd.marketCap ?? ks.marketCap ?? null,
+        enterpriseValue: ks.enterpriseValue ?? null,
+        trailingPE: sd.trailingPE ?? ks.trailingPE ?? null,
+        forwardPE: sd.forwardPE ?? ks.forwardPE ?? null,
+        priceToBook: ks.priceToBook ?? null,
+        priceToSales: ks.priceToSalesTrailing12Months ?? null,
+        evToRevenue: ks.enterpriseToRevenue ?? null,
+        evToEbitda: ks.enterpriseToEbitda ?? null,
+        beta: sd.beta ?? ks.beta ?? null,
+        dividendYield: sd.dividendYield ?? sd.trailingAnnualDividendYield ?? null,
+        payoutRatio: sd.payoutRatio ?? null,
+        fiftyTwoWeekHigh: sd.fiftyTwoWeekHigh ?? null,
+        fiftyTwoWeekLow: sd.fiftyTwoWeekLow ?? null,
+      };
+
+      // Financial performance — from financialData
+      const fd = (summary as any).financialData ?? {};
+      financials = {
+        revenue: fd.totalRevenue ?? null,
+        revenueGrowth: fd.revenueGrowth ?? null,
+        grossMargin: fd.grossMargins ?? null,
+        ebitda: fd.ebitda ?? null,
+        netIncome: fd.netIncomeToCommon ?? null,
+        profitMargin: fd.profitMargins ?? null,
+        operatingMargin: fd.operatingMargins ?? null,
+        roe: fd.returnOnEquity ?? null,
+        roa: fd.returnOnAssets ?? null,
+        debtToEquity: fd.debtToEquity ?? null,
+        currentRatio: fd.currentRatio ?? null,
+        freeCashflow: fd.freeCashflow ?? null,
+        earningsGrowth: fd.earningsGrowth ?? null,
+      };
+
+      // Company profile — from assetProfile
+      const ap = (summary as any).assetProfile ?? {};
+      profile = {
+        longName: ap.longName ?? null,
+        sector: ap.sector ?? null,
+        industry: ap.industry ?? null,
+        website: ap.website ?? null,
+        longBusinessSummary: ap.longBusinessSummary ?? null,
+        country: ap.country ?? null,
+        city: ap.city ?? null,
+        fullTimeEmployees: ap.fullTimeEmployees ?? null,
+      };
+
     } catch {
-      // quoteSummary optional — some tickers (especially .JK) return partial data
+      // quoteSummary optional
     }
 
     return NextResponse.json({
@@ -123,13 +191,12 @@ export async function GET(
       topInsiders,
       recommendationTrend,
       upgradeHistory,
+      valuation,
+      financials,
+      profile,
     });
   } catch (error) {
     console.error("Fundamental error:", error);
-    return NextResponse.json(
-      { error: (error as Error).message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
   }
 }
-
