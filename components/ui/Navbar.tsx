@@ -63,47 +63,6 @@ const primaryLinks = [
 		),
 	},
 	{
-		href: "/screener",
-		label: "Screener",
-		icon: (
-			<svg
-				className="w-4 h-4"
-				fill="none"
-				viewBox="0 0 24 24"
-				stroke="currentColor"
-				strokeWidth={1.8}
-			>
-				<path
-					strokeLinecap="round"
-					strokeLinejoin="round"
-					d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"
-				/>
-			</svg>
-		),
-	},
-	{
-		href: "/compare",
-		label: "Bandingkan",
-		icon: (
-			<svg
-				className="w-4 h-4"
-				fill="none"
-				viewBox="0 0 24 24"
-				stroke="currentColor"
-				strokeWidth={1.8}
-			>
-				<path
-					strokeLinecap="round"
-					strokeLinejoin="round"
-					d="M8 7h12M8 12h12M8 17h12M4 7h.01M4 12h.01M4 17h.01"
-				/>
-			</svg>
-		),
-	},
-];
-
-const moreLinks = [
-	{
 		href: "/guidance",
 		label: "Panduan",
 		icon: (
@@ -147,6 +106,8 @@ const moreLinks = [
 		),
 	},
 ];
+
+const moreLinks: { href: string; label: string; icon: React.ReactNode }[] = [];
 
 const allLinks = [...primaryLinks, ...moreLinks];
 
@@ -317,81 +278,24 @@ export default function Navbar({ delayMinutes }: NavbarProps) {
 						</Link>
 					);
 				})}
-				{/* More button */}
-				<button
-					onClick={() => setMoreOpen((o) => !o)}
-					className="flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl transition-all min-w-[52px]"
-					style={{
-						color:
-							moreOpen || moreLinks.some((l) => l.href === pathname)
-								? "#fb923c"
-								: "#475569",
-					}}
-				>
-					<svg
-						className="w-4 h-4"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
-						strokeWidth={1.8}
-					>
-						<path
-							strokeLinecap="round"
-							strokeLinejoin="round"
-							d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z"
-						/>
-					</svg>
-					<span className="text-[9px] font-medium leading-none">
-						Lainnya
-					</span>
-				</button>
 			</nav>
 
-			{/* ── "More" slide-up sheet — mobile ───────────────────── */}
-			{moreOpen && (
-				<div
-					className="md:hidden fixed inset-0 z-40"
-					onClick={() => setMoreOpen(false)}
-				>
-					<div
-						className="absolute inset-0"
-						style={{ background: "rgba(0,0,0,0.5)" }}
-					/>
-					<div
-						className="absolute bottom-14 left-2 right-2 rounded-2xl overflow-hidden"
-						style={{
-							background: "rgba(6,20,14,0.98)",
-							border: "1px solid rgba(16,185,129,0.15)",
-						}}
-						onClick={(e) => e.stopPropagation()}
-					>
+			{/* More sheet — kept but empty, unused */}
+			{moreOpen && moreLinks.length > 0 && (
+				<div className="md:hidden fixed inset-0 z-40" onClick={() => setMoreOpen(false)}>
+					<div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.5)" }} />
+					<div className="absolute bottom-14 left-2 right-2 rounded-2xl overflow-hidden"
+						style={{ background: "rgba(6,20,14,0.98)", border: "1px solid rgba(16,185,129,0.15)" }}
+						onClick={(e) => e.stopPropagation()}>
 						{moreLinks.map((link) => {
 							const isActive = pathname === link.href;
 							return (
-								<Link
-									key={link.href}
-									href={link.href}
-									onClick={() => setMoreOpen(false)}
+								<Link key={link.href} href={link.href} onClick={() => setMoreOpen(false)}
 									className="flex items-center gap-3 px-5 py-4 transition-all"
-									style={{
-										borderBottom:
-											"1px solid rgba(226,232,240,0.06)",
-										color: isActive ? "#fb923c" : "#94a3b8",
-									}}
-								>
-									<span
-										style={{
-											color: isActive ? "#fb923c" : "#64748b",
-										}}
-									>
-										{link.icon}
-									</span>
-									<span className="text-sm font-medium">
-										{link.label}
-									</span>
-									{isActive && (
-										<span className="ml-auto w-1.5 h-1.5 rounded-full bg-orange-400" />
-									)}
+									style={{ borderBottom: "1px solid rgba(226,232,240,0.06)", color: isActive ? "#fb923c" : "#94a3b8" }}>
+									<span style={{ color: isActive ? "#fb923c" : "#64748b" }}>{link.icon}</span>
+									<span className="text-sm font-medium">{link.label}</span>
+									{isActive && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-orange-400" />}
 								</Link>
 							);
 						})}
