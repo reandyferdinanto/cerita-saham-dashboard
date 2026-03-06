@@ -7,6 +7,24 @@ export interface WatchlistEntry {
   addedAt: string;         // ISO date string
 }
 
+export type UserRole = "user" | "admin" | "superadmin";
+
+export interface User {
+  id: string;
+  email: string;
+  role: UserRole;
+  avatarUrl: string | null;
+  name?: string | null;
+  createdAt?: string;
+}
+
+export interface SessionPayload {
+  userId: string;
+  email: string;
+  role: UserRole;
+  avatarUrl?: string | null;
+}
+
 export interface StockQuote {
   ticker: string;
   name: string;

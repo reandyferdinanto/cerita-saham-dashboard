@@ -20,9 +20,10 @@ export default function AdminPage() {
     try {
       const res = await fetch("/api/watchlist");
       const data = await res.json();
-      setWatchlist(data);
+      setWatchlist(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Error fetching watchlist:", error);
+      setWatchlist([]);
     } finally {
       setLoading(false);
     }

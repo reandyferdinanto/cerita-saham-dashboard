@@ -16,7 +16,7 @@ export default function WatchlistPage() {
       const wlData = await wlRes.json();
 
       const stocksWithQuotes: WatchlistWithQuote[] = await Promise.all(
-        wlData.map(async (stock: WatchlistWithQuote) => {
+        (Array.isArray(wlData) ? wlData : []).map(async (stock: WatchlistWithQuote) => {
           try {
             const quoteRes = await fetch(
               `/api/stocks/quote/${encodeURIComponent(stock.ticker)}`

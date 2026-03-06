@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import NavbarWrapper from "@/components/ui/NavbarWrapper";
+import { AuthProvider } from "@/components/ui/AuthProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -35,10 +36,12 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${playfair.variable} antialiased bg-gradient-animated min-h-screen`}
       >
-        <NavbarWrapper />
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 pb-24 md:pb-6">
-          {children}
-        </main>
+        <AuthProvider>
+          <NavbarWrapper />
+          <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 pb-24 md:pb-6">
+            {children}
+          </main>
+        </AuthProvider>
       </body>
     </html>
   );

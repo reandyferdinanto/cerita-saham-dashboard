@@ -4,12 +4,11 @@ import * as store from "@/lib/watchlistStore";
 export async function GET() {
   try {
     const entries = await store.getAll();
-    return NextResponse.json(entries);
+    return NextResponse.json(Array.isArray(entries) ? entries : []);
   } catch (error) {
-    return NextResponse.json(
-      { error: (error as Error).message },
-      { status: 500 }
-    );
+    console.error("GET /api/watchlist error:", (error as Error).message);
+    // Always return an array so client-side .map() never throws
+    return NextResponse.json([], { status: 500 });
   }
 }
 
@@ -33,4 +32,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

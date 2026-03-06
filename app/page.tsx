@@ -6,6 +6,7 @@ import Link from "next/link";
 import GlassCard from "@/components/ui/GlassCard";
 import { TitleWithPills, StockQuickModal } from "@/components/ui/TickerPill";
 import { StockQuote, IndexData } from "@/lib/types";
+import { useAuth } from "@/components/ui/AuthProvider";
 
 interface NewsItem {
   title: string;
@@ -44,6 +45,7 @@ interface GlobalQuote {
 }
 
 export default function DashboardPage() {
+  const { user } = useAuth();
   const [ihsgData, setIhsgData] = useState<IndexData[]>([]);
   const [ihsgQuote, setIhsgQuote] = useState<StockQuote | null>(null);
   const [watchlistCount, setWatchlistCount] = useState(0);
@@ -461,42 +463,77 @@ export default function DashboardPage() {
 
       {/* Quick Navigation */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Link href="/watchlist">
-          <GlassCard className="!p-5 cursor-pointer">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-700 to-green-500 flex items-center justify-center shadow-lg shadow-green-900/40 flex-shrink-0">
-                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
+        {user ? (
+          <>
+            <Link href="/watchlist">
+              <GlassCard className="!p-5 cursor-pointer">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-700 to-green-500 flex items-center justify-center shadow-lg shadow-green-900/40 flex-shrink-0">
+                    <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-base font-bold text-silver-200">Stock Watchlist</h3>
+                    <p className="text-xs text-silver-500 mt-0.5">Pantau saham dengan TP/SL &amp; bandarmology</p>
+                  </div>
+                  <svg className="w-5 h-5 text-silver-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </GlassCard>
+            </Link>
+            {(user.role === "admin" || user.role === "superadmin") && (
+              <Link href="/admin">
+                <GlassCard className="!p-5 cursor-pointer">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-600 to-orange-400 flex items-center justify-center shadow-lg shadow-orange-900/40 flex-shrink-0">
+                      <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                      </svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-base font-bold text-silver-200">Admin Panel</h3>
+                      <p className="text-xs text-silver-500 mt-0.5">Tambah saham, set TP/SL, tulis catatan bandarmology</p>
+                    </div>
+                    <svg className="w-5 h-5 text-silver-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </GlassCard>
+              </Link>
+            )}
+          </>
+        ) : (
+          <div className="col-span-full">
+            <GlassCard className="!p-6">
+              <div className="flex flex-col sm:flex-row items-center gap-5">
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: "rgba(251,146,60,0.12)", border: "1px solid rgba(251,146,60,0.2)" }}>
+                  <svg className="w-7 h-7" style={{ color: "#fb923c" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M17 9V7a5 5 0 00-10 0v2H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2v-9a2 2 0 00-2-2h-2zm-7-2a3 3 0 016 0v2h-6V7z" />
+                  </svg>
+                </div>
+                <div className="flex-1 text-center sm:text-left">
+                  <h3 className="text-base font-bold text-silver-200">Fitur Lengkap Tersedia untuk Member</h3>
+                  <p className="text-xs text-silver-500 mt-1">Daftar atau masuk untuk mengakses Cari Saham, Watchlist, Sinyal Teknikal, dan analisis mendalam.</p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <Link href="/login"
+                    className="px-4 py-2 rounded-xl text-sm font-semibold transition-all"
+                    style={{ background: "linear-gradient(135deg,#ea580c,#fb923c)", color: "#fff" }}>
+                    Masuk
+                  </Link>
+                  <Link href="/register"
+                    className="px-4 py-2 rounded-xl text-sm font-semibold transition-all"
+                    style={{ background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.2)", color: "#10b981" }}>
+                    Daftar
+                  </Link>
+                </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="text-base font-bold text-silver-200">Stock Watchlist</h3>
-                <p className="text-xs text-silver-500 mt-0.5">Pantau saham dengan TP/SL &amp; bandarmology</p>
-              </div>
-              <svg className="w-5 h-5 text-silver-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-              </svg>
-            </div>
-          </GlassCard>
-        </Link>
-        <Link href="/admin">
-          <GlassCard className="!p-5 cursor-pointer">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-600 to-orange-400 flex items-center justify-center shadow-lg shadow-orange-900/40 flex-shrink-0">
-                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-                </svg>
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="text-base font-bold text-silver-200">Admin Panel</h3>
-                <p className="text-xs text-silver-500 mt-0.5">Tambah saham, set TP/SL, tulis catatan bandarmology</p>
-              </div>
-              <svg className="w-5 h-5 text-silver-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-              </svg>
-            </div>
-          </GlassCard>
-        </Link>
+            </GlassCard>
+          </div>
+        )}
       </div>
       {/* Finance News */}
       <GlassCard hover={false}>
