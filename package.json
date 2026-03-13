@@ -12,6 +12,7 @@
     "@types/bcryptjs": "^2.4.6",
     "@upstash/redis": "^1.36.3",
     "bcryptjs": "^3.0.3",
+    "framer-motion": "^12.36.0",
     "jose": "^6.2.0",
     "lightweight-charts": "^5.1.0",
     "mongoose": "^9.2.4",

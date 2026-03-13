@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import GlassCard from "@/components/ui/GlassCard";
+import { useAuth } from "@/components/ui/AuthProvider";
 
 // ── Reusable SVG icon components ──────────────────────────────────────────────
 
@@ -243,6 +244,9 @@ const TIPS_SECTIONS = [
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function GuidancePage() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin" || user?.role === "superadmin";
+
   return (
     <div className="space-y-8 pb-6">
       {/* Breadcrumb */}
@@ -388,15 +392,16 @@ export default function GuidancePage() {
 
           <FeatureCard badge="Cari Saham" title="Stock Search — Eksplorasi Saham"
             icon={<IconSearch className="w-5 h-5" style={{ color: "#fb923c" }} />}>
-            <p>Cari semua emiten IDX secara real-time. Cocok untuk riset & screening saham baru.</p>
+            <p>Cari semua emiten IDX secara real-time. Cocok untuk riset terpadu, dari teknikal hingga fundamental.</p>
             <ul className="space-y-1.5 mt-2">
               {[
-                "Pencarian live dengan debounce 400ms — ketik langsung muncul",
-                "Auto-append .JK untuk ticker Indonesia",
-                "Quote detail: harga, change, Open/High/Low/Close, volume, market cap",
-                "Grafik Candlestick & Line — bisa diswitch",
-                "7 timeframe: 5m, 15m, 1h, 4h, 1Y, 1W, 1M",
-                "Berita terkait saham + analisis sentimen otomatis",
+                "Pencarian live otomatis (debounce 400ms) untuk emiten IDX",
+                "Grafik interaktif Candlestick & Line (7 timeframe: 5m s/d 1M)",
+                "Panel Sinyal Teknikal (RSI, Moving Averages, MACD)",
+                "Data Fundamental: metrik Valuasi, Balance Sheet, Profit Margin",
+                "Analisis Profil Major Holders & Data Kepemilikan Institusi",
+                "Rekomendasi Trend Konsensus dari Analis Eksternal",
+                "Berita terkait saham dengan filter mesin analisis sentimen otomatis",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-1.5">
                   <IconCheck className="w-3 h-3 text-green-500 flex-shrink-0 mt-0.5" />
@@ -429,35 +434,74 @@ export default function GuidancePage() {
 
           <FeatureCard badge="Detail Saham" title="Stock Detail — Analisis Mendalam"
             icon={<IconCandlestick className="w-5 h-5" style={{ color: "#fb923c" }} />}>
-            <p>Halaman penuh untuk satu saham — tempat membaca "cerita" terlengkap.</p>
-            <ul className="space-y-1.5 mt-2">
-              {[
-                "Header: nama, harga live, change % dengan badge warna",
-                "Stats: Open, High, Low, Prev Close, Volume",
-                "Chart Candlestick interaktif dengan semua indikator",
-                "Garis TP & SL langsung terpasang di chart",
-                "Notes / catatan bandarmology khusus saham ini",
-                "Market Capitalization dalam Triliun Rupiah",
-                "Auto-refresh quote & chart tiap 60 detik",
-              ].map((item) => (
-                <li key={item} className="flex items-start gap-1.5">
-                  <IconCheck className="w-3 h-3 text-green-500 flex-shrink-0 mt-0.5" />
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
+            <p>Halaman penuh untuk satu saham — tempat membaca "cerita" terlengkap dan merancang setup profitabilitas.</p>
+            <div className="space-y-3 mt-2">
+              <ul className="space-y-1.5">
+                {[
+                  "Chart Candlestick interaktif dengan S/R, MA, dan MACD terintegrasi",
+                  "Garis interaktif batas TP & SL visual yang langsung terpasang di chart",
+                  "Auto-refresh quote & chart secara real-time",
+                ].map((item) => (
+                  <li key={item} className="flex items-start gap-1.5">
+                    <IconCheck className="w-3 h-3 text-green-500 flex-shrink-0 mt-0.5" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="p-3 mt-2 rounded-xl" style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.2)" }}>
+                <p className="text-xs font-bold text-green-400 mb-1 flex items-center gap-1">
+                  <IconTarget className="w-3.5 h-3.5" />
+                  Strategi Praktis Mencari Profit:
+                </p>
+                <ul className="space-y-1.5 text-[11px] text-silver-300">
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-green-500 font-bold">•</span>
+                    <span><strong>Buy on Weakness:</strong> Identifikasi saat candlestick memantul dari garis bawah Support (biru) diiringi volume yang mulai naik. Set level Buy di area ini.</span>
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-green-500 font-bold">•</span>
+                    <span><strong>Golden Cross Alert:</strong> Perhatikan saat garis MA5 memotong MA20/MA50 ke atas. Momentum ini adalah salah satu sinyal konfirmasi naik yang paling valid.</span>
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-green-500 font-bold">•</span>
+                    <span><strong>Take Profit Terukur:</strong> Gunakan garis TP yang kamu atur. Jika harga sudah menyentuh garis Resistance (ungu), segera realisasikan profit karena rawan *pullback*.</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
           </FeatureCard>
 
-          <FeatureCard badge="Admin Panel" title="Admin Panel — Manajemen Data"
-            icon={<IconCog className="w-5 h-5" style={{ color: "#fb923c" }} />}>
-            <p>Pusat pengelolaan saham — tambah, edit, hapus entri watchlist beserta parameternya.</p>
+          {isAdmin && (
+            <FeatureCard badge="Admin Panel" title="Admin Panel — Manajemen Sistem"
+              icon={<IconCog className="w-5 h-5" style={{ color: "#fb923c" }} />}>
+              <p>Pusat kendali admin. Dari manajemen user hingga operasional dan edukasi.</p>
+              <ul className="space-y-1.5 mt-2">
+                {[
+                  "Aktivasi, verifikasi, dan manajemen Membership pengguna",
+                  "Pendelegasian hak akses / role (Admin, User, Pending)",
+                  "Editor Web Artikel Edukasi dengan dukungan Markdown",
+                  "Mengelola parameter global dan Setelan Situs Utama",
+                  "Tambah/edit/hapus database Stock Watchlist lengkap dengan notes",
+                ].map((item) => (
+                  <li key={item} className="flex items-start gap-1.5">
+                    <IconCheck className="w-3 h-3 text-green-500 flex-shrink-0 mt-0.5" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </FeatureCard>
+          )}
+
+          <FeatureCard badge="Otomasi Harian" title="Market Summary & Edukasi"
+            icon={<IconNote className="w-5 h-5" style={{ color: "#fb923c" }} />}>
+            <p>Informasi dan pembalajaran terus berjalan di latar belakang.</p>
             <ul className="space-y-1.5 mt-2">
               {[
-                "Form tambah saham: cari ticker, set TP & SL, tulis catatan",
-                "Edit inline: ubah TP, SL, dan catatan tanpa reload",
-                "Hapus saham dengan konfirmasi dua langkah (anti-misclick)",
-                "Tabel daftar semua saham yang ditrack",
-                "Catatan Bandarmology tersimpan per saham",
+                "Generate Ringkasan Pasar Otomatis setiap jam 16:15 WIB",
+                "Memilah otomatis Top Gainers dan Top Losers harian",
+                "Agregasi cerdas berita CNBC/Detik via filter keyword Market",
+                "Hasil terbit langsung di Beranda sebagai artikel interaktif publik",
+                "Pusat bacaan literasi investasi di tab Artikel terdedikasi",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-1.5">
                   <IconCheck className="w-3 h-3 text-green-500 flex-shrink-0 mt-0.5" />
@@ -507,7 +551,7 @@ export default function GuidancePage() {
                 "Lihat Watchlist — saham mana yang mendekati TP atau SL?",
                 "Klik kartu saham — baca chart & catatan bandarmology",
                 "Analisis indikator: MA, MACD, dan zona S/R",
-                "Update catatan di Admin Panel jika ada perkembangan baru",
+                isAdmin ? "Update catatan di Admin Panel jika ada perkembangan baru" : "Jadikan referensi untuk melacak setup entry/exit dan update artikel.",
               ].map((step, i) => (
                 <StepBadge key={step} num={i + 1} label={step} />
               ))}
@@ -522,13 +566,75 @@ export default function GuidancePage() {
                 "Analisis chart dengan timeframe dari 5m hingga 1M",
                 "Perhatikan volume — apakah ada akumulasi smart money?",
                 "Tentukan level TP (target profit) dan SL (batas rugi)",
-                "Tambahkan ke Watchlist via Admin Panel + tulis catatan",
+                isAdmin ? "Tambahkan ke Watchlist via Admin Panel + tulis catatan" : "Cocokkan pola teknikal dengan literasi Cerita Saham untuk melatih decision making",
               ].map((step, i) => (
                 <StepBadge key={step} num={i + 1} label={step} />
               ))}
             </div>
           </div>
         </GlassCard>
+      </div>
+
+      {/* ─── Panduan Fundamental & Kepemilikan ─────────────────────── */}
+      <div>
+        <SectionTitle icon={<IconLayers className="w-4 h-4" />}>Panduan Analisis Fundamental & Bandarmologi</SectionTitle>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FeatureCard badge="Valuasi" title="Metrik Keuangan (PER & PBV)"
+            icon={<IconActivity className="w-5 h-5" style={{ color: "#3b82f6" }} />} badgeColor="#3b82f6">
+            <p className="mb-2">Digunakan untuk menilai apakah saham sedang "Murah" (Undervalued) atau "Mahal" (Overvalued).</p>
+            <ul className="space-y-2">
+              <li className="flex items-start gap-1.5">
+                <IconCheck className="w-3 h-3 text-blue-400 flex-shrink-0 mt-0.5" />
+                <span><strong>PER (Price to Earnings Ratio):</strong> Waktu (dalam tahun) yang dibutuhkan untuk balik modal jika EPS (Earning Per Share) stagnan. PER &lt; 10x (atau lebih rendah dari industri) umumnya murah.</span>
+              </li>
+              <li className="flex items-start gap-1.5">
+                <IconCheck className="w-3 h-3 text-blue-400 flex-shrink-0 mt-0.5" />
+                <span><strong>PBV (Price to Book Value):</strong> Rasio harga pasar dibanding nilai aslinya di pembukuan (aset bersih). PBV &lt; 1x berarti saham tersebut secara teori dijual "diskon" di bawah harga modal aslinya.</span>
+              </li>
+            </ul>
+          </FeatureCard>
+
+          <FeatureCard badge="Kesehatan" title="Profitabilitas & Kinerja"
+            icon={<IconTrendUp className="w-5 h-5" style={{ color: "#10b981" }} />} badgeColor="#10b981">
+            <p className="mb-2">Seberapa efisien, konsisten, dan amannya manajemen perusahaan dalam mencetak laba.</p>
+            <ul className="space-y-2">
+              <li className="flex items-start gap-1.5">
+                <IconCheck className="w-3 h-3 text-green-400 flex-shrink-0 mt-0.5" />
+                <span><strong>ROE (Return on Equity) & ROA:</strong> Metrik efisiensi paling inti. ROE &gt; 15% menandakan perusahaan sangat pandai mencetak laba besar bermodalkan ekuitas kecil hasil pemegang saham.</span>
+              </li>
+              <li className="flex items-start gap-1.5">
+                <IconCheck className="w-3 h-3 text-green-400 flex-shrink-0 mt-0.5" />
+                <span><strong>Debt / Profil Hutang:</strong> Memantau beban leverage keuangan. Hutang berbunga komersial yang melebihi ekuitasnya (DER tinggi) akan memicu beban *cost of fund* yang menggerus profitabilitas bersih emiten secara kronis.</span>
+              </li>
+            </ul>
+          </FeatureCard>
+
+          <FeatureCard badge="Smart Money" title="Major Holders & Distribusi Saham"
+            icon={<IconBuilding className="w-5 h-5" style={{ color: "#a855f7" }} />} badgeColor="#a855f7">
+            <p className="mb-2">Melacak demografi pemegang saham sebagai jejak aktivitas *Smart Money*.</p>
+            <ul className="space-y-2">
+              <li className="flex items-start gap-1.5">
+                <IconCheck className="w-3 h-3 text-purple-400 flex-shrink-0 mt-0.5" />
+                <span><strong>Institusi (Institutional Holdings):</strong> Fund managers/dana pensiun. Jika presentasenya masif, pergerakan harganya wajar, kokoh, minim manipulasi, serta cocok untuk Investasi jangka panjang.</span>
+              </li>
+              <li className="flex items-start gap-1.5">
+                <IconCheck className="w-3 h-3 text-purple-400 flex-shrink-0 mt-0.5" />
+                <span><strong>Orang Dalam (Insider):</strong> Jika pendiri atau direksi berbondong memegang mayoritas presentase, artinya manajemen sangat yakin akan masa depan portofolio perusahaannya sendiri!</span>
+              </li>
+            </ul>
+          </FeatureCard>
+
+          <FeatureCard badge="Konsensus" title="Rekomendasi Analis Sekuritas"
+            icon={<IconNote className="w-5 h-5" style={{ color: "#f59e0b" }} />} badgeColor="#f59e0b">
+            <p className="mb-2">Konsolidasi penilaian dari ratusan analis profesional dan sekuritas global ternama.</p>
+            <ul className="space-y-2">
+              <li className="flex items-start gap-1.5">
+                <IconCheck className="w-3 h-3 text-yellow-500 flex-shrink-0 mt-0.5" />
+                <span><strong>Sentimen Major (Upgrade/Downgrade):</strong> Pengumuman serentak seperti *Upgrade to Strong Buy* akan menarik flow triliunan ke dalam institusi itu yang lazimnya mendongkrak fundamental & katalis teknikalnya selama 2–3 bulan penuh pascaberita dinaikkan.</span>
+              </li>
+            </ul>
+          </FeatureCard>
+        </div>
       </div>
 
       {/* ─── Tips Membaca Cerita Saham ───────────────────────────── */}
@@ -599,6 +705,63 @@ export default function GuidancePage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </GlassCard>
+      </div>
+
+      {/* ─── Manajemen Risiko & Cut Loss ──────────────────────────── */}
+      <div>
+        <SectionTitle icon={<IconWarning className="w-4 h-4" />}>Manajemen Risiko: Kenapa Harus Cutloss?</SectionTitle>
+        <GlassCard hover={false} className="!p-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+            <div className="space-y-4">
+              <p className="text-sm text-silver-300 leading-relaxed">
+                <span className="text-red-400 font-bold">Mengembalikan kerugian 5-10% itu sangat mudah</span>,
+                pasarnya banyak. Tapi kalau Anda rugi sampai 50%, Anda butuh saham yang bagger (naik 100%)
+                cuma untuk buat saldo Anda kembali utuh.
+              </p>
+              <p className="text-sm text-silver-300 leading-relaxed">
+                Mencari saham yang bisa profit 100% itu akan <span className="text-orange-400 font-semibold">jauh lebih susah</span> daripada mencari saham yang bisa profit 20%!
+              </p>
+              <div className="p-4 rounded-xl mt-3" style={{ background: "rgba(239,68,68,0.08)", borderLeft: "4px solid #ef4444" }}>
+                <p className="text-xs text-silver-300 leading-relaxed">
+                  <strong className="text-red-400">Kesimpulan:</strong> Nah dari sini kita tahu kan, bahwa Cut Loss itu bukan berarti kita ga yakin sama sahamnya, tapi lebih ke <strong className="text-silver-100">gerakan strategis</strong> yang bisa kita ambil untuk mengolah portofolio kita agar dapat bertumbuh dengan efisien.
+                </p>
+              </div>
+            </div>
+            
+            <div className="overflow-x-auto p-4 rounded-xl" style={{ background: "rgba(6,20,14,0.3)" }}>
+              <p className="text-xs font-bold text-center mb-4 text-silver-200">Kesulitan Kenaikan Harga untuk BEP (Break Even Point)</p>
+              <table className="w-full text-xs text-center bg-transparent">
+                <thead>
+                  <tr style={{ borderBottom: "1px solid rgba(226,232,240,0.1)" }}>
+                    <th className="pb-3 text-[10px] uppercase tracking-wider font-bold" style={{ color: "#94a3b8" }}>Penurunan Porto</th>
+                    <th className="pb-3 text-[10px] uppercase tracking-wider font-bold" style={{ color: "#94a3b8" }}>Kenaikan u/ BEP</th>
+                    <th className="pb-3 text-[10px] uppercase tracking-wider font-bold" style={{ color: "#94a3b8" }}>Tingkat Kesulitan</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    { loss: "5%", bep: "5.3%", level: "MUDAH", color: "#10b981", bg: "rgba(16,185,129,0.15)" },
+                    { loss: "10%", bep: "11.1%", level: "MUDAH", color: "#10b981", bg: "rgba(16,185,129,0.15)" },
+                    { loss: "20%", bep: "25%", level: "SEDANG", color: "#eab308", bg: "rgba(234,179,8,0.15)" },
+                    { loss: "30%", bep: "43%", level: "SULIT", color: "#ef4444", bg: "rgba(239,68,68,0.15)" },
+                    { loss: "50%", bep: "100%", level: "SULIT", color: "#ef4444", bg: "rgba(239,68,68,0.15)" },
+                  ].map((row, idx) => (
+                    <tr key={idx} style={{ borderBottom: "1px solid rgba(226,232,240,0.05)" }}>
+                      <td className="py-3 font-semibold" style={{ color: "#f87171" }}>-{row.loss}</td>
+                      <td className="py-3 font-bold" style={{ color: "#10b981" }}>+{row.bep}</td>
+                      <td className="py-3">
+                        <span className="px-3 py-1 rounded-full text-[10px] font-bold"
+                          style={{ background: row.bg, color: row.color, border: `1px solid ${row.color}30` }}>
+                          {row.level}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </GlassCard>
       </div>
