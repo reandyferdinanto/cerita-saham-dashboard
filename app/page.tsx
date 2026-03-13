@@ -17,6 +17,16 @@ interface NewsItem {
   image?: string;
 }
 
+interface ArticleItem {
+  _id: string;
+  title: string;
+  content: string;
+  imageUrl?: string;
+  isPublic: boolean;
+  authorId?: { name: string; email: string };
+  createdAt: string;
+}
+
 const LineChart = dynamic(() => import("@/components/charts/LineChart"), {
   ssr: false,
   loading: () => (
@@ -54,6 +64,8 @@ export default function DashboardPage() {
   const [lastUpdated, setLastUpdated] = useState<string>("");
   const [news, setNews] = useState<NewsItem[]>([]);
   const [newsLoading, setNewsLoading] = useState(true);
+  const [articles, setArticles] = useState<ArticleItem[]>([]);
+  const [articlesLoading, setArticlesLoading] = useState(true);
   const [globalQuotes, setGlobalQuotes] = useState<GlobalQuote[]>([]);
   const [modalTicker, setModalTicker] = useState<{ ticker: string; fullTicker: string } | null>(null);
 
@@ -169,6 +181,21 @@ export default function DashboardPage() {
       }
     };
     fetchNews();
+
+    const fetchArticles = async () => {
+      try {
+        setArticlesLoading(true);
+        const res = await fetch("/api/articles");
+        const data = await res.json();
+        if (Array.isArray(data)) setArticles(data);
+      } catch {
+        console.error("Failed to fetch articles");
+      } finally {
+        setArticlesLoading(false);
+      }
+    };
+    fetchArticles();
+
     const interval = setInterval(fetchNews, 5 * 60_000);
     return () => clearInterval(interval);
   }, []);
@@ -535,6 +562,75 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* Articles Section */}
+      <GlassCard hover={false}>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+              style={{ background: "rgba(16,185,129,0.15)", border: "1px solid rgba(16,185,129,0.2)" }}>
+              <svg className="w-4 h-4" style={{ color: "#10b981" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-silver-200">Artikel Pilihan</h2>
+              <p className="text-[10px] text-silver-500">Analisis dan insight pasar</p>
+            </div>
+          </div>
+        </div>
+
+        {articlesLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="rounded-xl p-4 animate-pulse"
+                style={{ background: "rgba(6,78,59,0.2)", border: "1px solid rgba(226,232,240,0.06)" }}>
+                <div className="h-28 rounded w-full mb-3" style={{ background: "rgba(255,255,255,0.06)" }} />
+                <div className="h-4 rounded w-full mb-2" style={{ background: "rgba(255,255,255,0.06)" }} />
+                <div className="h-4 rounded w-4/5" style={{ background: "rgba(255,255,255,0.06)" }} />
+              </div>
+            ))}
+          </div>
+        ) : articles.length === 0 ? (
+          <div className="text-center py-6 text-sm text-silver-500">Tidak ada artikel saat ini.</div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {articles.map((article) => (
+              <Link 
+                href={`/articles/${article._id}`} 
+                key={article._id}
+                className="group flex flex-col rounded-xl overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-lg"
+                style={{ background: "rgba(6,78,59,0.15)", border: "1px solid rgba(226,232,240,0.06)", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }}
+              >
+                {article.imageUrl ? (
+                  <div className="w-full h-36 overflow-hidden flex-shrink-0" style={{ background: "rgba(6,78,59,0.3)" }}>
+                    <img src={article.imageUrl} alt={article.title} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" />
+                  </div>
+                ) : (
+                  <div className="w-full h-36 flex items-center justify-center flex-shrink-0" style={{ background: "rgba(6,78,59,0.25)" }}>
+                    <svg className="w-8 h-8" style={{ color: "#1e3a2f" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+                    </svg>
+                  </div>
+                )}
+                <div className="p-3.5 flex flex-col flex-1 gap-2">
+                  <div className="text-[10px] font-semibold text-silver-500 flex justify-between">
+                    <span>{new Date(article.createdAt).toLocaleDateString("id-ID")}</span>
+                    {article.isPublic ? null : <span className="text-orange-400 bg-orange-500/10 px-1.5 py-0.5 rounded border border-orange-500/20">Privat</span>}
+                  </div>
+                  <h3 className="text-sm font-semibold leading-snug line-clamp-2 transition-colors group-hover:text-green-400" style={{ color: "#cbd5e1" }}>
+                    {article.title}
+                  </h3>
+                  <p className="text-xs leading-relaxed line-clamp-2 mt-auto" style={{ color: "#475569" }}>
+                    {article.content}
+                  </p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </GlassCard>
+
       {/* Finance News */}
       <GlassCard hover={false}>
         {/* Header */}
