@@ -4,6 +4,7 @@ import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import GlassCard from "@/components/ui/GlassCard";
 import { useRouter } from "next/navigation";
+import ReactMarkdown from "react-markdown";
 
 interface Article {
   _id: string;
@@ -124,13 +125,17 @@ export default function ArticleDetailPage({ params }: { params: Promise<{ id: st
         </div>
         
         <div className="prose prose-invert max-w-none text-silver-300">
-          {article.content.split('\n').map((paragraph, idx) => (
-            paragraph.trim() !== "" ? (
-              <p key={idx} className="mb-4 leading-relaxed whitespace-pre-wrap text-base">
-                {paragraph}
-              </p>
-            ) : null
-          ))}
+          <ReactMarkdown
+            components={{
+              h3: ({ node, ...props }) => <h3 className="text-xl font-bold text-silver-100 mt-6 mb-3" {...props} />,
+              p: ({ node, ...props }) => <p className="mb-4 leading-relaxed text-base" {...props} />,
+              ul: ({ node, ...props }) => <ul className="list-disc pl-5 mb-4" {...props} />,
+              li: ({ node, ...props }) => <li className="mb-1" {...props} />,
+              strong: ({ node, ...props }) => <strong className="font-semibold text-silver-200" {...props} />
+            }}
+          >
+            {article.content}
+          </ReactMarkdown>
         </div>
       </GlassCard>
     </div>
