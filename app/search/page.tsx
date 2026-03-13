@@ -581,8 +581,12 @@ function SearchPageInner() {
             </GlassCard>
           )}
 
-          {/* ── Sinyal Teknikal ── */}
-          {history.length >= 20 && (
+          {/* ── Data Grid (Technical, News, Fundamental, Analyst) ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+            {/* Left Column */}
+            <div className="space-y-5 flex flex-col">
+              {/* ── Sinyal Teknikal ── */}
+              {history.length >= 20 && (
             <TechnicalSignalPanel history={history} ticker={selectedTicker!} />
           )}
 
@@ -779,8 +783,12 @@ function SearchPageInner() {
           </GlassCard>
 
 
-          {/* ── Fundamental & Metrik Valuasi ── */}
-          <FundamentalSection fundamental={fundamental} loading={loadingFundamental} />
+            </div>
+
+            {/* Right Column */}
+            <div className="space-y-5 flex flex-col">
+              {/* ── Fundamental & Metrik Valuasi ── */}
+              <FundamentalSection fundamental={fundamental} loading={loadingFundamental} />
 
           {/* ── Major Holders & Institutional ── */}
           <GlassCard hover={false}>
@@ -1000,6 +1008,8 @@ function SearchPageInner() {
               </div>
             )}
           </GlassCard>
+          </div>
+          </div>
 
           {/* Action buttons */}
           <div className="flex gap-3 flex-wrap">
