@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import GlassCard from "@/components/ui/GlassCard";
-import { createChart, IChartApi, ISeriesApi, Time, IPriceLine, AreaSeries } from "lightweight-charts";
+import { createChart, IChartApi, ISeriesApi, Time, IPriceLine, AreaSeries, createSeriesMarkers, ISeriesMarkersPluginApi, SeriesMarker } from "lightweight-charts";
 
 // Icons
 const IconHome = ({ className }: { className?: string }) => (
@@ -37,9 +37,15 @@ const IconShield = ({ className }: { className?: string }) => (
     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
   </svg>
 );
+const IconLogo = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm1-13h-2v4H8l4 4 4-4h-3V7z" />
+  </svg>
+);
 
 const InitialCapital = 10000000; // 10 Juta Rupiah
 const StartingPrice = 1000; // Harga Pertama Aset
+const SHARES_PER_LOT = 100;
 
 const formatRupiah = (val: number) => {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(val);
@@ -52,18 +58,25 @@ export default function TradingSimulator() {
   const [capital, setCapital] = useState(InitialCapital);
   const [totalShares, setTotalShares] = useState(0);
   const [totalInvested, setTotalInvested] = useState(0);
-  const [trades, setTrades] = useState<{ price: number; shares: number; type: "buy" | "sell" }[]>([]);
+  const [orderLot, setOrderLot] = useState(10); // Default input lot
 
   const avgPrice = totalShares > 0 ? totalInvested / totalShares : 0;
   const equityValue = totalShares * currentPrice;
   const profitLoss = equityValue - totalInvested;
   const profitLossPercent = totalInvested > 0 ? (profitLoss / totalInvested) * 100 : 0;
+  
+  const dailyChange = currentPrice - StartingPrice;
+  const dailyChangePercent = (dailyChange / StartingPrice) * 100;
+  const isPositive = dailyChange >= 0;
+  const themeColor = isPositive ? "#10b981" : "#ef4444"; // Emerald or Red
 
   // Chart References
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Area"> | null>(null);
   const avgLineRef = useRef<IPriceLine | null>(null);
+  const markersPluginRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
+  const allMarkersRef = useRef<SeriesMarker<Time>[]>([]);
 
   // Engine State
   const priceEngineRef = useRef(StartingPrice);
@@ -80,29 +93,33 @@ export default function TradingSimulator() {
         textColor: "#94a3b8",
       },
       grid: {
-        vertLines: { color: "rgba(226,232,240,0.05)" },
-        horzLines: { color: "rgba(226,232,240,0.05)" },
+        vertLines: { visible: false },
+        horzLines: { color: "rgba(226,232,240,0.05)", style: 1 },
       },
       timeScale: {
         timeVisible: true,
         secondsVisible: true,
         borderColor: "rgba(226,232,240,0.1)",
+        fixLeftEdge: true,
       },
       rightPriceScale: {
         borderColor: "rgba(226,232,240,0.1)",
       },
       crosshair: {
-        vertLine: { color: "rgba(226,232,240,0.4)", labelBackgroundColor: "#1e293b" },
-        horzLine: { color: "rgba(226,232,240,0.4)", labelBackgroundColor: "#1e293b" },
+        vertLine: { color: "rgba(226,232,240,0.4)", labelBackgroundColor: "#1e293b", style: 2 },
+        horzLine: { color: "rgba(226,232,240,0.4)", labelBackgroundColor: "#1e293b", style: 2 },
       },
     });
 
     seriesRef.current = chartRef.current.addSeries(AreaSeries, {
-      lineColor: "#3b82f6",
-      topColor: "rgba(59, 130, 246, 0.4)",
-      bottomColor: "rgba(59, 130, 246, 0.0)",
+      lineColor: themeColor,
+      topColor: isPositive ? "rgba(16, 185, 129, 0.4)" : "rgba(239, 68, 68, 0.4)",
+      bottomColor: "rgba(0, 0, 0, 0.0)",
       lineWidth: 2,
     });
+
+    // Initialize Markers Plugin
+    markersPluginRef.current = createSeriesMarkers(seriesRef.current, []);
 
     // Populate initial dummy history
     const history = [];
@@ -129,7 +146,7 @@ export default function TradingSimulator() {
       window.removeEventListener("resize", handleResize);
       chartRef.current?.remove();
     };
-  }, []);
+  }, []); // Only once, we'll update colors dynamically below
 
   // Live simulation tick engine
   useEffect(() => {
@@ -154,6 +171,16 @@ export default function TradingSimulator() {
     return () => clearInterval(interval);
   }, []);
 
+  // Update Chart Theme Color when price drops below starting point
+  useEffect(() => {
+    if (seriesRef.current) {
+      seriesRef.current.applyOptions({
+        lineColor: themeColor,
+        topColor: isPositive ? "rgba(16, 185, 129, 0.4)" : "rgba(239, 68, 68, 0.4)",
+      });
+    }
+  }, [themeColor, isPositive]);
+
   // Update Average Price Line on Chart
   useEffect(() => {
     if (!seriesRef.current) return;
@@ -161,7 +188,7 @@ export default function TradingSimulator() {
        if (!avgLineRef.current) {
           avgLineRef.current = seriesRef.current.createPriceLine({
              price: avgPrice,
-             color: "#10b981",
+             color: "#3b82f6", // Blue for average price
              lineWidth: 2,
              lineStyle: 1, // Dotted
              axisLabelVisible: true,
@@ -184,62 +211,66 @@ export default function TradingSimulator() {
     setCapital(InitialCapital);
     setTotalShares(0);
     setTotalInvested(0);
-    setTrades([]);
+    setOrderLot(10);
     
     // reset chart data
     if (seriesRef.current) {
        timeEngineRef.current = Math.floor(Date.now() / 1000);
        seriesRef.current.setData([{ time: timeEngineRef.current as Time, value: StartingPrice }]);
+       allMarkersRef.current = [];
+       markersPluginRef.current?.setMarkers([]);
     }
   };
 
-  const buyStock = (amountToInvest: number) => {
-    if (amountToInvest > capital) amountToInvest = capital;
-    if (amountToInvest <= 0) return;
-
+  const buyStock = (lot: number) => {
+    if (lot <= 0) return;
+    
     const currentLive = priceEngineRef.current;
-    const sharesToBuy = Math.floor(amountToInvest / currentLive);
+    const sharesToBuy = lot * SHARES_PER_LOT;
     const actualCost = sharesToBuy * currentLive;
+
+    if (actualCost > capital) {
+        alert("Balance tidak cukup!");
+        return;
+    }
 
     setCapital((prev) => prev - actualCost);
     setTotalInvested((prev) => prev + actualCost);
     setTotalShares((prev) => prev + sharesToBuy);
-    setTrades([...trades, { price: Math.floor(currentLive), shares: sharesToBuy, type: "buy" }]);
 
     // Mark buy on chart
-    if (seriesRef.current) {
-       seriesRef.current.setMarkers([
-          {
-             time: timeEngineRef.current as Time,
-             position: 'belowBar',
-             color: '#3b82f6',
-             shape: 'arrowUp',
-             text: 'Buy',
-          }
-       ]);
+    if (markersPluginRef.current) {
+       const newMarker: SeriesMarker<Time> = {
+          time: timeEngineRef.current as Time,
+          position: 'belowBar',
+          color: '#10b981',
+          shape: 'arrowUp',
+          text: `Buy ${lot}L`,
+       };
+       allMarkersRef.current = [...allMarkersRef.current, newMarker];
+       markersPluginRef.current.setMarkers(allMarkersRef.current);
     }
   };
 
-  const cutLoss = () => {
+  const sellStock = () => {
     const currentLive = priceEngineRef.current;
     const finalEquity = totalShares * currentLive;
     
     setCapital((prev) => prev + finalEquity);
     setTotalInvested(0);
     setTotalShares(0);
-    setTrades([...trades, { price: Math.floor(currentLive), shares: totalShares, type: "sell" }]);
 
     // Mark sell on chart
-    if (seriesRef.current) {
-       seriesRef.current.setMarkers([
-          {
-             time: timeEngineRef.current as Time,
-             position: 'aboveBar',
-             color: '#ef4444',
-             shape: 'arrowDown',
-             text: profitLoss < 0 ? 'Cut Loss' : 'Take Profit',
-          }
-       ]);
+    if (markersPluginRef.current) {
+       const newMarker: SeriesMarker<Time> = {
+          time: timeEngineRef.current as Time,
+          position: 'aboveBar',
+          color: '#ef4444',
+          shape: 'arrowDown',
+          text: profitLoss < 0 ? 'Cut Loss' : 'Take Profit',
+       };
+       allMarkersRef.current = [...allMarkersRef.current, newMarker];
+       markersPluginRef.current.setMarkers(allMarkersRef.current);
     }
   };
 
@@ -258,6 +289,8 @@ export default function TradingSimulator() {
     }
     setCurrentPrice(Math.floor(newPrice));
   };
+
+  const currentInvestmentCost = orderLot * SHARES_PER_LOT * currentPrice;
 
   return (
     <div className="space-y-8 pb-10">
@@ -410,155 +443,223 @@ export default function TradingSimulator() {
         </motion.div>
       </AnimatePresence>
 
-      {/* Interaktif Simulator - Visible under all tabs */}
-      <GlassCard hover={false} className="!p-5 sm:!p-8 relative mt-10" style={{ border: "1px solid rgba(59,130,246,0.3)" }}>
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 pb-6" style={{ borderBottom: "1px solid rgba(226,232,240,0.1)" }}>
-          <div>
-            <h2 className="text-xl font-bold flex items-center gap-2">🕹️ Live Trading Simulator</h2>
-            <p className="text-xs text-silver-400 mt-1">Sisa Modal Saldo: <strong className="text-silver-200">{formatRupiah(capital)}</strong></p>
-          </div>
-          <button onClick={resetSim} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all border border-red-500/20">
-            <IconRefresh className="w-3.5 h-3.5" /> Ulangi Simulasi
-          </button>
+      {/* ─── LIVE TRADING TERMINAL STYLE ─────────────────────────────────── */}
+      <GlassCard hover={false} className="!p-0 overflow-hidden relative mt-10" style={{ border: "1px solid rgba(59,130,246,0.3)" }}>
+        {/* Terminal Header */}
+        <div className="flex items-center justify-between p-4 sm:px-6 sm:py-4 border-b border-white/5" style={{ background: "rgba(15,23,42,0.6)" }}>
+           <h2 className="text-base sm:text-lg font-bold flex items-center gap-2 text-silver-100">
+             <IconShield className="w-5 h-5 text-blue-500" /> Live Trading Terminal
+           </h2>
+           <button onClick={resetSim} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold bg-white/5 text-silver-300 hover:bg-white/10 hover:text-white transition-all border border-white/10">
+             <IconRefresh className="w-3.5 h-3.5" /> Ulangi Simulasi (Reset)
+           </button>
         </div>
 
-        {/* LIVE CHART */}
-        <div className="w-full h-80 sm:h-96 rounded-2xl mb-6 overflow-hidden border border-white/5 relative bg-black/20" ref={chartContainerRef}>
-          {/* Chart mounts here */}
-          <div className="absolute top-4 left-4 z-10 pointers-events-none p-3 rounded-lg bg-black/50 backdrop-blur border border-white/10">
-            <div className="text-xs text-silver-400 mb-1 uppercase tracking-widest">Saham Virtual (MOCK)</div>
-            <div className={`text-2xl font-black ${currentPrice > StartingPrice ? 'text-emerald-400' : 'text-red-400'}`}>
-              Rp {currentPrice.toLocaleString("id-ID")}
-            </div>
-          </div>
-        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-12 md:divide-x divide-white/5">
+          {/* LEFT COLUMN: Chart & Stats */}
+          <div className="lg:col-span-8 p-4 sm:p-6 flex flex-col gap-4">
+             {/* Header Stock */}
+             <div className="flex justify-between items-start">
+               <div>
+                  <h2 className="text-2xl font-black flex items-center gap-2 tracking-wide text-silver-100">
+                    CRTA <span className="border border-white/20 text-[10px] bg-white/5 px-1.5 py-0.5 rounded text-silver-300 font-semibold tracking-normal">Virtual</span>
+                  </h2>
+                  <p className="text-xs text-silver-400 mt-0.5">Cerita Saham Tbk.</p>
+               </div>
+               <div className="w-10 h-10 rounded-full bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
+                 <IconLogo className="w-5 h-5" />
+               </div>
+             </div>
+             
+             {/* Price Big */}
+             <div>
+               <div className="text-4xl font-black mb-1" style={{ color: themeColor }}>
+                 {currentPrice.toLocaleString("id-ID")}
+               </div>
+               <div className="text-sm font-bold flex items-center gap-1" style={{ color: themeColor }}>
+                 {isPositive ? <IconTrendingUp className="w-4 h-4" /> : <IconTrendingDown className="w-4 h-4" />}
+                 {isPositive ? '+' : ''}{(dailyChange)} ({isPositive ? '+' : ''}{dailyChangePercent.toFixed(2)}%) Hari Ini
+               </div>
+               <div className="flex gap-2 mt-2">
+                 <span className="text-[10px] border border-emerald-500/30 text-emerald-400 px-2 py-0.5 rounded-sm bg-emerald-500/10">Tech & Software</span>
+                 <span className="text-[10px] border border-blue-500/30 text-blue-400 px-2 py-0.5 rounded-sm bg-blue-500/10">Syariah</span>
+               </div>
+             </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-          {/* Kolom Kiri: Portofolio State */}
-          <div className="md:col-span-4 space-y-4">
-            <div className="p-5 rounded-2xl bg-black/40 border border-white/5 space-y-3 shadow-inner">
-              <h3 className="text-xs font-bold text-silver-400 uppercase tracking-widest text-center">Portofolio Saat Ini</h3>
-              <div className="flex justify-between items-end border-b border-white/5 pb-2">
-                <span className="text-xs text-silver-400">Avg. Harga (Modal)</span>
-                <span className="text-lg font-bold text-blue-400">Rp {Math.floor(avgPrice)}</span>
+             {/* Chart Container */}
+             <div className="w-full h-80 rounded-xl overflow-hidden mt-2 relative" ref={chartContainerRef} style={{ background: "rgba(0,0,0,0.3)" }}>
+                {/* Lightweight Chart injected here */}
+             </div>
+
+             {/* Timeframes (Visual mockup) */}
+             <div className="flex justify-between items-center text-[11px] sm:text-xs font-bold text-silver-500 border-b border-white/5 pb-2 px-1">
+                 <span className="text-emerald-400 border-b-2 border-emerald-400 pb-1 cursor-pointer">1D</span>
+                 <span className="cursor-pointer hover:text-silver-300">1W</span>
+                 <span className="cursor-pointer hover:text-silver-300">1M</span>
+                 <span className="cursor-pointer hover:text-silver-300">3M</span>
+                 <span className="cursor-pointer hover:text-silver-300">YTD</span>
+                 <span className="cursor-pointer hover:text-silver-300">1Y</span>
+                 <span className="cursor-pointer hover:text-silver-300">3Y</span>
+                 <span className="cursor-pointer hover:text-silver-300">5Y</span>
+                 <IconTrendingUp className="w-4 h-4 text-emerald-400" />
+             </div>
+
+             {/* Key Stats Block */}
+             <div className="grid grid-cols-2 gap-4 sm:gap-6 mt-3 px-2">
+                 <div className="space-y-3 relative text-[11px] sm:text-xs">
+                    <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-silver-400">Open</span> <span className="text-silver-200 font-medium">1,000</span></div>
+                    <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-silver-400">High</span> <span className="text-emerald-400 font-medium">{Math.floor(StartingPrice * 1.05).toLocaleString("id-ID")}</span></div>
+                    <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-silver-400">Low</span> <span className="text-red-400 font-medium">{Math.floor(StartingPrice * 0.95).toLocaleString("id-ID")}</span></div>
+                 </div>
+                 <div className="space-y-3 relative text-[11px] sm:text-xs">
+                    <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-silver-400">Volume</span> <span className="text-emerald-400 font-medium">4.5M Lot</span></div>
+                    <div className="flex justify-between border-b border-white/5 pb-1">
+                      <span className="text-silver-400">Harga Modal Rata-Mu</span> 
+                      <span className="text-blue-400 font-bold">{avgPrice > 0 ? `Rp ${Math.floor(avgPrice).toLocaleString("id-ID")}` : "-"}</span>
+                    </div>
+                    <div className="flex justify-between border-b border-white/5 pb-1">
+                      <span className="text-silver-400">Total Lot Dimiliki</span>
+                      <span className="text-silver-200 font-bold">{totalShares > 0 ? (totalShares / SHARES_PER_LOT).toLocaleString("id-ID") : 0}</span>
+                    </div>
+                 </div>
+             </div>
+          </div>
+
+          {/* RIGHT COLUMN: Order Form */}
+          <div className="lg:col-span-4 flex flex-col relative" style={{ background: "rgba(0,0,0,0.2)" }}>
+              {/* Top Banner Limit */}
+              <div className="py-2 px-4 border-b border-white/5 text-right">
+                <span className="text-[10px] font-bold text-emerald-400 border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 rounded">Limit Order ⏷</span>
               </div>
-              <div className="flex justify-between items-end border-b border-white/5 pb-2">
-                <span className="text-xs text-silver-400">Total Lot (Saham)</span>
-                <span className="text-base font-bold text-silver-200">{totalShares} Lembar</span>
-              </div>
-              <div className="flex justify-between items-end pt-1">
-                <span className="text-xs text-silver-400">Total P/L</span>
-                <div className="text-right">
-                  <motion.div
-                    key={profitLoss}
-                    initial={{ scale: 0.9 }}
-                    animate={{ scale: 1 }}
-                    className={`text-xl font-black ${profitLoss >= 0 ? "text-emerald-400" : "text-red-400"}`}
-                  >
-                    {profitLoss >= 0 ? "+" : ""}{formatRupiah(profitLoss)}
-                  </motion.div>
-                  <div className={`text-xs font-bold mt-1 ${profitLossPercent >= 0 ? "text-emerald-500" : "text-red-500"}`}>
-                    ({profitLossPercent >= 0 ? "+" : ""}{profitLossPercent.toFixed(2)}%)
+
+              <div className="p-4 sm:p-6 flex flex-col gap-6 flex-1">
+                  
+                  {/* Saldo Trading */}
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-bold text-silver-400">Trading Balance</span>
+                    <span className="font-black text-silver-100 whitespace-nowrap">{formatRupiah(capital)}</span>
                   </div>
-                </div>
-              </div>
-            </div>
-
-            {totalShares > 0 && (
-               <button
-                  onClick={cutLoss}
-                  className="w-full py-3 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold text-sm shadow-lg shadow-red-500/20 transition-all flex justify-center items-center gap-2"
-                >
-                 <IconShield className="w-4 h-4" /> 
-                 {profitLoss < 0 ? "CUT LOSS (Terima Kerugian" : "TAKE PROFIT (Jual Semua"} & Kembali Modal)
-               </button>
-            )}
-            
-            {totalShares === 0 && trades.length > 0 && (
-              <div className="text-center p-3 text-xs text-silver-300 rounded-xl bg-green-500/10 border border-green-500/20">
-                 Semua saham berhasil dijual. Cek sisa modal saldomu di atas untuk melihat untung ruginya.
-              </div>
-            )}
-          </div>
-
-          {/* Kolom Kanan: Actions Console */}
-          <div className="md:col-span-8 flex flex-col gap-6">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 rounded-xl border border-white/5 bg-white/5 space-y-3 relative overflow-hidden group">
-                <div className="absolute inset-0 bg-green-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointers-events-none" />
-                <h4 className="text-xs font-bold text-silver-400 mb-2 flex items-center gap-1.5"><IconTrendingUp className="w-4 h-4 text-green-400" /> Katalis Market Naik</h4>
-                <div className="flex gap-2">
-                  <button onClick={() => simulateMarket("up", 2)} className="flex-1 py-1.5 text-[11px] font-bold bg-green-500/20 text-green-400 rounded hover:bg-green-500/30">+2% Spike</button>
-                  <button onClick={() => simulateMarket("up", 5)} className="flex-1 py-1.5 text-[11px] font-bold bg-green-500/20 text-green-400 rounded hover:bg-green-500/30">+5% Pump</button>
-                  <button onClick={() => simulateMarket("up", 10)} className="flex-1 py-1.5 text-[11px] font-bold bg-green-500/20 text-green-400 rounded hover:bg-green-500/30">ARA!</button>
-                </div>
-              </div>
-              <div className="p-4 rounded-xl border border-white/5 bg-white/5 space-y-3 relative overflow-hidden group">
-                <div className="absolute inset-0 bg-red-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointers-events-none" />
-                <h4 className="text-xs font-bold text-silver-400 mb-2 flex items-center gap-1.5"><IconTrendingDown className="w-4 h-4 text-red-400" /> Katalis Market Panik</h4>
-                <div className="flex gap-2">
-                  <button onClick={() => simulateMarket("down", 2)} className="flex-1 py-1.5 text-[11px] font-bold bg-red-500/20 text-red-400 rounded hover:bg-red-500/30">-2% Drop</button>
-                  <button onClick={() => simulateMarket("down", 5)} className="flex-1 py-1.5 text-[11px] font-bold bg-red-500/20 text-red-400 rounded hover:bg-red-500/30">-5% Dump</button>
-                  <button onClick={() => simulateMarket("down", 10)} className="flex-1 py-1.5 text-[11px] font-bold bg-red-500/20 text-red-400 rounded hover:bg-red-500/30">ARB!</button>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-4 sm:p-5 rounded-xl border border-blue-500/20 bg-blue-500/5 space-y-4 flex-1">
-              <h4 className="text-sm font-bold text-blue-400 flex items-center gap-2">
-                 ⚡ Eksekusi Order
-              </h4>
-              <p className="text-xs text-silver-400 leading-relaxed">Pilih berapa alokasi uang (dari Sisa Modalmu) yang akan dipakai untuk membeli Saham Virtual di harga live detik ini:</p>
-              
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                <button
-                  disabled={capital < 1000000}
-                  onClick={() => buyStock(1000000)}
-                  className="py-3 rounded uppercase tracking-wider shadow shadow-blue-500/20 bg-blue-500 hover:bg-blue-600 disabled:opacity-30 disabled:shadow-none font-bold text-[10px] sm:text-xs text-white transition-all transform hover:-translate-y-0.5"
-                >
-                  Beli Rp 1 Juta
-                </button>
-                 <button
-                  disabled={capital < 3000000}
-                  onClick={() => buyStock(3000000)}
-                  className="py-3 rounded uppercase tracking-wider shadow shadow-blue-500/20 bg-blue-500 hover:bg-blue-600 disabled:opacity-30 disabled:shadow-none font-bold text-[10px] sm:text-xs text-white transition-all transform hover:-translate-y-0.5"
-                >
-                  Beli Rp 3 Juta
-                </button>
-                 <button
-                  disabled={capital < 5000000}
-                  onClick={() => buyStock(5000000)}
-                  className="py-3 rounded uppercase tracking-wider shadow shadow-blue-500/20 bg-blue-500 hover:bg-blue-600 disabled:opacity-30 disabled:shadow-none font-bold text-[10px] sm:text-xs text-white transition-all transform hover:-translate-y-0.5"
-                >
-                  Beli Rp 5 Juta
-                </button>
-                 <button
-                  disabled={capital <= 0}
-                  onClick={() => buyStock(capital)}
-                  className="py-3 rounded uppercase tracking-wider shadow shadow-amber-500/20 bg-amber-500 hover:bg-amber-600 disabled:opacity-30 disabled:shadow-none font-bold text-[10px] sm:text-xs text-white transition-all transform hover:-translate-y-0.5 flex flex-col items-center justify-center gap-0.5"
-                >
-                  <span>All In Sisa Saldo</span>
-                </button>
-              </div>
-
-              {trades.length > 0 && (
-                <div className="mt-5 pt-4 border-t border-blue-500/10">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-silver-400 mb-3">Histori Transaksi (Mencicil)</p>
-                  <div className="flex flex-wrap gap-2 text-[10px]">
-                    {trades.map((t, i) => (
-                      <span key={i} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded font-medium border ${t.type === 'buy' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
-                        {t.type === 'buy' ? <IconTrendingUp className="w-3 h-3" /> : <IconTrendingDown className="w-3 h-3" />}
-                        {t.type === 'buy' ? 'Beli' : 'Jual'} {t.shares.toLocaleString()} Lbr @ Rp {t.price.toLocaleString("id-ID")}
+                  
+                  {/* Slider Simulation */}
+                  <div className="pt-2">
+                    <input 
+                      type="range" 
+                      min="0" 
+                      max="100" 
+                      value={Math.min(100, Math.max(0, (capital > 0 ? (orderLot * SHARES_PER_LOT * currentPrice) / capital * 100 : 0)))}
+                      onChange={(e) => {
+                        const maxLot = Math.floor(capital / (currentPrice * SHARES_PER_LOT));
+                        const pct = Number(e.target.value) / 100;
+                        setOrderLot(Math.floor(maxLot * pct));
+                      }}
+                      className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer accent-blue-500 hover:accent-blue-400 focus:outline-none"
+                    />
+                    <div className="flex justify-between items-center text-[10px] sm:text-xs text-silver-500 font-bold mt-2">
+                      <span>0%</span>
+                      <span className="text-blue-400">
+                        {capital > 0 ? Math.floor(((orderLot * SHARES_PER_LOT * currentPrice) / capital) * 100) : 0}% 
                       </span>
-                    ))}
+                      <span>Capital</span>
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
 
+                  {/* Input Fields */}
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                        <span className="text-xs font-bold text-silver-400">Price</span>
+                        <div className="flex items-center text-sm font-bold text-silver-200">
+                          <span className="text-silver-500 mr-4 cursor-not-allowed">−</span>
+                          <span className="w-20 text-right">{currentPrice.toLocaleString("id-ID")}</span>
+                          <span className="text-emerald-400 ml-4 cursor-not-allowed">+</span>
+                        </div>
+                    </div>
+                    
+                    <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                        <span className="text-xs font-bold text-silver-400 flex flex-col">
+                           Buy Order Lot
+                           <span className="text-[10px] text-silver-500 font-normal mt-0.5">(1 Lot = 100 lbr)</span>
+                        </span>
+                        <div className="flex flex-col items-end">
+                           <div className="flex items-center bg-black/40 border border-white/10 rounded-lg p-1 w-28 shrink-0 relative">
+                             <div className="absolute inset-0 bg-blue-500/10 opacity-0 transition-opacity focus-within:opacity-100 rounded-lg pointers-events-none" />
+                             <button onClick={()=>setOrderLot(Math.max(1, orderLot - 1))} className="w-8 h-8 rounded text-silver-400 hover:text-white hover:bg-white/10 text-xl flex items-center justify-center relative z-10 transition-colors">−</button>
+                             <input 
+                                type="number" 
+                                value={orderLot} 
+                                onChange={(e)=> {
+                                  // Jangan biarkan user input string kosong, setidaknya 0
+                                  const val = parseInt(e.target.value) || 0;
+                                  setOrderLot(Math.max(0, val));
+                                }} 
+                                className="w-full bg-transparent text-center font-black text-sm outline-none text-silver-100 placeholder-silver-600 relative z-10 appearance-none" 
+                                style={{ WebkitAppearance: 'none', margin: 0 }}
+                             />
+                             <button onClick={()=>setOrderLot(orderLot + 1)} className="w-8 h-8 rounded text-silver-400 hover:text-white hover:bg-white/10 text-xl flex items-center justify-center relative z-10 transition-colors">+</button>
+                           </div>
+                        </div>
+                    </div>
+
+                    <div className="flex justify-between items-center">
+                        <span className="text-xs font-bold text-silver-400">Expiry</span>
+                        <span className="text-xs font-medium bg-black/20 px-2 py-1 border border-white/5 rounded text-silver-300">
+                           Day ⏷
+                        </span>
+                    </div>
+
+                    <div className="flex justify-between items-center pt-2">
+                        <span className="text-xs font-bold text-silver-400">Total Investment</span>
+                        <span className="text-sm font-black text-blue-400">{formatRupiah(currentInvestmentCost)}</span>
+                    </div>
+                  </div>
+
+                  {/* Buttons Action */}
+                  <div className="flex flex-col gap-3 mt-4">
+                    <button 
+                        disabled={capital < currentInvestmentCost || orderLot <= 0}
+                        onClick={() => buyStock(orderLot)}
+                        className="w-full py-3.5 sm:py-4 rounded-xl shadow-[0_0_20px_rgba(16,185,129,0.3)] bg-emerald-500 hover:bg-emerald-600 disabled:opacity-30 disabled:shadow-none font-black text-sm text-white transition-all tracking-widest text-center focus:ring-4 focus:ring-emerald-500/30"
+                      >
+                        B E L I
+                     </button>
+
+                     {totalShares > 0 && (
+                        <div className="pt-4 border-t border-white/5 space-y-3">
+                          <div className="flex justify-between text-[11px] sm:text-xs">
+                           <span className="text-silver-400 font-bold uppercase tracking-wider">Floating Portofolio P/L</span>
+                           <span className={`font-black ${profitLoss >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                              {profitLoss >= 0 ? "+" : ""}{formatRupiah(profitLoss)} ({profitLossPercent.toFixed(2)}%)
+                           </span>
+                          </div>
+                          <button 
+                             onClick={() => sellStock()}
+                             className="w-full py-3 rounded-lg shadow-inner shadow-white/5 bg-transparent border border-red-500/50 text-red-400 hover:bg-red-500 hover:text-white transition-all font-bold text-xs tracking-widest uppercase focus:ring-2 focus:ring-red-500/50"
+                           >
+                             Jual Semua (Sell/Cutloss)
+                           </button>
+                        </div>
+                     )}
+                  </div>
+              </div>
+
+               {/* Market Maker Cheat Panel */}
+               <div className="mt-auto bg-black/40 border-t border-white/5 p-4 sm:p-5">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-silver-500 mb-2 flex items-center gap-1.5"><IconActivity className="w-3.5 h-3.5" /> Market Maker Simulation</p>
+                  <p className="text-[10px] text-silver-400 mb-3 leading-tight">Tekan tombol ini untuk merubah kondisi pasar *(naik/turun instan)* lalu pelajari efek rata-rata harga belimu.</p>
+                  <div className="grid grid-cols-2 gap-2">
+                     <button onClick={() => simulateMarket("down", 5)} className="py-2.5 bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/20 rounded-lg text-xs font-bold transition-all shadow shadow-red-500/10">Banting ARB (-5%)</button>
+                     <button onClick={() => simulateMarket("up", 5)} className="py-2.5 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 hover:bg-emerald-500/20 rounded-lg text-xs font-bold transition-all shadow shadow-emerald-500/10">Angkat ARA (+5%)</button>
+                  </div>
+               </div>
           </div>
         </div>
       </GlassCard>
     </div>
   );
 }
+
+// Minimal temporary icon substitute if global activity icon isn't imported
+const IconActivity = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+  </svg>
+);
