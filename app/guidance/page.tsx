@@ -803,6 +803,12 @@ export default function GuidancePage() {
           <IconSearch className="w-4 h-4" />
           Cari Saham Sekarang
         </Link>
+        <Link href="/simulation"
+          className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all"
+          style={{ background: "rgba(59,130,246,0.12)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.2)" }}>
+          <IconActivity className="w-4 h-4" />
+          Coba Simulasi Trading
+        </Link>
       </div>
     </div>
   );
