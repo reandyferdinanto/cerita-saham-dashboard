@@ -148,11 +148,12 @@ export default function AdminAssistantPopup() {
             style={{ background: "rgba(0,0,0,0.45)" }}
           />
           <div
-            className="fixed left-3 right-3 bottom-20 md:static md:left-auto md:right-auto md:bottom-auto w-auto md:w-[360px] max-w-[calc(100vw-24px)] rounded-[28px] md:rounded-3xl border shadow-2xl overflow-hidden animate-[fadeIn_.18s_ease-out]"
+            className="fixed left-3 right-3 bottom-20 top-16 md:static md:left-auto md:right-auto md:bottom-auto md:top-auto w-auto md:w-[360px] max-w-[calc(100vw-24px)] rounded-[28px] md:rounded-3xl border shadow-2xl overflow-hidden animate-[fadeIn_.18s_ease-out]"
             style={{
               background: "rgba(5, 15, 12, 0.96)",
               borderColor: "rgba(251,146,60,0.22)",
               boxShadow: "0 20px 50px rgba(0,0,0,0.35)",
+              paddingTop: "max(0px, env(safe-area-inset-top))",
             }}
           >
             <div className="md:hidden flex justify-center pt-3 pb-1">
@@ -194,7 +195,7 @@ export default function AdminAssistantPopup() {
               ))}
             </div>
 
-            <div className="px-4 py-3 h-[56vh] md:h-[360px] overflow-y-auto space-y-3">
+            <div className="px-4 py-3 h-[calc(100%-180px)] md:h-[360px] overflow-y-auto space-y-3">
               {messages.map((message, index) => (
                 <div
                   key={`${message.role}-${index}`}
