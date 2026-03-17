@@ -51,6 +51,21 @@ const WatchlistIcon = () => (
 		/>
 	</svg>
 );
+const ToolsIcon = () => (
+	<svg
+		className="w-4 h-4"
+		fill="none"
+		viewBox="0 0 24 24"
+		stroke="currentColor"
+		strokeWidth={1.8}
+	>
+		<path
+			strokeLinecap="round"
+			strokeLinejoin="round"
+			d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.082 3.331a1 1 0 00.95.69h3.502c.969 0 1.371 1.24.588 1.81l-2.833 2.058a1 1 0 00-.364 1.118l1.082 3.332c.3.921-.755 1.688-1.538 1.118l-2.833-2.058a1 1 0 00-1.176 0l-2.833 2.058c-.783.57-1.838-.197-1.539-1.118l1.083-3.332a1 1 0 00-.364-1.118L2.93 8.758c-.783-.57-.38-1.81.588-1.81H7.02a1 1 0 00.951-.69l1.078-3.331z"
+		/>
+	</svg>
+);
 const GuidanceIcon = () => (
 	<svg
 		className="w-4 h-4"
@@ -113,6 +128,7 @@ const ALL_LINKS: NavLink[] = [
 	{ href: "/", label: "Dashboard", icon: <HomeIcon /> },
 	{ href: "/search", label: "Cari Saham", icon: <SearchIcon />, minRole: "user" },
 	{ href: "/watchlist", label: "Watchlist", icon: <WatchlistIcon />, minRole: "user" },
+	{ href: "/investor-tools", label: "Tools", icon: <ToolsIcon />, minRole: "user" },
 	{ href: "/guidance", label: "Panduan", icon: <GuidanceIcon />, minRole: "user" },
 	{ href: "/admin", label: "Admin", icon: <AdminIcon />, minRole: "admin" },
 	{ href: "/admin/users", label: "Member", icon: <UsersIcon />, minRole: "admin" },
@@ -371,7 +387,7 @@ export default function Navbar({ delayMinutes }: NavbarProps) {
 
 	return (
 		<>
-			{/* ── Top bar ───────────────────────────────────────────── */}
+			{/* Ã¢â€â‚¬Ã¢â€â‚¬ Top bar Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
 			<nav className="glass-nav sticky top-0 z-50 px-4 sm:px-6 py-3">
 				<div className="max-w-7xl mx-auto flex items-center justify-between">
 					{/* Logo */}
@@ -420,7 +436,7 @@ export default function Navbar({ delayMinutes }: NavbarProps) {
 						</div>
 					</Link>
 
-					{/* Nav links — desktop */}
+					{/* Nav links Ã¢â‚¬â€ desktop */}
 					<div className="hidden md:flex items-center gap-1">
 						{visibleLinks.map((link) => {
 							const isActive =
@@ -495,7 +511,7 @@ export default function Navbar({ delayMinutes }: NavbarProps) {
 									className="text-xs"
 									style={{ color: "#475569" }}
 								>
-									Delay —
+									Delay Ã¢â‚¬â€
 								</span>
 							)}
 						</div>
@@ -505,7 +521,7 @@ export default function Navbar({ delayMinutes }: NavbarProps) {
 				</div>
 			</nav>
 
-			{/* ── Bottom nav — mobile only ──────────────────────────── */}
+			{/* Ã¢â€â‚¬Ã¢â€â‚¬ Bottom nav Ã¢â‚¬â€ mobile only Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
 			<nav
 				className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-1 py-1"
 				style={{

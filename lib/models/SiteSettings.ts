@@ -15,6 +15,7 @@ export interface ISiteSettings extends Document {
     "1year": number;
   };
   paymentMethods: IPaymentMethod[];
+  enabledInvestorTools: string[];
   updatedAt: Date;
 }
 
@@ -34,6 +35,10 @@ const SiteSettingsSchema = new Schema<ISiteSettings>(
         logoUrl:       { type: String, default: "" },
       },
     ],
+    enabledInvestorTools: {
+      type: [String],
+      default: ["aiBrief", "riskCalculator", "rightsIssueCalculator", "stockSplitCalculator"],
+    },
   },
   { timestamps: true }
 );

@@ -22,7 +22,22 @@ interface PaymentMethod { name: string; type: string; accountNumber: string; acc
 interface Settings {
   membershipPrices: { "3months": number; "6months": number; "1year": number };
   paymentMethods: PaymentMethod[];
+  enabledInvestorTools: string[];
 }
+
+const DEFAULT_INVESTOR_TOOLS = [
+  "aiBrief",
+  "riskCalculator",
+  "rightsIssueCalculator",
+  "stockSplitCalculator",
+];
+
+const INVESTOR_TOOL_OPTIONS = [
+  { id: "aiBrief", label: "AI Stock Brief" },
+  { id: "riskCalculator", label: "Risk Calculator" },
+  { id: "rightsIssueCalculator", label: "Right Issue Calculator" },
+  { id: "stockSplitCalculator", label: "Stock Split Calculator" },
+] as const;
 
 const STATUS_BADGE: Record<string, { label: string; color: string; bg: string }> = {
   pending:   { label: "Menunggu", color: "#fb923c", bg: "rgba(251,146,60,0.12)" },
@@ -76,7 +91,20 @@ function AdminUsersPageContent() {
   }, []);
 
   const fetchSettings = useCallback(async () => {
-    try { const res = await fetch("/api/admin/settings"); if (res.ok) setSettings(await res.json()); } catch {}
+    try {
+      const res = await fetch("/api/admin/settings");
+      if (!res.ok) return;
+
+      const data = (await res.json()) as Partial<Settings>;
+      setSettings({
+        membershipPrices: data.membershipPrices ?? { "3months": 300000, "6months": 550000, "1year": 1100000 },
+        paymentMethods: Array.isArray(data.paymentMethods) ? data.paymentMethods : [],
+        enabledInvestorTools:
+          Array.isArray(data.enabledInvestorTools) && data.enabledInvestorTools.length > 0
+            ? data.enabledInvestorTools
+            : DEFAULT_INVESTOR_TOOLS,
+      });
+    } catch {}
   }, []);
 
   useEffect(() => {
@@ -150,6 +178,10 @@ function AdminUsersPageContent() {
   const pendingCount = users.filter((u) => u.membershipStatus === "pending").length;
   const newestUsers = [...users].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 8);
   const showNewestPanel = searchParams.get("view") === "newest";
+  const enabledInvestorTools =
+    settings && Array.isArray(settings.enabledInvestorTools) && settings.enabledInvestorTools.length > 0
+      ? settings.enabledInvestorTools
+      : DEFAULT_INVESTOR_TOOLS;
 
   if (loading || fetching) return (
     <div className="flex items-center justify-center min-h-[50vh]">
@@ -165,7 +197,7 @@ function AdminUsersPageContent() {
           <h1 className="text-2xl font-bold text-silver-100">Manajemen <span className="text-orange-400">Member</span></h1>
           <p className="text-sm text-silver-500 mt-0.5">Kelola membership, aktivasi, dan pengaturan harga</p>
         </div>
-        {user?.role === "superadmin" && (
+        {(user?.role === "admin" || user?.role === "superadmin") && (
           <button onClick={() => setShowSettings(!showSettings)}
             className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all"
             style={{ background: showSettings ? "rgba(251,146,60,0.15)" : "rgba(255,255,255,0.05)", border: "1px solid rgba(251,146,60,0.2)", color: "#fb923c" }}>
@@ -178,8 +210,8 @@ function AdminUsersPageContent() {
         )}
       </div>
 
-      {/* Settings Panel (superadmin only) */}
-      {showSettings && settings && user?.role === "superadmin" && (
+      {/* Settings Panel */}
+      {showSettings && settings && (user?.role === "admin" || user?.role === "superadmin") && (
         <GlassCard hover={false} className="!p-5 space-y-5">
           <h3 className="text-sm font-bold text-silver-200">⚙️ Harga & Metode Pembayaran</h3>
           <div>
@@ -193,6 +225,32 @@ function AdminUsersPageContent() {
                     className="w-full px-3 py-2 rounded-lg text-sm outline-none"
                     style={{ background: "rgba(6,20,14,0.85)", border: "1px solid rgba(16,185,129,0.15)", color: "#e2e8f0" }} />
                 </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "#475569" }}>Tools Investor Yang Ditampilkan</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {INVESTOR_TOOL_OPTIONS.map((tool) => (
+                <label
+                  key={tool.id}
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm cursor-pointer"
+                  style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(226,232,240,0.06)", color: "#e2e8f0" }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={enabledInvestorTools.includes(tool.id)}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        enabledInvestorTools: e.target.checked
+                          ? [...new Set([...enabledInvestorTools, tool.id])]
+                          : enabledInvestorTools.filter((item) => item !== tool.id),
+                      })
+                    }
+                  />
+                  <span>{tool.label}</span>
+                </label>
               ))}
             </div>
           </div>
