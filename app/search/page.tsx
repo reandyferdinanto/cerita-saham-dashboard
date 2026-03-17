@@ -81,6 +81,13 @@ interface FundamentalData {
   } | null;
 }
 
+interface PopularStockItem {
+  ticker: string;
+  name: string;
+  price: number;
+  changePercent: number;
+}
+
 // Timeframe config: { label, range (for API period), interval (for API) }
 const TIMEFRAMES = [
   // Intraday
@@ -120,6 +127,8 @@ function SearchPageInner() {
   const [loadingNews, setLoadingNews] = useState(false);
   const [fundamental, setFundamental] = useState<FundamentalData | null>(null);
   const [loadingFundamental, setLoadingFundamental] = useState(false);
+  const [popularStocks, setPopularStocks] = useState<PopularStockItem[]>([]);
+  const [loadingPopularStocks, setLoadingPopularStocks] = useState(true);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchParams = useSearchParams();
   const initializedRef = useRef(false);
@@ -186,6 +195,21 @@ function SearchPageInner() {
       console.error("Failed to fetch fundamental");
     } finally {
       setLoadingFundamental(false);
+    }
+  }, []);
+
+  const fetchPopularStocks = useCallback(async () => {
+    setLoadingPopularStocks(true);
+    try {
+      const res = await fetch("/api/stocks/top-gainers");
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setPopularStocks(data);
+      }
+    } catch {
+      console.error("Failed to fetch popular stocks");
+    } finally {
+      setLoadingPopularStocks(false);
     }
   }, []);
 
@@ -261,6 +285,10 @@ function SearchPageInner() {
     selectStock(ticker);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
+
+  useEffect(() => {
+    fetchPopularStocks();
+  }, [fetchPopularStocks]);
 
   // Re-fetch when timeframe changes — pass current live price
   useEffect(() => {
@@ -1075,9 +1103,16 @@ function SearchPageInner() {
               </svg>
               <h3 className="text-sm font-bold" style={{ color: "#cbd5e1" }}>Saham Populer IDX</h3>
             </div>
+            <p className="text-[11px] mb-3" style={{ color: "#64748b" }}>
+              Top gainer IDX berbasis update harga terbaru di daftar saham likuid proyek ini.
+            </p>
             <div className="flex flex-wrap gap-2">
-              {["BBCA", "BBRI", "TLKM", "ASII", "BMRI", "UNVR", "GOTO", "BREN", "AMRT", "ADRO"].map(
-                (ticker) => (
+              {(loadingPopularStocks
+                ? ["BBCA", "BBRI", "TLKM", "ASII", "BMRI", "UNVR"]
+                : popularStocks.map((stock) => stock.ticker)
+              ).map((ticker, index) => {
+                const stock = popularStocks[index];
+                return (
                   <button
                     key={ticker}
                     onClick={() => {
@@ -1101,11 +1136,47 @@ function SearchPageInner() {
                       e.currentTarget.style.background = "rgba(6,78,59,0.3)";
                     }}
                   >
-                    {ticker}
+                    <span>{ticker}</span>
+                    {stock ? (
+                      <span className="ml-1.5" style={{ color: stock.changePercent >= 0 ? "#10b981" : "#f87171" }}>
+                        {stock.changePercent >= 0 ? "+" : ""}
+                        {stock.changePercent.toFixed(2)}%
+                      </span>
+                    ) : null}
                   </button>
-                )
-              )}
+                );
+              })}
             </div>
+            {!loadingPopularStocks && popularStocks.length > 0 ? (
+              <div className="mt-3 space-y-1.5">
+                {popularStocks.slice(0, 3).map((stock) => (
+                  <button
+                    key={stock.ticker}
+                    type="button"
+                    onClick={() => {
+                      setQuery(stock.ticker);
+                      selectStock(`${stock.ticker}.JK`);
+                    }}
+                    className="w-full flex items-center justify-between text-left rounded-xl px-3 py-2 transition-all"
+                    style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(226,232,240,0.05)" }}
+                  >
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold truncate" style={{ color: "#e2e8f0" }}>{stock.ticker}</p>
+                      <p className="text-[11px] truncate" style={{ color: "#64748b" }}>{stock.name}</p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-xs font-semibold" style={{ color: "#e2e8f0" }}>
+                        {stock.price.toLocaleString("id-ID")}
+                      </p>
+                      <p className="text-[11px]" style={{ color: stock.changePercent >= 0 ? "#10b981" : "#f87171" }}>
+                        {stock.changePercent >= 0 ? "+" : ""}
+                        {stock.changePercent.toFixed(2)}%
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </GlassCard>
         </div>
       )}
