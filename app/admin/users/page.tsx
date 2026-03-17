@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import GlassCard from "@/components/ui/GlassCard";
 import { useAuth } from "@/components/ui/AuthProvider";
@@ -40,6 +40,14 @@ const FILTER_TABS = ["all", "pending", "active", "expired", "rejected", "suspend
 type FilterTab = typeof FILTER_TABS[number];
 
 export default function AdminUsersPage() {
+  return (
+    <Suspense fallback={<AdminUsersPageFallback />}>
+      <AdminUsersPageContent />
+    </Suspense>
+  );
+}
+
+function AdminUsersPageContent() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -376,6 +384,14 @@ export default function AdminUsersPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function AdminUsersPageFallback() {
+  return (
+    <div className="flex items-center justify-center min-h-[50vh]">
+      <div className="w-8 h-8 border-2 border-orange-400 border-t-transparent rounded-full animate-spin" />
     </div>
   );
 }

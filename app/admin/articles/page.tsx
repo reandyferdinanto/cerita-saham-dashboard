@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import GlassCard from "@/components/ui/GlassCard";
 
@@ -15,6 +15,14 @@ interface Article {
 }
 
 export default function AdminArticlesPage() {
+  return (
+    <Suspense fallback={<AdminArticlesPageFallback />}>
+      <AdminArticlesPageContent />
+    </Suspense>
+  );
+}
+
+function AdminArticlesPageContent() {
   const searchParams = useSearchParams();
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
@@ -337,6 +345,14 @@ export default function AdminArticlesPage() {
           </div>
         )}
       </GlassCard>
+    </div>
+  );
+}
+
+function AdminArticlesPageFallback() {
+  return (
+    <div className="flex items-center justify-center min-h-[40vh]">
+      <div className="w-8 h-8 border-2 border-orange-400 border-t-transparent rounded-full animate-spin" />
     </div>
   );
 }
