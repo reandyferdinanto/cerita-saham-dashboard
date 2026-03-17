@@ -8,6 +8,8 @@ const SCREEN_UNIVERSE = [
   "ADRO.JK", "PTBA.JK", "ITMG.JK", "AKRA.JK", "ANTM.JK", "MDKA.JK", "CPIN.JK", "JPFA.JK", "KLBF.JK", "INET.JK",
 ];
 
+type HistoryPoint = Awaited<ReturnType<typeof getHistory>>[number];
+
 export async function GET(req: NextRequest) {
   const session = await requireUserSession(req);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -28,7 +30,8 @@ export async function GET(req: NextRequest) {
       const technical = calcTechnicalSignals(history);
       const lastClose = history[history.length - 1]?.close || quote.price;
       const volumeNow = history[history.length - 1]?.volume || 0;
-      const avgVolume20 = history.slice(-20).reduce((sum, item) => sum + item.volume, 0) / Math.min(history.length, 20);
+      const avgVolume20 =
+        history.slice(-20).reduce((sum: number, item: HistoryPoint) => sum + item.volume, 0) / Math.min(history.length, 20);
       const volumeRatio = avgVolume20 > 0 ? volumeNow / avgVolume20 : 1;
       const swingFromLow = quote.price && quote.low ? ((quote.price - quote.low) / quote.low) * 100 : 0;
 
