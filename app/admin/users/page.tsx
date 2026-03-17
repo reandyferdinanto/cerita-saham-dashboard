@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import GlassCard from "@/components/ui/GlassCard";
 import { useAuth } from "@/components/ui/AuthProvider";
 
@@ -42,6 +42,7 @@ type FilterTab = typeof FILTER_TABS[number];
 export default function AdminUsersPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [users, setUsers] = useState<MemberUser[]>([]);
   const [fetching, setFetching] = useState(true);
   const [acting, setActing] = useState<string | null>(null);
@@ -53,6 +54,7 @@ export default function AdminUsersPage() {
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsMsg, setSettingsMsg] = useState("");
   const [showSettings, setShowSettings] = useState(false);
+  const [recentUsersFromAssistant, setRecentUsersFromAssistant] = useState<MemberUser[]>([]);
 
   useEffect(() => {
     if (!loading && (!user || (user.role !== "admin" && user.role !== "superadmin"))) router.replace("/");
@@ -72,6 +74,34 @@ export default function AdminUsersPage() {
   useEffect(() => {
     if (user?.role === "admin" || user?.role === "superadmin") { fetchUsers(); fetchSettings(); }
   }, [user, fetchUsers, fetchSettings]);
+
+  useEffect(() => {
+    if (searchParams.get("view") !== "newest") {
+      setRecentUsersFromAssistant([]);
+      return;
+    }
+
+    const raw = sessionStorage.getItem("admin_assistant_recent_users");
+
+    if (!raw) {
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as MemberUser[];
+      setRecentUsersFromAssistant(parsed);
+    } catch {
+      setRecentUsersFromAssistant([]);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    const status = searchParams.get("status") as FilterTab | null;
+
+    if (status && FILTER_TABS.includes(status)) {
+      setFilter(status);
+    }
+  }, [searchParams]);
 
   const act = async (userId: string, action: string, note?: string) => {
     setActing(userId + action);
@@ -110,6 +140,8 @@ export default function AdminUsersPage() {
   });
 
   const pendingCount = users.filter((u) => u.membershipStatus === "pending").length;
+  const newestUsers = [...users].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 8);
+  const showNewestPanel = searchParams.get("view") === "newest";
 
   if (loading || fetching) return (
     <div className="flex items-center justify-center min-h-[50vh]">
@@ -213,6 +245,43 @@ export default function AdminUsersPage() {
           );
         })}
       </div>
+
+      {showNewestPanel && (
+        <GlassCard hover={false} className="!p-4">
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <div>
+              <h2 className="text-lg font-bold text-silver-200">User Baru Join</h2>
+              <p className="text-xs text-silver-500 mt-1">Daftar user terbaru berdasarkan waktu registrasi.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => router.replace("/admin/users")}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium"
+              style={{ background: "rgba(255,255,255,0.05)", color: "#94a3b8", border: "1px solid rgba(226,232,240,0.08)" }}
+            >
+              Tutup
+            </button>
+          </div>
+          <div className="space-y-2">
+            {(recentUsersFromAssistant.length > 0 ? recentUsersFromAssistant : newestUsers).map((recentUser) => (
+              <div
+                key={recentUser._id}
+                className="flex items-center justify-between gap-3 rounded-xl px-3 py-2"
+                style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(226,232,240,0.06)" }}
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-silver-200 truncate">{recentUser.name || recentUser.email}</p>
+                  <p className="text-xs text-silver-500 truncate">{recentUser.email}</p>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <p className="text-xs text-orange-400">{new Date(recentUser.createdAt).toLocaleDateString("id-ID")}</p>
+                  <p className="text-[11px] text-silver-500">{STATUS_BADGE[recentUser.membershipStatus]?.label || recentUser.membershipStatus}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </GlassCard>
+      )}
 
       {/* Filter tabs + search */}
       <div className="flex flex-col sm:flex-row gap-3">

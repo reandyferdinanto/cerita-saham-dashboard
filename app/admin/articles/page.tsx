@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import GlassCard from "@/components/ui/GlassCard";
 
 interface Article {
@@ -14,9 +15,14 @@ interface Article {
 }
 
 export default function AdminArticlesPage() {
+  const searchParams = useSearchParams();
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingArticle, setEditingArticle] = useState<Article | null>(null);
+  const [aiBrief, setAiBrief] = useState("");
+  const [aiLoading, setAiLoading] = useState<"optimize" | null>(null);
+  const [aiError, setAiError] = useState("");
+  const [aiMessage, setAiMessage] = useState("");
   const [form, setForm] = useState({
     title: "",
     content: "",
@@ -42,6 +48,42 @@ export default function AdminArticlesPage() {
     fetchArticles();
   }, [fetchArticles]);
 
+  useEffect(() => {
+    if (searchParams.get("assistant") !== "draft") {
+      return;
+    }
+
+    const raw = sessionStorage.getItem("admin_assistant_article_draft");
+
+    if (!raw) {
+      return;
+    }
+
+    try {
+      const draft = JSON.parse(raw) as {
+        title?: string;
+        content?: string;
+        brief?: string;
+        topic?: string;
+        stockSymbol?: string;
+        stockName?: string;
+        newsSummary?: string;
+      };
+
+      setForm((current) => ({
+        ...current,
+        title: draft.title || current.title,
+        content: draft.content || current.content,
+      }));
+      setAiBrief(draft.brief || draft.newsSummary || currentBriefFromDraft(draft));
+      setAiMessage(`Draft artikel dari Admin Copilot sudah dimuat${draft.topic ? ` untuk topik ${draft.topic}` : ""}.`);
+      sessionStorage.removeItem("admin_assistant_article_draft");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch {
+      sessionStorage.removeItem("admin_assistant_article_draft");
+    }
+  }, [searchParams]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.title || !form.content) return;
@@ -66,6 +108,43 @@ export default function AdminArticlesPage() {
     }
   };
 
+  const handleOptimizeArticle = async () => {
+    setAiLoading("optimize");
+    setAiError("");
+    setAiMessage("");
+
+    try {
+      const res = await fetch("/api/admin/articles/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "optimize",
+          title: form.title,
+          content: form.content,
+          instructions: aiBrief,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Gagal mengoptimalkan artikel");
+      }
+
+      setForm((current) => ({
+        ...current,
+        title: data.title || current.title,
+        content: data.content || current.content,
+      }));
+
+      setAiMessage("Draft artikel diperbarui oleh AI.");
+    } catch (error) {
+      setAiError(error instanceof Error ? error.message : "Gagal mengoptimalkan artikel");
+    } finally {
+      setAiLoading(null);
+    }
+  };
+
   const handleEdit = (article: Article) => {
     setEditingArticle(article);
     setForm({
@@ -74,6 +153,8 @@ export default function AdminArticlesPage() {
       imageUrl: article.imageUrl || "",
       isPublic: article.isPublic,
     });
+    setAiError("");
+    setAiMessage("");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -107,6 +188,40 @@ export default function AdminArticlesPage() {
           </h2>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div
+            className="rounded-2xl p-4 space-y-3"
+            style={{ background: "rgba(15,23,42,0.55)", border: "1px solid rgba(251,146,60,0.2)" }}
+          >
+            <div>
+              <h3 className="text-sm font-semibold text-silver-200">AI Helper</h3>
+              <p className="text-xs text-silver-500 mt-1">
+                Gunakan Groq untuk merapikan struktur artikel agar paragraf, bullet, spacing, dan alur tulisannya lebih mudah dibaca.
+              </p>
+            </div>
+            <div>
+              <label className="text-[10px] text-silver-500 uppercase block mb-1">Brief untuk AI</label>
+              <textarea
+                rows={3}
+                value={aiBrief}
+                onChange={(e) => setAiBrief(e.target.value)}
+                className="glass-input w-full px-3 py-2 text-sm text-silver-200"
+                placeholder="Contoh: Rapikan menjadi artikel edukatif untuk investor pemula, fokus pada risiko dan langkah praktis."
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={handleOptimizeArticle}
+                disabled={aiLoading !== null}
+                className="px-4 py-2 rounded-lg text-sm font-semibold transition-all disabled:opacity-60"
+                style={{ background: "rgba(251,146,60,0.16)", color: "#fdba74", border: "1px solid rgba(251,146,60,0.35)" }}
+              >
+                {aiLoading === "optimize" ? "Mengoptimalkan..." : "Optimalkan Artikel"}
+              </button>
+            </div>
+            {aiError ? <p className="text-sm text-red-400">{aiError}</p> : null}
+            {aiMessage ? <p className="text-sm text-emerald-300">{aiMessage}</p> : null}
+          </div>
           <div>
             <label className="text-[10px] text-silver-500 uppercase block mb-1">Judul Artikel</label>
             <input
@@ -165,6 +280,9 @@ export default function AdminArticlesPage() {
                 onClick={() => {
                   setEditingArticle(null);
                   setForm({ title: "", content: "", imageUrl: "", isPublic: false });
+                  setAiBrief("");
+                  setAiError("");
+                  setAiMessage("");
                 }}
                 className="px-4 py-2 rounded-lg text-sm font-semibold text-silver-400 bg-silver-800"
               >
@@ -221,4 +339,9 @@ export default function AdminArticlesPage() {
       </GlassCard>
     </div>
   );
+}
+
+function currentBriefFromDraft(draft: { stockSymbol?: string; stockName?: string; topic?: string }) {
+  const parts = [draft.topic, draft.stockSymbol, draft.stockName].filter(Boolean);
+  return parts.length > 0 ? `Gunakan konteks topik ini: ${parts.join(" / ")}` : "";
 }

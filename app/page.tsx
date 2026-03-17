@@ -119,6 +119,35 @@ export default function DashboardPage() {
   }, []);
 
   const fetchIhsgChart = useCallback(async (livePrice?: number) => {
+    const buildFallbackLineData = () => {
+      const currentPrice = livePrice ?? ihsgQuote?.price;
+      const previousClose = ihsgQuote?.previousClose;
+
+      if (!currentPrice || !previousClose) {
+        return [] as { time: string | number; value: number }[];
+      }
+
+      const now = new Date();
+
+      if (activeTimeframe.interval === "5m" || activeTimeframe.interval === "1h") {
+        const endTime = Math.floor(now.getTime() / 1000);
+        const startTime = endTime - (activeTimeframe.interval === "5m" ? 60 * 60 : 24 * 60 * 60);
+
+        return [
+          { time: startTime, value: previousClose },
+          { time: endTime, value: currentPrice },
+        ];
+      }
+
+      const previousDate = new Date(now);
+      previousDate.setDate(previousDate.getDate() - 1);
+
+      return [
+        { time: previousDate.toISOString().split("T")[0], value: previousClose },
+        { time: now.toISOString().split("T")[0], value: currentPrice },
+      ];
+    };
+
     try {
       const res = await fetch(
         `/api/stocks/history/^JKSE?range=${activeTimeframe.range}&interval=${activeTimeframe.interval}`
@@ -126,8 +155,8 @@ export default function DashboardPage() {
       const data = await res.json();
       if (Array.isArray(data)) {
         const lineData: { time: string | number; value: number }[] = data
-          .filter((d: any) => d.close != null)
-          .map((d: any) => ({
+          .filter((d: { close: number | null }) => d.close != null)
+          .map((d: { time: string | number; close: number }) => ({
             time: d.time,
             value: d.close,
           }));
@@ -140,12 +169,13 @@ export default function DashboardPage() {
           };
         }
 
-        setIhsgData(lineData);
+        setIhsgData(lineData.length > 0 ? lineData : buildFallbackLineData());
       }
     } catch {
       console.error("Failed to fetch IHSG history");
+      setIhsgData(buildFallbackLineData());
     }
-  }, [activeTimeframe]);
+  }, [activeTimeframe, ihsgQuote?.previousClose, ihsgQuote?.price]);
 
   useEffect(() => {
     // Initial load: fetch quote first, then chart with live price

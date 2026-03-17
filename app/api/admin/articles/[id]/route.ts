@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import Article from "@/lib/models/Article";
-import { verifyToken } from "@/lib/auth";
+import { requireAdminSession } from "@/lib/adminSession";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const token = req.cookies.get("auth_token")?.value;
-  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const session = await verifyToken(token);
-  if (!session || (session.role !== "admin" && session.role !== "superadmin")) {
+  const session = await requireAdminSession(req);
+  if (!session) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -39,10 +37,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const token = req.cookies.get("auth_token")?.value;
-  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const session = await verifyToken(token);
-  if (!session || (session.role !== "admin" && session.role !== "superadmin")) {
+  const session = await requireAdminSession(req);
+  if (!session) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

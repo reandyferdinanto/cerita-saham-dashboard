@@ -2,13 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
 import Article from "@/lib/models/Article";
-import { verifyToken } from "@/lib/auth";
+import { requireAdminSession } from "@/lib/adminSession";
+
+type ArticleInput = {
+  title: string;
+  content: string;
+  imageUrl: string | null;
+  isPublic: boolean;
+  authorId?: mongoose.Types.ObjectId | string;
+};
 
 export async function GET(req: NextRequest) {
-  const token = req.cookies.get("auth_token")?.value;
-  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const session = await verifyToken(token);
-  if (!session || (session.role !== "admin" && session.role !== "superadmin")) {
+  const session = await requireAdminSession(req);
+  if (!session) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -23,10 +29,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const token = req.cookies.get("auth_token")?.value;
-  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const session = await verifyToken(token);
-  if (!session || (session.role !== "admin" && session.role !== "superadmin")) {
+  const session = await requireAdminSession(req);
+  if (!session) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -41,7 +45,7 @@ export async function POST(req: NextRequest) {
     // session.userId is "superadmin" for superadmin, which causes CastError to ObjectId.
     const authorId = session.userId === "superadmin" ? new mongoose.Types.ObjectId() : session.userId;
 
-    const articleData: any = {
+    const articleData: ArticleInput = {
       title: body.title,
       content: body.content,
       imageUrl: body.imageUrl || null,
