@@ -130,8 +130,7 @@ const ALL_LINKS: NavLink[] = [
 	{ href: "/watchlist", label: "Watchlist", icon: <WatchlistIcon />, minRole: "user" },
 	{ href: "/investor-tools", label: "Tools", icon: <ToolsIcon />, minRole: "user" },
 	{ href: "/guidance", label: "Panduan", icon: <GuidanceIcon />, minRole: "user" },
-	{ href: "/admin", label: "Admin", icon: <AdminIcon />, minRole: "admin" },
-	{ href: "/admin/users", label: "Member", icon: <UsersIcon />, minRole: "admin" },
+	{ href: "/admin", label: "Pengaturan", icon: <AdminIcon />, minRole: "admin" },
 ];
 
 function roleRank(role?: string | null): number {
@@ -326,9 +325,9 @@ export default function Navbar({ delayMinutes }: NavbarProps) {
 								{user.role}
 							</div>
 						</div>
-						{user.role === "superadmin" && (
+						{(user.role === "superadmin" || user.role === "admin") && (
 							<Link
-								href="/admin/users"
+								href="/admin?tab=members"
 								onClick={() => setUserMenuOpen(false)}
 								className="flex items-center gap-2.5 px-4 py-3 text-sm transition-all hover:bg-white/5"
 								style={{
@@ -337,23 +336,15 @@ export default function Navbar({ delayMinutes }: NavbarProps) {
 								}}
 							>
 								<UsersIcon />
-								Manajemen User
-							</Link>
-						)}
-						{(user.role === "superadmin" || user.role === "admin") && (
-							<Link
-								href="/admin/articles"
-								onClick={() => setUserMenuOpen(false)}
-								className="flex items-center gap-2.5 px-4 py-3 text-sm transition-all hover:bg-white/5"
-								style={{
-									color: "#94a3b8",
-									borderBottom: "1px solid rgba(226,232,240,0.04)",
-								}}
-							>
-								<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-									<path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-								</svg>
-								Manajemen Artikel
+								Pengaturan Admin
+								{pendingCount > 0 && (
+									<span
+										className="ml-auto min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center"
+										style={{ background: "#fb923c", color: "#fff" }}
+									>
+										{pendingCount}
+									</span>
+								)}
 							</Link>
 						)}
 						<button
@@ -442,7 +433,7 @@ export default function Navbar({ delayMinutes }: NavbarProps) {
 							const isActive =
 								pathname === link.href ||
 								(link.href !== "/" && pathname.startsWith(link.href));
-							const showBadge = link.href === "/admin/users" && pendingCount > 0;
+							const showBadge = link.href === "/admin" && pendingCount > 0;
 							return (
 								<Link
 									key={link.href + link.label}
@@ -570,7 +561,7 @@ export default function Navbar({ delayMinutes }: NavbarProps) {
 									</svg>
 								</span>
 							)}
-							{link.href === "/admin/users" && pendingCount > 0 && (
+							{link.href === "/admin" && pendingCount > 0 && (
 								<span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-3.5 px-0.5 rounded-full text-[8px] font-bold flex items-center justify-center"
 									style={{ background: "#fb923c", color: "#fff" }}>
 									{pendingCount}
@@ -643,3 +634,4 @@ export default function Navbar({ delayMinutes }: NavbarProps) {
 		</>
 	);
 }
+

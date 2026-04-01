@@ -291,7 +291,7 @@ export async function POST(req: NextRequest) {
               : `Saya buka halaman user dengan filter ${filter}, tetapi belum ada user yang cocok.`,
         action: {
           type: "navigate",
-          href: filter === "newest" ? "/admin/users?view=newest" : `/admin/users?status=${filter}`,
+          href: filter === "newest" ? "/admin?tab=members&view=newest" : `/admin?tab=members&status=${filter}`,
         },
         recentUsers: listedUsers.map((user) => ({
           _id: String(user._id),
@@ -319,7 +319,7 @@ export async function POST(req: NextRequest) {
                 .map((article) => article.title)
                 .join(", ")}.`
             : "Saya buka manajemen artikel, tetapi belum ada artikel yang tersimpan.",
-        action: { type: "navigate", href: "/admin/articles" },
+        action: { type: "navigate", href: "/admin?tab=articles" },
         articles: articles.map((article) => ({
           _id: String(article._id),
           title: article.title,
@@ -355,7 +355,7 @@ export async function POST(req: NextRequest) {
         ]
           .filter(Boolean)
           .join("\n\n")}`,
-        action: { type: "navigate", href: "/admin/articles?assistant=draft" },
+        action: { type: "navigate", href: "/admin?tab=articles&assistant=draft" },
         articleDraft: {
           title: draft.title,
           content: draft.content,

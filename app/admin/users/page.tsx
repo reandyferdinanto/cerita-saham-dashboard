@@ -62,7 +62,7 @@ export default function AdminUsersPage() {
   );
 }
 
-function AdminUsersPageContent() {
+export function AdminUsersPageContent({ embedded = false }: { embedded?: boolean }) {
   const { user, loading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -193,10 +193,17 @@ function AdminUsersPageContent() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-silver-100">Manajemen <span className="text-orange-400">Member</span></h1>
-          <p className="text-sm text-silver-500 mt-0.5">Kelola membership, aktivasi, dan pengaturan harga</p>
-        </div>
+        {!embedded ? (
+          <div>
+            <h1 className="text-2xl font-bold text-silver-100">Manajemen <span className="text-orange-400">Member</span></h1>
+            <p className="text-sm text-silver-500 mt-0.5">Kelola membership, aktivasi, dan pengaturan harga</p>
+          </div>
+        ) : (
+          <div>
+            <h2 className="text-xl font-bold text-silver-100">Manajemen <span className="text-orange-400">Member</span></h2>
+            <p className="text-sm text-silver-500 mt-0.5">Semua kontrol membership, pricing, dan payment method ada di tab ini.</p>
+          </div>
+        )}
         {(user?.role === "admin" || user?.role === "superadmin") && (
           <button onClick={() => setShowSettings(!showSettings)}
             className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all"
@@ -321,7 +328,7 @@ function AdminUsersPageContent() {
             </div>
             <button
               type="button"
-              onClick={() => router.replace("/admin/users")}
+              onClick={() => router.replace("/admin?tab=members")}
               className="px-3 py-1.5 rounded-lg text-xs font-medium"
               style={{ background: "rgba(255,255,255,0.05)", color: "#94a3b8", border: "1px solid rgba(226,232,240,0.08)" }}
             >
@@ -453,3 +460,4 @@ function AdminUsersPageFallback() {
     </div>
   );
 }
+

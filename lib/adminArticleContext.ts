@@ -22,6 +22,25 @@ export type ArticleExternalContext = {
   relevantNews: TopicNewsItem[];
 };
 
+const INDONESIA_EXCHANGE_KEYWORDS = [
+  "bursa efek indonesia",
+  "bei",
+  "idx",
+  "ihsg",
+  "emiten",
+  "saham",
+  "pasar modal",
+  "ipo",
+  "rights issue",
+  "dividen",
+  "aksi korporasi",
+  "listing",
+  "delisting",
+  "suspensi",
+  "auto reject",
+  "bandar",
+];
+
 function normalizeText(text: string) {
   return text.replace(/\s+/g, " ").trim();
 }
@@ -43,6 +62,11 @@ function scoreNewsRelevance(topic: string, news: TopicNewsItem) {
   }, 0);
 }
 
+function isIndonesiaExchangeNews(news: TopicNewsItem) {
+  const haystack = `${news.title || ""} ${news.description || ""}`.toLowerCase();
+  return INDONESIA_EXCHANGE_KEYWORDS.some((keyword) => haystack.includes(keyword));
+}
+
 export async function fetchTopicNews(origin: string, topic: string) {
   const response = await fetch(`${origin}/api/news`, { cache: "no-store" });
 
@@ -53,6 +77,7 @@ export async function fetchTopicNews(origin: string, topic: string) {
   const items = (await response.json()) as TopicNewsItem[];
 
   return items
+    .filter(isIndonesiaExchangeNews)
     .map((item) => ({ item, score: scoreNewsRelevance(topic, item) }))
     .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score)
@@ -71,7 +96,7 @@ export async function fetchStockNews(origin: string, symbol: string, name?: stri
   }
 
   const items = (await response.json()) as TopicNewsItem[];
-  return Array.isArray(items) ? items.slice(0, 5) : [];
+  return Array.isArray(items) ? items.filter(isIndonesiaExchangeNews).slice(0, 5) : [];
 }
 
 function extractLikelyTicker(query: string) {
@@ -142,14 +167,14 @@ export async function buildArticleExternalContext(origin: string, topic: string)
     relevantNews.length > 0
       ? relevantNews
           .slice(0, 4)
-          .map((item) => {
-            const sentimentPart =
-              item.sentiment && item.sentimentReason
-                ? ` [${item.sentiment}; ${item.sentimentReason}]`
-                : "";
-            return `- ${item.title}${sentimentPart}`;
-          })
-          .join("\n")
+        .map((item) => {
+          const sentimentPart =
+            item.sentiment && item.sentimentReason
+              ? ` [${item.sentiment}; ${item.sentimentReason}]`
+              : "";
+            return `- ${item.title}${item.source ? ` (${item.source})` : ""}${sentimentPart}`;
+        })
+        .join("\n")
       : "";
 
   return {

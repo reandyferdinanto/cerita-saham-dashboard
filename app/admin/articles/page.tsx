@@ -22,13 +22,15 @@ export default function AdminArticlesPage() {
   );
 }
 
-function AdminArticlesPageContent() {
+export function AdminArticlesPageContent({ embedded = false }: { embedded?: boolean }) {
   const searchParams = useSearchParams();
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshingList, setRefreshingList] = useState(false);
   const [editingArticle, setEditingArticle] = useState<Article | null>(null);
+  const [editorMode, setEditorMode] = useState<"manual" | "ai">("manual");
   const [aiBrief, setAiBrief] = useState("");
-  const [aiLoading, setAiLoading] = useState<"optimize" | null>(null);
+  const [aiLoading, setAiLoading] = useState<"expand" | null>(null);
   const [aiError, setAiError] = useState("");
   const [aiMessage, setAiMessage] = useState("");
   const [form, setForm] = useState({
@@ -38,9 +40,17 @@ function AdminArticlesPageContent() {
     isPublic: false,
   });
 
-  const fetchArticles = useCallback(async () => {
+  const fetchArticles = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? false;
+
+    if (silent) {
+      setRefreshingList(true);
+    } else {
+      setLoading(true);
+    }
+
     try {
-      const res = await fetch("/api/admin/articles");
+      const res = await fetch("/api/admin/articles", { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         setArticles(data);
@@ -48,7 +58,11 @@ function AdminArticlesPageContent() {
     } catch (error) {
       console.error("Error fetching articles:", error);
     } finally {
-      setLoading(false);
+      if (silent) {
+        setRefreshingList(false);
+      } else {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -85,6 +99,7 @@ function AdminArticlesPageContent() {
       }));
       setAiBrief(draft.brief || draft.newsSummary || currentBriefFromDraft(draft));
       setAiMessage(`Draft artikel dari Admin Copilot sudah dimuat${draft.topic ? ` untuk topik ${draft.topic}` : ""}.`);
+      setEditorMode("ai");
       sessionStorage.removeItem("admin_assistant_article_draft");
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch {
@@ -99,7 +114,7 @@ function AdminArticlesPageContent() {
     try {
       const url = editingArticle ? `/api/admin/articles/${editingArticle._id}` : "/api/admin/articles";
       const method = editingArticle ? "PUT" : "POST";
-      
+
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
@@ -109,6 +124,10 @@ function AdminArticlesPageContent() {
       if (res.ok) {
         setForm({ title: "", content: "", imageUrl: "", isPublic: false });
         setEditingArticle(null);
+        setAiBrief("");
+        setAiError("");
+        setAiMessage("");
+        setEditorMode("manual");
         fetchArticles();
       }
     } catch (error) {
@@ -116,8 +135,8 @@ function AdminArticlesPageContent() {
     }
   };
 
-  const handleOptimizeArticle = async () => {
-    setAiLoading("optimize");
+  const handleExpandArticleWithAi = async () => {
+    setAiLoading("expand");
     setAiError("");
     setAiMessage("");
 
@@ -126,7 +145,7 @@ function AdminArticlesPageContent() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "optimize",
+          action: "expand",
           title: form.title,
           content: form.content,
           instructions: aiBrief,
@@ -136,7 +155,7 @@ function AdminArticlesPageContent() {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || "Gagal mengoptimalkan artikel");
+        throw new Error(data.error || "Gagal mengembangkan artikel");
       }
 
       setForm((current) => ({
@@ -145,9 +164,9 @@ function AdminArticlesPageContent() {
         content: data.content || current.content,
       }));
 
-      setAiMessage("Draft artikel diperbarui oleh AI.");
+      setAiMessage("Draft artikel berhasil dikembangkan oleh AI.");
     } catch (error) {
-      setAiError(error instanceof Error ? error.message : "Gagal mengoptimalkan artikel");
+      setAiError(error instanceof Error ? error.message : "Gagal mengembangkan artikel");
     } finally {
       setAiLoading(null);
     }
@@ -169,9 +188,12 @@ function AdminArticlesPageContent() {
   const handleDelete = async (id: string) => {
     if (!confirm("Hapus artikel ini?")) return;
     try {
-      const res = await fetch(`/api/admin/articles/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/admin/articles/${id}`, {
+        method: "DELETE",
+        cache: "no-store",
+      });
       if (res.ok) {
-        fetchArticles();
+        await fetchArticles({ silent: true });
       }
     } catch (error) {
       console.error("Error deleting article:", error);
@@ -180,14 +202,16 @@ function AdminArticlesPageContent() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-silver-100">
-          Artikel <span className="text-orange-400">Panel</span>
-        </h1>
-        <p className="text-silver-500 text-sm mt-1">
-          Kelola artikel yang akan ditampilkan di halaman utama
-        </p>
-      </div>
+      {!embedded ? (
+        <div>
+          <h1 className="text-3xl font-bold text-silver-100">
+            Artikel <span className="text-orange-400">Panel</span>
+          </h1>
+          <p className="text-silver-500 text-sm mt-1">
+            Kelola artikel yang akan ditampilkan di halaman utama
+          </p>
+        </div>
+      ) : null}
 
       <GlassCard hover={false}>
         <div className="flex items-center gap-2 mb-4">
@@ -197,38 +221,75 @@ function AdminArticlesPageContent() {
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div
-            className="rounded-2xl p-4 space-y-3"
+            className="rounded-2xl p-4 space-y-4"
             style={{ background: "rgba(15,23,42,0.55)", border: "1px solid rgba(251,146,60,0.2)" }}
           >
             <div>
-              <h3 className="text-sm font-semibold text-silver-200">AI Helper</h3>
+              <h3 className="text-sm font-semibold text-silver-200">Mode Penulisan</h3>
               <p className="text-xs text-silver-500 mt-1">
-                Gunakan Groq untuk merapikan struktur artikel agar paragraf, bullet, spacing, dan alur tulisannya lebih mudah dibaca.
+                Pilih manual jika ingin menulis sendiri, atau gunakan AI untuk mengembangkan draft artikel berita dengan struktur pembukaan, inti, dan kesimpulan.
               </p>
             </div>
-            <div>
-              <label className="text-[10px] text-silver-500 uppercase block mb-1">Brief untuk AI</label>
-              <textarea
-                rows={3}
-                value={aiBrief}
-                onChange={(e) => setAiBrief(e.target.value)}
-                className="glass-input w-full px-3 py-2 text-sm text-silver-200"
-                placeholder="Contoh: Rapikan menjadi artikel edukatif untuk investor pemula, fokus pada risiko dan langkah praktis."
-              />
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={handleOptimizeArticle}
-                disabled={aiLoading !== null}
-                className="px-4 py-2 rounded-lg text-sm font-semibold transition-all disabled:opacity-60"
-                style={{ background: "rgba(251,146,60,0.16)", color: "#fdba74", border: "1px solid rgba(251,146,60,0.35)" }}
+                onClick={() => setEditorMode("manual")}
+                className="px-3 py-2 rounded-lg text-sm font-semibold transition-all"
+                style={{
+                  background: editorMode === "manual" ? "rgba(16,185,129,0.16)" : "rgba(255,255,255,0.04)",
+                  color: editorMode === "manual" ? "#86efac" : "#94a3b8",
+                  border: editorMode === "manual" ? "1px solid rgba(16,185,129,0.35)" : "1px solid rgba(226,232,240,0.08)",
+                }}
               >
-                {aiLoading === "optimize" ? "Mengoptimalkan..." : "Optimalkan Artikel"}
+                Manual
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditorMode("ai")}
+                className="px-3 py-2 rounded-lg text-sm font-semibold transition-all"
+                style={{
+                  background: editorMode === "ai" ? "rgba(251,146,60,0.16)" : "rgba(255,255,255,0.04)",
+                  color: editorMode === "ai" ? "#fdba74" : "#94a3b8",
+                  border: editorMode === "ai" ? "1px solid rgba(251,146,60,0.35)" : "1px solid rgba(226,232,240,0.08)",
+                }}
+              >
+                Kembangkan dengan AI
               </button>
             </div>
-            {aiError ? <p className="text-sm text-red-400">{aiError}</p> : null}
-            {aiMessage ? <p className="text-sm text-emerald-300">{aiMessage}</p> : null}
+            {editorMode === "ai" ? (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-[10px] text-silver-500 uppercase block mb-1">Brief untuk AI</label>
+                  <textarea
+                    rows={4}
+                    value={aiBrief}
+                    onChange={(e) => setAiBrief(e.target.value)}
+                    className="glass-input w-full px-3 py-2 text-sm text-silver-200"
+                    placeholder="Contoh: Buat artikel berita tentang emiten BEI dengan pembukaan singkat, inti yang menjelaskan sentimen pasar dan katalis utama, lalu penutup yang merangkum hal yang perlu dicermati investor."
+                  />
+                  <p className="text-[11px] text-silver-500 mt-2">
+                    AI hanya memakai konteks yang relevan dengan Bursa Efek Indonesia, IDX, IHSG, dan emiten Indonesia.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleExpandArticleWithAi}
+                    disabled={aiLoading !== null}
+                    className="px-4 py-2 rounded-lg text-sm font-semibold transition-all disabled:opacity-60"
+                    style={{ background: "rgba(251,146,60,0.16)", color: "#fdba74", border: "1px solid rgba(251,146,60,0.35)" }}
+                  >
+                    {aiLoading === "expand" ? "Mengembangkan..." : "Kembangkan Draft dengan AI"}
+                  </button>
+                </div>
+                {aiError ? <p className="text-sm text-red-400">{aiError}</p> : null}
+                {aiMessage ? <p className="text-sm text-emerald-300">{aiMessage}</p> : null}
+              </div>
+            ) : (
+              <p className="text-sm text-silver-500">
+                Mode manual aktif. Form judul dan konten di bawah akan disimpan apa adanya.
+              </p>
+            )}
           </div>
           <div>
             <label className="text-[10px] text-silver-500 uppercase block mb-1">Judul Artikel</label>
@@ -291,6 +352,7 @@ function AdminArticlesPageContent() {
                   setAiBrief("");
                   setAiError("");
                   setAiMessage("");
+                  setEditorMode("manual");
                 }}
                 className="px-4 py-2 rounded-lg text-sm font-semibold text-silver-400 bg-silver-800"
               >
@@ -302,8 +364,11 @@ function AdminArticlesPageContent() {
       </GlassCard>
 
       <GlassCard hover={false}>
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center justify-between gap-3 mb-4">
           <h2 className="text-lg font-bold text-silver-200">Daftar Artikel ({articles.length})</h2>
+          {refreshingList ? (
+            <span className="text-xs text-silver-500">Menyegarkan daftar...</span>
+          ) : null}
         </div>
         {loading ? (
           <div className="text-silver-500 text-sm">Loading...</div>

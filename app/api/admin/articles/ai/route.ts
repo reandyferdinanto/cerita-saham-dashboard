@@ -6,7 +6,7 @@ const GROQ_API_URL = "https://api.groq.com/openai/v1";
 const ARTICLE_MODEL = process.env.GROQ_ARTICLE_MODEL || "llama-3.3-70b-versatile";
 
 type OptimizeRequest = {
-  action: "optimize";
+  action: "optimize" | "expand";
   title?: string;
   content?: string;
   instructions?: string;
@@ -388,17 +388,18 @@ async function generateOptimizedArticle(payload: OptimizeRequest, origin: string
 
   const systemPrompt = [
     "Anda adalah editor artikel pasar modal untuk admin Cerita Saham.",
-    "Tugas Anda adalah memperbaiki judul dan isi artikel berbahasa Indonesia agar lebih rapi, jelas, padat, dan enak dibaca.",
-    "Jangan menambahkan fakta spesifik, angka, kutipan, atau klaim yang tidak ada di input pengguna kecuali berasal dari konteks luar yang diberikan.",
-    "Pertahankan nada profesional yang mudah dipahami investor retail.",
-    "Wajib hasilkan struktur editorial, bukan satu blok teks panjang.",
-    "Gunakan paragraf pembuka singkat 2 sampai 3 kalimat.",
-    "Jika ada daftar saham penguat, saham penekan, berita pasar, atau poin penting, tulis sebagai bullet list rapi dengan awalan '- ' dan satu item per baris.",
+    "Tugas Anda adalah mengembangkan atau merapikan artikel berita berbahasa Indonesia agar terasa seperti naskah berita pasar modal yang rapi, jelas, dan relevan bagi investor retail.",
+    "Gunakan hanya konteks yang diberikan. Jangan menambahkan fakta spesifik, angka, kutipan, atau klaim baru yang tidak ada di input admin atau konteks luar.",
+    "Semua referensi berita harus relevan dengan Bursa Efek Indonesia, IDX, IHSG, atau emiten Indonesia.",
+    "Struktur artikel wajib terdiri dari tiga bagian alami: pembukaan, inti, dan kesimpulan.",
+    "Pembukaan adalah 1 paragraf singkat 2 sampai 3 kalimat yang menjelaskan konteks utama.",
+    "Inti adalah 2 sampai 4 paragraf yang menjelaskan detail penting, sentimen pasar, pergerakan saham, atau katalis yang relevan.",
+    "Kesimpulan adalah 1 paragraf singkat yang merangkum implikasi atau hal yang perlu dicermati investor.",
+    "Jika ada beberapa poin penting, Anda boleh memakai bullet list singkat di bagian inti, tetapi jangan ubah seluruh artikel menjadi daftar.",
     "Sisakan satu baris kosong antar paragraf atau antar section.",
-    "Jangan menulis semua poin dalam satu kalimat panjang yang dipisahkan koma.",
     "Konten harus berupa teks biasa. Jangan gunakan heading markdown, bold markdown, atau code fence.",
-    "Jangan sertakan pembuka seperti 'Berikut hasil optimasinya'.",
-    "Jika konteks luar memuat harga saat ini atau analisa teknikal, Anda boleh memasukkannya secara ringkas bila relevan dengan instruksi admin.",
+    "Jangan sertakan pembuka seperti 'Berikut hasilnya' atau komentar meta lain.",
+    "Pertahankan nada profesional, padat, dan natural seperti berita finansial Indonesia.",
     "Kembalikan JSON valid dengan properti: title, content.",
   ].join(" ");
 
@@ -407,17 +408,22 @@ async function generateOptimizedArticle(payload: OptimizeRequest, origin: string
     externalContext.stockSymbol ? `Ticker terdeteksi: ${externalContext.stockSymbol} (${externalContext.stockName || "-"})` : "",
     externalContext.quoteSummary ? `Harga terkini:\n${externalContext.quoteSummary}` : "",
     externalContext.technicalSummary ? `Analisa teknikal:\n${externalContext.technicalSummary}` : "",
-    externalContext.newsSummary ? `Informasi eksternal relevan:\n${externalContext.newsSummary}` : "",
+    externalContext.newsSummary ? `Referensi berita BEI/IDX yang relevan:\n${externalContext.newsSummary}` : "",
   ]
     .filter(Boolean)
     .join("\n\n");
+
+  const isExpandMode = payload.action === "expand";
 
   const userPrompt = [
     `Judul saat ini: ${title || "(kosong)"}`,
     `Konten saat ini:\n${content || "(kosong)"}`,
     `Arahan tambahan admin:\n${instructions || "(tidak ada)"}`,
     contextBlock ? `Konteks luar yang relevan:\n${contextBlock}` : "",
-    "Format yang diinginkan: pembuka singkat, lalu bullet list untuk beberapa item penting, lalu penutup singkat bila perlu.",
+    isExpandMode
+      ? "Mode kerja: kembangkan artikel menjadi draf berita yang lebih matang dengan struktur pembukaan, inti, dan kesimpulan."
+      : "Mode kerja: rapikan artikel yang sudah ada tanpa mengubah inti pesannya secara berlebihan.",
+    "Format yang diinginkan: artikel berita pasar modal Indonesia dengan pembukaan, inti, dan kesimpulan yang natural.",
   ].join("\n\n");
 
   const parsed = (await groqJsonCompletion(systemPrompt, userPrompt)) as OptimizedArticle;
@@ -440,13 +446,13 @@ export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as Partial<OptimizeRequest>;
 
-    if (body.action !== "optimize") {
+    if (body.action !== "optimize" && body.action !== "expand") {
       return NextResponse.json({ error: "Unsupported action" }, { status: 400 });
     }
 
     const optimized = await generateOptimizedArticle(
       {
-        action: "optimize",
+        action: body.action,
         title: body.title,
         content: body.content,
         instructions: body.instructions,

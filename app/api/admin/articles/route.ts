@@ -4,6 +4,9 @@ import { connectDB } from "@/lib/db";
 import Article from "@/lib/models/Article";
 import { requireAdminSession } from "@/lib/adminSession";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 type ArticleInput = {
   title: string;
   content: string;
@@ -21,7 +24,11 @@ export async function GET(req: NextRequest) {
   try {
     await connectDB();
     const articles = await Article.find().sort({ createdAt: -1 }).populate("authorId", "name email");
-    return NextResponse.json(articles);
+    return NextResponse.json(articles, {
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+      },
+    });
   } catch (error) {
     console.error("GET articles error:", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
