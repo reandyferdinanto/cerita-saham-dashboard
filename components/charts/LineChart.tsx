@@ -11,8 +11,13 @@ import {
   Time,
 } from "lightweight-charts";
 
+type LineChartPoint = {
+  time: string | number;
+  value: number;
+};
+
 interface LineChartProps {
-  data: AreaData<Time>[];
+  data: LineChartPoint[];
   height?: number;
   lineColor?: string;
   areaTopColor?: string;
@@ -53,6 +58,11 @@ export default function LineChart({
 
   useEffect(() => {
     if (!chartContainerRef.current || data.length === 0) return;
+
+    const chartData: AreaData<Time>[] = data.map((point) => ({
+      time: point.time as Time,
+      value: point.value,
+    }));
 
     const isIntraday = typeof data[0]?.time === "number";
     const dateTimeOptions = timeZone ? { timeZone } : undefined;
@@ -124,7 +134,7 @@ export default function LineChart({
       crosshairMarkerBorderColor: "#fff",
     });
 
-    series.setData(data);
+    series.setData(chartData);
     chart.timeScale().fitContent();
     chartRef.current = chart;
 
