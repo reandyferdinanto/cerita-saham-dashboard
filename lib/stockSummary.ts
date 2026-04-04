@@ -166,7 +166,7 @@ function pickValue(row: Record<string, string>, aliases: string[]) {
   return undefined;
 }
 
-export function parseStockSummaryText(rawText: string) {
+export function parseStockSummaryText(rawText: string): StockSummaryParsedRow[] {
   const text = rawText.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
   if (!text) return [] as StockSummaryParsedRow[];
 
@@ -217,7 +217,7 @@ export function parseStockSummaryText(rawText: string) {
     .filter((row): row is StockSummaryParsedRow => Boolean(row));
 }
 
-export async function parseStockSummaryWorkbook(fileBuffer: ArrayBuffer | Buffer) {
+export async function parseStockSummaryWorkbook(fileBuffer: ArrayBuffer | Buffer): Promise<StockSummaryParsedRow[]> {
   const { rows } = await readXlsxWorksheetRows({
     fileBuffer,
     preferredSheetName: "sheet1",
