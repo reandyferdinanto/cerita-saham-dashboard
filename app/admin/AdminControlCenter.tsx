@@ -6,8 +6,10 @@ import GlassCard from "@/components/ui/GlassCard";
 import { AdminArticlesPageContent } from "@/app/admin/articles/page";
 import { AdminUsersPageContent } from "@/app/admin/users/page";
 import AdminWatchlistPanel from "@/app/admin/AdminWatchlistPanel";
+import AdminBandarmologyPanel from "@/app/admin/AdminBandarmologyPanel";
+import AdminStockSummaryPanel from "@/app/admin/AdminStockSummaryPanel";
 
-type AdminTab = "watchlist" | "articles" | "members";
+type AdminTab = "watchlist" | "bandarmology" | "stock-summary" | "articles" | "members";
 
 const TAB_CONFIG: Array<{
   id: AdminTab;
@@ -19,6 +21,16 @@ const TAB_CONFIG: Array<{
     id: "watchlist",
     label: "Watchlist",
     description: "Kelola saham pantauan, TP/SL, dan catatan bandarmology.",
+  },
+  {
+    id: "bandarmology",
+    label: "Analisa Bandar",
+    description: "Analisa detail saham dari search field dengan lensa bandarmology ala Ryan Filbert.",
+  },
+  {
+    id: "stock-summary",
+    label: "Stock Summary",
+    description: "Upload summary IDX, baca akumulasi lokal dan foreign, lalu bandingkan dengan chart harga.",
   },
   {
     id: "articles",
@@ -36,7 +48,8 @@ const TAB_CONFIG: Array<{
 function resolveTab(pathname: string, tabParam: string | null): AdminTab {
   if (pathname === "/admin/articles") return "articles";
   if (pathname === "/admin/users") return "members";
-  if (tabParam === "articles" || tabParam === "members" || tabParam === "watchlist") return tabParam;
+  if (tabParam === "broker-summary") return "stock-summary";
+  if (tabParam === "articles" || tabParam === "members" || tabParam === "watchlist" || tabParam === "bandarmology" || tabParam === "stock-summary") return tabParam;
   return "watchlist";
 }
 
@@ -49,11 +62,28 @@ function TabIcon({ tab }: { tab: AdminTab }) {
     );
   }
 
+  if (tab === "bandarmology") {
+    return (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35m1.85-5.15a7 7 0 11-14 0 7 7 0 0114 0z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M10 8v4l2 2" />
+      </svg>
+    );
+  }
+
   if (tab === "articles") {
     return (
       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h9l5 5v11a2 2 0 01-2 2z" />
         <path strokeLinecap="round" strokeLinejoin="round" d="M9 9h1m-1 4h6m-6 4h6m-1-14v5h5" />
+      </svg>
+    );
+  }
+
+  if (tab === "stock-summary") {
+    return (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-6m3 6V7m3 10v-4m4 6H3a2 2 0 01-2-2V5a2 2 0 012-2h18a2 2 0 012 2v12a2 2 0 01-2 2z" />
       </svg>
     );
   }
@@ -111,12 +141,12 @@ export default function AdminControlCenter() {
           Pengaturan <span className="text-orange-400">Admin</span>
         </h1>
         <p className="text-silver-500 text-sm mt-1">
-          Semua kontrol admin kini dipusatkan dalam satu halaman dengan tab untuk watchlist, artikel, dan member.
+          Semua kontrol admin kini dipusatkan dalam satu halaman dengan tab untuk watchlist, analisa bandar, stock summary, artikel, dan member.
         </p>
       </div>
 
       <GlassCard hover={false} className="!p-4 sm:!p-5">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-4 gap-3">
           {TAB_CONFIG.map((tab) => {
             const isActive = activeTab === tab.id;
             const isMembers = tab.id === "members";
@@ -197,6 +227,8 @@ export default function AdminControlCenter() {
       </GlassCard>
 
       {activeTab === "watchlist" ? <AdminWatchlistPanel /> : null}
+      {activeTab === "bandarmology" ? <AdminBandarmologyPanel /> : null}
+      {activeTab === "stock-summary" ? <AdminStockSummaryPanel /> : null}
       {activeTab === "articles" ? <AdminArticlesPageContent embedded /> : null}
       {activeTab === "members" ? <AdminUsersPageContent embedded /> : null}
     </div>

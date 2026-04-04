@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import GlassCard from "@/components/ui/GlassCard";
 import AddStockForm from "@/components/watchlist/AddStockForm";
 import { WatchlistEntry } from "@/lib/types";
 
 export default function AdminWatchlistPanel() {
+  const searchParams = useSearchParams();
   const [watchlist, setWatchlist] = useState<WatchlistEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingTicker, setEditingTicker] = useState<string | null>(null);
@@ -15,6 +17,13 @@ export default function AdminWatchlistPanel() {
     bandarmology: string;
   }>({ tp: "", sl: "", bandarmology: "" });
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const prefillData = useMemo(() => ({
+    ticker: searchParams.get("prefillTicker") || "",
+    name: searchParams.get("prefillName") || "",
+    tp: searchParams.get("prefillTp") ? Number(searchParams.get("prefillTp")) : null,
+    sl: searchParams.get("prefillSl") ? Number(searchParams.get("prefillSl")) : null,
+    bandarmology: searchParams.get("prefillNote") || "",
+  }), [searchParams]);
 
   const fetchWatchlist = useCallback(async () => {
     try {
@@ -106,7 +115,12 @@ export default function AdminWatchlistPanel() {
           </svg>
           <h2 className="text-lg font-bold text-silver-200">Tambah Saham Baru</h2>
         </div>
-        <AddStockForm onAdd={handleAdd} />
+        {(prefillData.ticker || prefillData.bandarmology) ? (
+          <div className="mb-4 rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-200">
+            Draft watchlist sudah diisi dari screener/analisa. Kamu tinggal cek ulang lalu simpan.
+          </div>
+        ) : null}
+        <AddStockForm onAdd={handleAdd} initialData={prefillData} />
       </GlassCard>
 
       <GlassCard hover={false}>

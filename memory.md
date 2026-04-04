@@ -64,6 +64,8 @@ Last updated: 2026-04-01
 
 ### Admin pages
 - `/admin`: unified admin control center with tabs for watchlist, articles, and member/settings management
+- `/admin?tab=bandarmology`: admin-only ticker search + detailed bandarmology analysis panel using public price/volume data and a Ryan Filbert-inspired lens
+- `/api/watchlist/bandarmology/screener`: admin-only screener shortlist for ideal IDX candidates under Ryan Filbert-inspired bandarmology presets
 - `/admin/articles`: article management route still exists, but main admin navigation now centers on `/admin?tab=articles`
 - `/admin/users`: member management route still exists, but main admin navigation now centers on `/admin?tab=members`
 
@@ -73,6 +75,8 @@ Last updated: 2026-04-01
 - Mobile bottom nav downgrades protected items to `/login` when logged out
 - Admin pending membership badge is shown in navbar from `/api/admin/membership`
 - Admin navigation is consolidated to one visible menu entry that opens the unified admin control center
+- Admin control center includes a dedicated bandarmology analysis tab; this is an interpretive heuristic built from price/volume data, not broker summary data
+- Admin bandarmology tab also includes a preset-based screener (`ideal`, `accumulation`, `breakout`, `demand`, `defensive`) for quick shortlist generation
 
 ## Shared Layout
 - `app/layout.tsx` wraps app with:
@@ -199,6 +203,7 @@ Last updated: 2026-04-01
 - `CLOUDINARY_API_KEY`
 - `CLOUDINARY_API_SECRET`
 - `CRON_SECRET`
+- `BROKER_SUMMARY_SOURCE_URL`
 
 ## Current Product Conventions
 - IDX stocks usually normalized with `.JK`
@@ -207,6 +212,29 @@ Last updated: 2026-04-01
 - Settings are stored in DB and used by register, pending, and admin pages
 - Investor tools visibility is configurable from admin settings
 - Articles can be public or private
+- Admin bandarmology analysis now includes a mini annotated chart driven by `/api/watchlist/bandarmology`, with price, MA20/MA50, support, resistance, breakout, and explanation markers
+- Admin bandarmology screener now includes research-based presets from the attached trading report: `Trend Pullback`, `Breakout Volume`, and `Trend Position`, and each result can jump into the full analysis view with the same mini chart
+- Admin bandarmology screener UI is split into two preset groups (`Preset Cepat` and `Preset Riset`) plus an active-preset summary card to reduce overlap and make scan mode easier to read
+- Admin bandarmology screener now scans a broader curated IDX universe (not just the initial big-cap list), and the UI explicitly shows the current curated universe size so users do not mistake it for a full IDX screener
+- Admin bandarmology screener supports explicit price buckets (`all`, `<200`, `200-500`, `>500`) and the research presets were tightened to reduce overlap with the core Ryan Filbert-style presets
+- Member screener (`/api/investor/screener`) now reuses the same shared bandarmology shortlist engine as admin, with mapped presets plus shared accumulation/breakout bias fields instead of the old small hardcoded universe
+- `Trend Pullback` research preset now uses looser thresholds for `<200` stocks (price vs MA, RSI, volume, demand) so low-priced candidates are not filtered out by big-cap-biased rules
+- There is now a DB-backed Indonesia stock master (`IndonesiaStock`) synced from a broad IDX list source, and the bandarmology screener uses that DB list as its prefilter universe before running deep analysis on a smaller candidate subset
+- Indonesia stock master sync is tolerant of partial source failures: if early pages succeed and a later page fails, the sync keeps the rows already collected instead of failing the whole screener
+- Admin bandarmology panel now shows stock master status (`activeCount`, `last sync`, source link) and provides a `Sync Ulang Stock Master` action that refreshes the screener after sync
+- Bandarmology phase detection now distinguishes more early-stage structures such as `Trend pullback sehat`, `Base building`, `Reclaim awal`, and `False breakout risk` so analysis is not limited to pure markup/markdown states
+- Admin control center now exposes `Stock Summary` instead of `Broker Summary`; the stock summary panel handles IDX `.xlsx` upload, accumulation shortlist, and price-vs-flow visualization
+- `Stock Summary` parser now accepts both English and Indonesian IDX headers, including variants like `Stock Code`/`Kode Saham`, `Company Name`/`Nama Perusahaan`, `Open Price`/`Harga Pembukaan`, `Close`/`Harga Penutupan`, `Value`/`Nilai`, and `Foreign Buy/Sell`/`Asing Beli/Jual`
+- IDX summary uploads now support `.xlsx` / `.xlsm` parsing on the server via a lightweight workbook reader in `lib/xlsxWorkbook.ts`; trade date can be inferred from filenames like `Stock Summary-20260331.xlsx`
+- For `Stock Summary` uploads, the filename date now takes priority over the manual date field when a pattern like `Stock Summary-20260331.xlsx` or `Ringkasan Saham-20260402.xlsx` is detected; the upload UI also auto-fills the date from the filename
+- `Stock Summary` admin mode now includes an accumulation shortlist for stocks that show foreign support, stronger bid than offer, active liquidity, and closes near the daily high; the current day remains the anchor, but the scorer now also checks consistency over the last 3-5 trading days via `/api/admin/stock-summary/analysis`
+- The `Stock Summary` accumulation shortlist now exposes a `Conviction Score Smart Money` plus label (`Awal`, `Menarik`, `Kuat`, `Sangat Kuat`) so candidates are ranked by stronger combined evidence of accumulation + readiness
+- Stock Summary accumulation scoring now mixes absolute liquidity/foreign thresholds with relative flow-to-value checks so lower-priced and mid-cap names are less penalized versus big caps
+- `Stock Summary` now also provides a ticker chart section that overlays Yahoo Finance daily candlesticks with two line series derived from stock summary history: `Akumulasi Lokal` and `Akumulasi Foreign`; API lives at `/api/admin/stock-summary/series`
+- Admin trading workflow now supports query-param deep links between `Stock Summary`, `Bandarmology`, and `Watchlist`, including draft watchlist prefills (`prefillTicker`, `prefillName`, `prefillTp`, `prefillSl`, `prefillNote`) and direct ticker handoff via `/admin?tab=bandarmology&ticker=...` or `/admin?tab=stock-summary&ticker=...`
+- `Stock Summary` admin route now supports deletion workflows via `DELETE /api/admin/stock-summary`: delete all data with `scope=all` or delete one trading date with `scope=date&date=YYYY-MM-DD`; the admin panel exposes both controls
+- Stock Summary admin browsing now centers on a weekly calendar strip backed by GET /api/admin/stock-summary?view=dates, so admins can jump to the latest available trading date when today's IDX file has not been uploaded yet
+- Manual text import for Stock Summary has been removed from the admin workflow; imports are now upload-first through /api/admin/stock-summary using IDX files or text file uploads
 
 ## Files To Check First For Common Changes
 - Routing/access issue: `middleware.ts`, `components/ui/Navbar.tsx`
@@ -216,6 +244,9 @@ Last updated: 2026-04-01
 - Article issue: `app/admin/articles/page.tsx`, `app/api/admin/articles/*`, `app/articles/[id]/page.tsx`
 - Membership/settings issue: `app/admin/users/page.tsx`, `app/api/admin/membership/route.ts`, `app/api/admin/settings/route.ts`
 - Technical analysis issue: `lib/technicalSignals.ts`, `components/ui/TechnicalSignalPanel.tsx`
+- Indonesia stock master / screener universe issue: `lib/indonesiaStockMaster.ts`, `lib/models/IndonesiaStock.ts`, `app/api/admin/stocks/master/route.ts`, `app/api/watchlist/bandarmology/screener/route.ts`
+- Stock summary admin issue: `lib/stockSummary.ts`, `lib/models/StockSummaryRow.ts`, `app/api/admin/stock-summary/route.ts`, `app/admin/AdminStockSummaryPanel.tsx`, `lib/xlsxWorkbook.ts`
+- Stock summary analysis issue: `lib/stockSummaryAnalysis.ts`, `app/api/admin/stock-summary/analysis/route.ts`, `app/api/admin/stock-summary/series/route.ts`, `app/admin/AdminStockSummaryPanel.tsx`, `app/admin/StockSummaryAccumulationChart.tsx`
 
 ## Memory Update Rules
 - Update this file whenever any of these change:
@@ -241,6 +272,9 @@ Last updated: 2026-04-01
 ## Working Note For Future Tasks
 - Before coding: read this file.
 - After coding: if behavior/architecture changed, update this file in the same task.
+
+
+
 
 
 

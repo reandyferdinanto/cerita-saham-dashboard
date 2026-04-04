@@ -3,6 +3,13 @@
 import { useState, useEffect, useRef } from "react";
 
 interface AddStockFormProps {
+  initialData?: {
+    ticker?: string;
+    name?: string;
+    tp?: number | null;
+    sl?: number | null;
+    bandarmology?: string;
+  };
   onAdd: (stock: {
     ticker: string;
     name: string;
@@ -12,7 +19,7 @@ interface AddStockFormProps {
   }) => Promise<void>;
 }
 
-export default function AddStockForm({ onAdd }: AddStockFormProps) {
+export default function AddStockForm({ onAdd, initialData }: AddStockFormProps) {
   const [ticker, setTicker] = useState("");
   const [name, setName] = useState("");
   const [nameFetching, setNameFetching] = useState(false);
@@ -23,7 +30,15 @@ export default function AddStockForm({ onAdd }: AddStockFormProps) {
   const [error, setError] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Auto-fetch company name when ticker changes
+  useEffect(() => {
+    if (!initialData) return;
+    setTicker(initialData.ticker?.replace(/\.JK$/i, "") || "");
+    setName(initialData.name || "");
+    setTp(initialData.tp != null ? String(initialData.tp) : "");
+    setSl(initialData.sl != null ? String(initialData.sl) : "");
+    setBandarmology(initialData.bandarmology || "");
+  }, [initialData]);
+
   useEffect(() => {
     const raw = ticker.trim().toUpperCase();
     if (raw.length < 2) { setName(""); return; }
@@ -75,7 +90,6 @@ export default function AddStockForm({ onAdd }: AddStockFormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Ticker */}
         <div>
           <label className="block text-xs text-silver-400 mb-1 font-medium">
             Ticker <span className="text-red-400">*</span>
@@ -89,7 +103,6 @@ export default function AddStockForm({ onAdd }: AddStockFormProps) {
           />
         </div>
 
-        {/* Company Name — auto */}
         <div>
           <label className="block text-xs text-silver-400 mb-1 font-medium flex items-center gap-1.5">
             Company Name
@@ -97,7 +110,7 @@ export default function AddStockForm({ onAdd }: AddStockFormProps) {
               <span className="inline-block w-3 h-3 border border-orange-400/30 border-t-orange-400 rounded-full animate-spin" />
             )}
             {!nameFetching && name && (
-              <span className="text-[10px] text-green-500 font-normal">✓ auto-filled</span>
+              <span className="text-[10px] text-green-500 font-normal">auto-filled</span>
             )}
           </label>
           <input
@@ -111,7 +124,6 @@ export default function AddStockForm({ onAdd }: AddStockFormProps) {
           />
         </div>
 
-        {/* TP */}
         <div>
           <label className="block text-xs text-silver-400 mb-1 font-medium">
             Take Profit (TP)
@@ -125,7 +137,6 @@ export default function AddStockForm({ onAdd }: AddStockFormProps) {
           />
         </div>
 
-        {/* SL */}
         <div>
           <label className="block text-xs text-silver-400 mb-1 font-medium">
             Stop Loss (SL)
@@ -140,7 +151,6 @@ export default function AddStockForm({ onAdd }: AddStockFormProps) {
         </div>
       </div>
 
-      {/* Notes */}
       <div>
         <label className="block text-xs text-silver-400 mb-1 font-medium">
           Notes

@@ -1,15 +1,41 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { createChart, ColorType, IChartApi, AreaSeries } from "lightweight-charts";
+import {
+  createChart,
+  ColorType,
+  IChartApi,
+  AreaSeries,
+  AreaData,
+  TickMarkType,
+  Time,
+} from "lightweight-charts";
 
 interface LineChartProps {
-  data: { time: string | number; value: number }[];
+  data: AreaData<Time>[];
   height?: number;
   lineColor?: string;
   areaTopColor?: string;
   areaBottomColor?: string;
+  locale?: string;
+  timeZone?: string;
   title?: string;
+}
+
+function toDateFromChartTime(time: Time): Date | null {
+  if (typeof time === "number") {
+    return new Date(time * 1000);
+  }
+
+  if (typeof time === "string") {
+    return new Date(`${time}T00:00:00Z`);
+  }
+
+  if ("timestamp" in time) {
+    return new Date(time.timestamp * 1000);
+  }
+
+  return new Date(Date.UTC(time.year, time.month - 1, time.day));
 }
 
 export default function LineChart({
@@ -18,6 +44,8 @@ export default function LineChart({
   lineColor = "#f97316",
   areaTopColor = "rgba(249, 115, 22, 0.3)",
   areaBottomColor = "rgba(249, 115, 22, 0.0)",
+  locale = "id-ID",
+  timeZone,
   title,
 }: LineChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
@@ -27,6 +55,22 @@ export default function LineChart({
     if (!chartContainerRef.current || data.length === 0) return;
 
     const isIntraday = typeof data[0]?.time === "number";
+    const dateTimeOptions = timeZone ? { timeZone } : undefined;
+    const intradayFormatter = new Intl.DateTimeFormat(locale, {
+      hour: "2-digit",
+      minute: "2-digit",
+      ...dateTimeOptions,
+    });
+    const dateFormatter = new Intl.DateTimeFormat(locale, {
+      day: "2-digit",
+      month: "short",
+      ...dateTimeOptions,
+    });
+    const monthFormatter = new Intl.DateTimeFormat(locale, {
+      month: "short",
+      year: "2-digit",
+      ...dateTimeOptions,
+    });
 
     const chart = createChart(chartContainerRef.current, {
       layout: {
@@ -44,11 +88,30 @@ export default function LineChart({
         vertLine: { color: "rgba(249, 115, 22, 0.3)", labelBackgroundColor: "#064e3b" },
         horzLine: { color: "rgba(249, 115, 22, 0.3)", labelBackgroundColor: "#064e3b" },
       },
+      localization: {
+        locale,
+        timeFormatter: (time: Time) => {
+          const date = toDateFromChartTime(time);
+          if (!date) return "";
+          return isIntraday
+            ? intradayFormatter.format(date)
+            : dateFormatter.format(date);
+        },
+      },
       rightPriceScale: { borderColor: "rgba(226, 232, 240, 0.1)" },
       timeScale: {
         borderColor: "rgba(226, 232, 240, 0.1)",
         timeVisible: isIntraday,
         secondsVisible: false,
+        tickMarkFormatter: (time: Time, tickMarkType: TickMarkType) => {
+          const date = toDateFromChartTime(time);
+          if (!date) return "";
+          if (isIntraday) return intradayFormatter.format(date);
+          if (tickMarkType === TickMarkType.Month || tickMarkType === TickMarkType.Year) {
+            return monthFormatter.format(date);
+          }
+          return dateFormatter.format(date);
+        },
       },
     });
 
@@ -61,7 +124,7 @@ export default function LineChart({
       crosshairMarkerBorderColor: "#fff",
     });
 
-    series.setData(data as any);
+    series.setData(data);
     chart.timeScale().fitContent();
     chartRef.current = chart;
 
@@ -76,7 +139,7 @@ export default function LineChart({
       window.removeEventListener("resize", handleResize);
       chart.remove();
     };
-  }, [data, height, lineColor, areaTopColor, areaBottomColor]);
+  }, [areaBottomColor, areaTopColor, data, height, lineColor, locale, timeZone]);
 
   return (
     <div>
