@@ -217,7 +217,7 @@ export default function AdminStockSummaryPanel() {
       const res = await fetch(`/api/admin/stock-summary/analysis?${qs.toString()}`, { cache: "no-store" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Gagal memuat analisa akumulasi");
-      const nextRows = Array.isArray(data.data) ? data.data : [];
+      const nextRows: StockAccumulationCandidate[] = Array.isArray(data.data) ? data.data : [];
       setAccumulationRows(nextRows);
       setAccumulationLookbackDays(typeof data.lookbackDays === "number" ? data.lookbackDays : 1);
       if (nextRows[0]?.stockCode) {
