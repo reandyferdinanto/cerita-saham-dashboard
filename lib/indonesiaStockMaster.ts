@@ -47,10 +47,9 @@ async function parseStockListPage(page: number): Promise<ParsedStockRow[]> {
   const root = parserModule.parse(html);
   const rows = root.querySelectorAll("table tbody tr");
 
-  return rows
-    .map((row: any) => {
+  return rows.flatMap((row: any): ParsedStockRow[] => {
       const cells = row.querySelectorAll("td");
-      if (cells.length < 5) return null;
+      if (cells.length < 5) return [];
 
       const symbol = String(cells[1]?.text || "").trim().toUpperCase();
       const name = String(cells[2]?.text || "").replace(/\s+/g, " ").trim();
@@ -59,9 +58,9 @@ async function parseStockListPage(page: number): Promise<ParsedStockRow[]> {
       const rankText = String(cells[0]?.text || "").replace(/[^\d]/g, "");
       const sourceRank = Number(rankText);
 
-      if (!symbol || !name || !sourceRank) return null;
+      if (!symbol || !name || !sourceRank) return [];
 
-      return {
+      return [{
         symbol,
         ticker: `${symbol}.JK`,
         name,
@@ -70,9 +69,8 @@ async function parseStockListPage(page: number): Promise<ParsedStockRow[]> {
         lastPrice: parsePrice(priceText),
         marketCapText,
         sourceUrl,
-      };
-    })
-    .filter((item): item is ParsedStockRow => Boolean(item));
+      }];
+    });
 }
 
 export async function syncIndonesiaStockMaster(force = false) {

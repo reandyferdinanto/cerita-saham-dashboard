@@ -23,7 +23,7 @@ Last updated: 2026-04-01
 - `lib/`: data access, auth/session helpers, technical analysis engine, Yahoo integration
 - `lib/models/`: Mongoose models
 - `scripts/`: maintenance/migration/env check scripts
-- `middleware.ts`: route protection by auth, role, and membership status
+- `proxy.ts`: route protection by auth, role, and membership status
 
 ## Core Product Areas
 - Public dashboard with IHSG, global indices, news, and articles
@@ -235,7 +235,7 @@ Last updated: 2026-04-01
 - Manual text import for Stock Summary has been removed from the admin workflow; imports are now upload-first through /api/admin/stock-summary using IDX files or text file uploads
 
 ## Files To Check First For Common Changes
-- Routing/access issue: `middleware.ts`, `components/ui/Navbar.tsx`
+- Routing/access issue: `proxy.ts`, `components/ui/Navbar.tsx`
 - Auth issue: `lib/auth.ts`, `lib/session.ts`, `components/ui/AuthProvider.tsx`
 - Market data issue: `lib/yahooFinance.ts`, `app/api/stocks/*`
 - Watchlist issue: `lib/watchlistStore.ts`, `app/api/watchlist/*`, `app/watchlist/page.tsx`, `app/admin/page.tsx`

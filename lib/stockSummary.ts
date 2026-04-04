@@ -177,15 +177,13 @@ export function parseStockSummaryText(rawText: string): StockSummaryParsedRow[] 
   const delimiter = firstLine.includes("\t") ? "\t" : firstLine.includes(";") ? ";" : ",";
   const headers = parseDelimitedLine(firstLine, delimiter).map((header) => normalizeHeader(header));
 
-  return lines
-    .slice(1)
-    .map((line) => {
+  return lines.slice(1).flatMap((line): StockSummaryParsedRow[] => {
       const values = parseDelimitedLine(line, delimiter);
       const row = Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ""])) as Record<string, string>;
       const stockCode = (pickValue(row, STOCK_CODE_HEADER_ALIASES) || "").toUpperCase().trim();
-      if (!stockCode) return null;
+      if (!stockCode) return [];
 
-      return {
+      return [{
         stockCode,
         companyName: (pickValue(row, COMPANY_NAME_HEADER_ALIASES) || "").trim() || undefined,
         remarks: (pickValue(row, REMARKS_HEADER_ALIASES) || "").trim() || undefined,
@@ -212,9 +210,8 @@ export function parseStockSummaryText(rawText: string): StockSummaryParsedRow[] 
         nonRegularVolume: parseNumber(pickValue(row, NON_REGULAR_VOLUME_HEADER_ALIASES)),
         nonRegularValue: parseNumber(pickValue(row, NON_REGULAR_VALUE_HEADER_ALIASES)),
         nonRegularFrequency: parseNumber(pickValue(row, NON_REGULAR_FREQUENCY_HEADER_ALIASES)),
-      } satisfies StockSummaryParsedRow;
-    })
-    .filter((row): row is StockSummaryParsedRow => Boolean(row));
+      } satisfies StockSummaryParsedRow];
+    });
 }
 
 export async function parseStockSummaryWorkbook(fileBuffer: ArrayBuffer | Buffer): Promise<StockSummaryParsedRow[]> {

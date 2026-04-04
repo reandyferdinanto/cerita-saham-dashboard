@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "./lib/auth";
 
-export const runtime = "experimental-edge";
-
 // Routes that require at least "user" role
 const USER_ROUTES = ["/search", "/watchlist", "/guidance", "/stock"];
 // Routes that require at least "admin" role
@@ -10,7 +8,7 @@ const ADMIN_ROUTES = ["/admin"];
 // API routes that require at least "admin"
 const ADMIN_API = ["/api/watchlist"];
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // Always allow
@@ -34,7 +32,7 @@ export async function middleware(req: NextRequest) {
   const token = req.cookies.get("auth_token")?.value;
   const session = token ? await verifyToken(token) : null;
 
-  // Admin API routes — POST/PUT/DELETE require admin; GET is public
+  // Admin API routes - POST/PUT/DELETE require admin; GET is public
   if (ADMIN_API.some((r) => pathname.startsWith(r))) {
     if (req.method !== "GET") {
       if (!session || (session.role !== "admin" && session.role !== "superadmin")) {
