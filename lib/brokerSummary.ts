@@ -80,18 +80,16 @@ export function parseBrokerSummaryText(rawText: string): BrokerSummaryParsedRow[
   const delimiter = firstLine.includes("\t") ? "\t" : firstLine.includes(";") ? ";" : ",";
   const headers = parseDelimitedLine(firstLine, delimiter).map((header) => normalizeHeader(header));
 
-  return lines
-    .slice(1)
-    .map((line) => {
+  const parsedRows = lines.slice(1).flatMap((line): BrokerSummaryParsedRow[] => {
       const values = parseDelimitedLine(line, delimiter);
       const row = Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ""])) as Record<string, string>;
       const brokerCode = (pickValue(row, ["broker code", "brokercode", "broker", "code"]) || "").toUpperCase().trim();
-      if (!brokerCode) return null;
+      if (!brokerCode) return [];
 
       const symbolRaw = pickValue(row, ["symbol", "ticker", "stock", "stockcode"]);
       const normalizedSymbol = symbolRaw ? symbolRaw.toUpperCase().replace(/\.JK$/i, "").trim() : undefined;
 
-      return {
+      return [{
         brokerCode,
         brokerName: (pickValue(row, ["broker name", "brokername", "name"]) || "").trim() || undefined,
         symbol: normalizedSymbol || undefined,
@@ -103,9 +101,10 @@ export function parseBrokerSummaryText(rawText: string): BrokerSummaryParsedRow[
         sellValue: parseNumber(pickValue(row, ["sell value", "sellvalue"])),
         netVolume: parseNumber(pickValue(row, ["net volume", "netvolume"])),
         netValue: parseNumber(pickValue(row, ["net value", "netvalue"])),
-      } satisfies BrokerSummaryParsedRow;
-    })
-    .filter((row): row is BrokerSummaryParsedRow => Boolean(row));
+      } satisfies BrokerSummaryParsedRow];
+    });
+
+  return parsedRows;
 }
 
 export async function parseBrokerSummaryWorkbook(fileBuffer: ArrayBuffer | Buffer) {
