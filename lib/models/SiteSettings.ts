@@ -37,7 +37,7 @@ const SiteSettingsSchema = new Schema<ISiteSettings>(
     ],
     enabledInvestorTools: {
       type: [String],
-      default: ["aiBrief", "riskCalculator", "rightsIssueCalculator", "stockSplitCalculator"],
+      default: ["aiBrief", "riskCalculator", "rightsIssueCalculator", "stockSplitCalculator", "investorScreener"],
     },
   },
   { timestamps: true }

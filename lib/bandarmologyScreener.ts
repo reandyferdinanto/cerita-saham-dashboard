@@ -1,5 +1,7 @@
 import { analyzeBandarmologyTicker, BandarmologyAnalysisResult } from "@/lib/bandarmologyAnalysis";
+import { connectDB } from "@/lib/db";
 import { getIndonesiaStockUniverse } from "@/lib/indonesiaStockMaster";
+import BandarmologyScreenerSnapshot from "@/lib/models/BandarmologyScreenerSnapshot";
 
 export type ScreenerPreset =
   | "ideal"
@@ -42,6 +44,17 @@ export type BandarmologyScreenerRow = {
   breakoutReadiness: number;
 };
 
+type BandarmologyScreenerResult = {
+  preset: ScreenerPreset;
+  priceBucket: PriceBucket;
+  universeSize: number;
+  bucketUniverseSize: number;
+  analyzedUniverseSize: number;
+  rows: BandarmologyScreenerRow[];
+  snapshotDate: string;
+  snapshotSource: "fresh" | "snapshot";
+};
+
 type CachedAnalysis = {
   expiresAt: number;
   value: BandarmologyAnalysisResult;
@@ -49,6 +62,10 @@ type CachedAnalysis = {
 
 const ANALYSIS_CACHE_TTL_MS = 5 * 60 * 1000;
 const analysisCache = new Map<string, CachedAnalysis>();
+
+function getSnapshotDate(value = new Date()) {
+  return value.toISOString().slice(0, 10);
+}
 
 function getCachedAnalysis(ticker: string) {
   const key = ticker.toUpperCase();
@@ -310,11 +327,43 @@ export async function getBandarmologyScreener(args?: {
   priceBucket?: PriceBucket;
   limit?: number;
   candidateLimit?: number;
+  preferSnapshot?: boolean;
+  persistSnapshot?: boolean;
 }) {
   const preset = args?.preset || "ideal";
   const priceBucket = args?.priceBucket || "all";
   const limit = Math.min(args?.limit ?? 8, 24);
   const candidateLimit = Math.min(args?.candidateLimit ?? (priceBucket === "under200" ? 180 : 140), 220);
+  const snapshotDate = getSnapshotDate();
+  const preferSnapshot = args?.preferSnapshot ?? true;
+  const persistSnapshot = args?.persistSnapshot ?? true;
+
+  if (preferSnapshot) {
+    try {
+      await connectDB();
+      const snapshot = await BandarmologyScreenerSnapshot.findOne({
+        snapshotDate,
+        preset,
+        priceBucket,
+      }).lean();
+
+      if (snapshot && Array.isArray(snapshot.rows) && snapshot.rows.length > 0) {
+        return {
+          preset,
+          priceBucket,
+          universeSize: snapshot.universeSize,
+          bucketUniverseSize: snapshot.bucketUniverseSize,
+          analyzedUniverseSize: snapshot.analyzedUniverseSize,
+          rows: snapshot.rows.slice(0, limit),
+          snapshotDate,
+          snapshotSource: "snapshot" as const,
+        };
+      }
+    } catch {
+      // Snapshot persistence is an optimization, so the screener should still work without it.
+    }
+  }
+
   const universe = await getIndonesiaStockUniverse({ priceBucket, candidateLimit });
 
   const searchResults = await Promise.all(
@@ -382,12 +431,39 @@ export async function getBandarmologyScreener(args?: {
       breakoutReadiness: row.breakoutReadiness,
     }));
 
-  return {
+  const result: BandarmologyScreenerResult = {
     preset,
     priceBucket,
     universeSize: universe.masterUniverseSize,
     bucketUniverseSize: universe.bucketUniverseSize,
     analyzedUniverseSize: universe.analyzedUniverseSize,
     rows,
+    snapshotDate,
+    snapshotSource: "fresh",
   };
+
+  if (persistSnapshot) {
+    try {
+      await connectDB();
+      await BandarmologyScreenerSnapshot.findOneAndUpdate(
+        { snapshotDate, preset, priceBucket },
+        {
+          $set: {
+            snapshotDate,
+            preset,
+            priceBucket,
+            universeSize: result.universeSize,
+            bucketUniverseSize: result.bucketUniverseSize,
+            analyzedUniverseSize: result.analyzedUniverseSize,
+            rows: result.rows,
+          },
+        },
+        { upsert: true, new: true }
+      );
+    } catch {
+      // Ignore snapshot write failures so the primary screener flow stays available.
+    }
+  }
+
+  return result;
 }

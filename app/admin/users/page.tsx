@@ -30,6 +30,7 @@ const DEFAULT_INVESTOR_TOOLS = [
   "riskCalculator",
   "rightsIssueCalculator",
   "stockSplitCalculator",
+  "investorScreener",
 ];
 
 const INVESTOR_TOOL_OPTIONS = [
@@ -37,6 +38,7 @@ const INVESTOR_TOOL_OPTIONS = [
   { id: "riskCalculator", label: "Risk Calculator" },
   { id: "rightsIssueCalculator", label: "Right Issue Calculator" },
   { id: "stockSplitCalculator", label: "Stock Split Calculator" },
+  { id: "investorScreener", label: "Investor Screener" },
 ] as const;
 
 const STATUS_BADGE: Record<string, { label: string; color: string; bg: string }> = {

@@ -3,7 +3,7 @@ import { connectDB } from "@/lib/db";
 import SiteSettings from "@/lib/models/SiteSettings";
 import { verifyToken } from "@/lib/auth";
 
-const DEFAULT_INVESTOR_TOOLS = ["aiBrief", "riskCalculator", "rightsIssueCalculator", "stockSplitCalculator"];
+const DEFAULT_INVESTOR_TOOLS = ["aiBrief", "riskCalculator", "rightsIssueCalculator", "stockSplitCalculator", "investorScreener"];
 
 // GET — public (used on register page to show prices & payment methods)
 export async function GET() {

@@ -15,6 +15,27 @@ type StockMasterStatus = {
   lastSyncedAt: string | null;
 };
 
+type BacktestResponse = {
+  preset: ScreenerPreset;
+  priceBucket: "all" | "under200" | "200to500" | "above500";
+  lookbackDays: number;
+  holdingDays: number;
+  takeProfitPct: number;
+  snapshotCount: number;
+  tradeCount: number;
+  hitRate: number | null;
+  avgMaxGainPct: number | null;
+  avgMaxDrawdownPct: number | null;
+  samples: Array<{
+    snapshotDate: string;
+    ticker: string;
+    entryPrice: number;
+    maxGainPct: number | null;
+    maxDrawdownPct: number | null;
+    hitTp: boolean;
+  }>;
+};
+
 type AnalysisResponse = {
   ticker: string;
   name: string;
@@ -179,7 +200,12 @@ export default function AdminBandarmologyPanel() {
     accumulationBias: number;
     breakoutReadiness: number;
   }>>([]);
+  const [snapshotDate, setSnapshotDate] = useState<string | null>(null);
+  const [snapshotSource, setSnapshotSource] = useState<"fresh" | "snapshot" | null>(null);
   const [screenerError, setScreenerError] = useState("");
+  const [backtest, setBacktest] = useState<BacktestResponse | null>(null);
+  const [backtestLoading, setBacktestLoading] = useState(false);
+  const [backtestError, setBacktestError] = useState("");
   const requestedTicker = useMemo(() => searchParams.get("ticker") || "", [searchParams]);
 
   useEffect(() => {
@@ -266,6 +292,8 @@ export default function AdminBandarmologyPanel() {
           setScreenerBucketUniverseSize(typeof data.bucketUniverseSize === "number" ? data.bucketUniverseSize : null);
           setScreenerAnalyzedUniverseSize(typeof data.analyzedUniverseSize === "number" ? data.analyzedUniverseSize : null);
           setScreenerRows(Array.isArray(data.rows) ? data.rows : []);
+          setSnapshotDate(typeof data.snapshotDate === "string" ? data.snapshotDate : null);
+          setSnapshotSource(data.snapshotSource === "snapshot" || data.snapshotSource === "fresh" ? data.snapshotSource : null);
         }
       } catch (err) {
         if (!cancelled) {
@@ -274,6 +302,8 @@ export default function AdminBandarmologyPanel() {
           setScreenerBucketUniverseSize(null);
           setScreenerAnalyzedUniverseSize(null);
           setScreenerRows([]);
+          setSnapshotDate(null);
+          setSnapshotSource(null);
         }
       } finally {
         if (!cancelled) {
@@ -283,6 +313,42 @@ export default function AdminBandarmologyPanel() {
     }
 
     loadScreener();
+    return () => {
+      cancelled = true;
+    };
+  }, [screenerPreset, priceBucket]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadBacktest() {
+      try {
+        setBacktestLoading(true);
+        setBacktestError("");
+        const res = await fetch(
+          `/api/watchlist/bandarmology/backtest?preset=${encodeURIComponent(screenerPreset)}&priceBucket=${encodeURIComponent(priceBucket)}&lookbackDays=20&holdingDays=5&takeProfitPct=5`,
+          { cache: "no-store" }
+        );
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "Gagal memuat backtest");
+        }
+        if (!cancelled) {
+          setBacktest(data);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setBacktest(null);
+          setBacktestError(err instanceof Error ? err.message : "Gagal memuat backtest");
+        }
+      } finally {
+        if (!cancelled) {
+          setBacktestLoading(false);
+        }
+      }
+    }
+
+    loadBacktest();
     return () => {
       cancelled = true;
     };
@@ -367,6 +433,8 @@ export default function AdminBandarmologyPanel() {
         setScreenerBucketUniverseSize(typeof screenerData.bucketUniverseSize === "number" ? screenerData.bucketUniverseSize : null);
         setScreenerAnalyzedUniverseSize(typeof screenerData.analyzedUniverseSize === "number" ? screenerData.analyzedUniverseSize : null);
         setScreenerRows(Array.isArray(screenerData.rows) ? screenerData.rows : []);
+        setSnapshotDate(typeof screenerData.snapshotDate === "string" ? screenerData.snapshotDate : null);
+        setSnapshotSource(screenerData.snapshotSource === "snapshot" || screenerData.snapshotSource === "fresh" ? screenerData.snapshotSource : null);
       }
     } catch (err) {
       setStockMasterError(err instanceof Error ? err.message : "Gagal sync stock master");
@@ -588,10 +656,82 @@ export default function AdminBandarmologyPanel() {
                 ? `Master ${screenerUniverseSize} saham, bucket ${screenerBucketUniverseSize ?? "-"} saham, dianalisa ${screenerAnalyzedUniverseSize ?? "-"} kandidat.`
                 : "Screener akan memakai master list saham Indonesia dari database."}
             </div>
+            <div className="px-3 py-2 rounded-xl text-[11px] font-semibold" style={{ background: snapshotSource === "snapshot" ? "rgba(16,185,129,0.12)" : "rgba(59,130,246,0.12)", color: snapshotSource === "snapshot" ? "#6ee7b7" : "#93c5fd", border: snapshotSource === "snapshot" ? "1px solid rgba(16,185,129,0.18)" : "1px solid rgba(59,130,246,0.18)" }}>
+              {snapshotDate
+                ? `Snapshot ${snapshotDate} · ${snapshotSource === "snapshot" ? "dibaca dari cache harian" : "baru dihitung dan disimpan"}`
+                : "Snapshot harian akan dibuat otomatis setelah scan berhasil."}
+            </div>
           </div>
         </div>
 
         {screenerError ? <p className="text-sm text-red-400">{screenerError}</p> : null}
+
+        <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(226,232,240,0.06)" }}>
+          <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] font-bold text-silver-400">Backtest Ringan</p>
+              <h4 className="text-base font-bold text-silver-100 mt-2">Akurasi preset 20 hari terakhir</h4>
+              <p className="text-sm text-silver-400 mt-2 leading-relaxed">
+                Snapshot harian dibandingkan dengan performa 5 hari berikutnya untuk melihat berapa kandidat yang sempat mencapai target 5%.
+              </p>
+            </div>
+            <div className="px-3 py-2 rounded-xl text-[11px] font-semibold" style={{ background: "rgba(255,255,255,0.04)", color: "#cbd5e1", border: "1px solid rgba(226,232,240,0.06)" }}>
+              Horizon 5 hari · TP 5%
+            </div>
+          </div>
+
+          {backtestError ? <p className="text-sm text-red-400 mt-4">{backtestError}</p> : null}
+
+          {backtestLoading ? (
+            <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 mt-4">
+              {[1, 2, 3, 4].map((item) => (
+                <div key={item} className="h-20 rounded-2xl animate-pulse" style={{ background: "rgba(255,255,255,0.04)" }} />
+              ))}
+            </div>
+          ) : backtest ? (
+            <>
+              <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 mt-4">
+                <ScreenerMetric label="Snapshot" value={`${backtest.snapshotCount}`} />
+                <ScreenerMetric label="Trade Sampel" value={`${backtest.tradeCount}`} />
+                <ScreenerMetric label="Hit Rate" value={backtest.hitRate == null ? "-" : `${backtest.hitRate.toFixed(1)}%`} />
+                <ScreenerMetric label="Avg Max Gain" value={backtest.avgMaxGainPct == null ? "-" : `${backtest.avgMaxGainPct.toFixed(2)}%`} />
+              </div>
+              <div className="grid grid-cols-1 xl:grid-cols-[1fr,320px] gap-4 mt-4">
+                <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(226,232,240,0.06)" }}>
+                  <p className="text-sm font-semibold text-silver-100">Sampel terbaru</p>
+                  <div className="space-y-2 mt-3">
+                    {backtest.samples.length > 0 ? backtest.samples.slice(0, 6).map((sample) => (
+                      <div key={`${sample.snapshotDate}-${sample.ticker}`} className="flex items-center justify-between gap-3 rounded-xl px-3 py-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(226,232,240,0.05)" }}>
+                        <div>
+                          <p className="text-xs font-bold text-silver-100">{sample.ticker.replace(".JK", "")}</p>
+                          <p className="text-[11px] text-silver-500 mt-1">{sample.snapshotDate} · Entry {sample.entryPrice.toLocaleString("id-ID")}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs font-semibold" style={{ color: sample.hitTp ? "#6ee7b7" : "#fca5a5" }}>
+                            {sample.hitTp ? "TP tersentuh" : "Belum sentuh TP"}
+                          </p>
+                          <p className="text-[11px] text-silver-400 mt-1">
+                            Up {sample.maxGainPct == null ? "-" : `${sample.maxGainPct.toFixed(2)}%`} · Down {sample.maxDrawdownPct == null ? "-" : `${Math.abs(sample.maxDrawdownPct).toFixed(2)}%`}
+                          </p>
+                        </div>
+                      </div>
+                    )) : (
+                      <p className="text-sm text-silver-500">Belum ada sampel snapshot yang cukup untuk dihitung.</p>
+                    )}
+                  </div>
+                </div>
+                <div className="rounded-2xl p-4" style={{ background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.14)" }}>
+                  <p className="text-xs uppercase tracking-[0.18em] font-bold text-blue-200">Cara baca cepat</p>
+                  <div className="space-y-2 mt-3">
+                    <p className="text-xs text-silver-300">Hit rate menunjukkan berapa persen kandidat sempat memberi ruang profit 5% dalam 5 hari setelah masuk shortlist.</p>
+                    <p className="text-xs text-silver-300">Avg max gain membantu membandingkan preset mana yang paling layak untuk momentum scan.</p>
+                    <p className="text-xs text-silver-300">Avg max drawdown membantu melihat preset mana yang relatif lebih “tenang” untuk dipantau.</p>
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : null}
+        </div>
 
         {screenerLoading ? (
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
