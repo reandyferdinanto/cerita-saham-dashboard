@@ -107,7 +107,13 @@ export default function InvestorToolsPage() {
     "riskCalculator",
     "rightsIssueCalculator",
     "stockSplitCalculator",
+    "investorScreener",
   ]);
+  const [screenerPreset, setScreenerPreset] = useState<(typeof INVESTOR_SCREENER_PRESETS)[number]["value"]>("ideal");
+  const [screenerPriceBucket, setScreenerPriceBucket] = useState<"all" | "under200" | "200to500" | "above500">("all");
+  const [screenerLoading, setScreenerLoading] = useState(false);
+  const [screenerError, setScreenerError] = useState("");
+  const [screenerRows, setScreenerRows] = useState<InvestorScreenerRow[]>([]);
 
   useEffect(() => {
     fetch("/api/admin/settings")
@@ -119,6 +125,44 @@ export default function InvestorToolsPage() {
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!user || !enabledTools.includes("investorScreener")) return;
+
+    let cancelled = false;
+
+    async function loadScreener() {
+      try {
+        setScreenerLoading(true);
+        setScreenerError("");
+        const res = await fetch(
+          `/api/investor/screener?preset=${encodeURIComponent(screenerPreset)}&priceBucket=${encodeURIComponent(screenerPriceBucket)}&limit=6`,
+          { cache: "no-store" }
+        );
+        const data = (await res.json()) as InvestorScreenerResponse | { error?: string };
+        if (!res.ok || !("rows" in data)) {
+          throw new Error(("error" in data && data.error) || "Screener investor gagal dimuat");
+        }
+        if (!cancelled) {
+          setScreenerRows(Array.isArray(data.rows) ? data.rows : []);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setScreenerRows([]);
+          setScreenerError(error instanceof Error ? error.message : "Screener investor gagal dimuat");
+        }
+      } finally {
+        if (!cancelled) {
+          setScreenerLoading(false);
+        }
+      }
+    }
+
+    loadScreener();
+    return () => {
+      cancelled = true;
+    };
+  }, [enabledTools, screenerPreset, screenerPriceBucket, user]);
 
   const handleGenerateBrief = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -300,11 +344,11 @@ export default function InvestorToolsPage() {
           {aiBrief ? (
             <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(226,232,240,0.08)" }}>
               <div className="flex flex-wrap items-center gap-3 mb-3">
-                <p className="text-sm font-bold text-silver-100">{shortTicker(aiBrief.ticker)} · {aiBrief.name}</p>
+                <p className="text-sm font-bold text-silver-100">{shortTicker(aiBrief.ticker)} - {aiBrief.name}</p>
                 <span className="text-xs px-2 py-1 rounded-full" style={{ background: aiBrief.usedAI ? "rgba(16,185,129,0.14)" : "rgba(59,130,246,0.14)", color: aiBrief.usedAI ? "#86efac" : "#93c5fd" }}>
                   {aiBrief.usedAI ? "Cerita Saham AI" : "Brief Otomatis"}
                 </span>
-                <span className="text-xs text-silver-400">{currency(aiBrief.quote.price)} · {aiBrief.quote.changePercent.toFixed(2)}%</span>
+                <span className="text-xs text-silver-400">{currency(aiBrief.quote.price)} - {aiBrief.quote.changePercent.toFixed(2)}%</span>
               </div>
               <pre className="whitespace-pre-wrap text-sm leading-7 text-silver-300 font-sans">{aiBrief.brief}</pre>
             </div>
@@ -354,7 +398,7 @@ export default function InvestorToolsPage() {
 
               {riskResult.ticker ? (
                 <div className="space-y-3">
-                  <p className="text-sm font-semibold text-silver-100">Pembanding Level 4H · {shortTicker(riskResult.ticker)}</p>
+                  <p className="text-sm font-semibold text-silver-100">Pembanding Level 4H - {shortTicker(riskResult.ticker)}</p>
                   <div className="grid grid-cols-1 gap-3">
                     <LevelCard
                       title="SL vs Support 1H"
@@ -457,7 +501,7 @@ function LevelCard({ title, levelLabel, comparison, primaryValue, primaryLabel, 
       {comparison ? (
         <div className="mt-3 space-y-2 text-sm text-silver-300">
           <p>{primaryLabel}: <span className="text-silver-100">{currency(primaryValue)}</span></p>
-          <p>{levelLabel}: <span className="text-silver-100">{currency(comparison.price)}</span> · strength {comparison.strength}</p>
+          <p>{levelLabel}: <span className="text-silver-100">{currency(comparison.price)}</span> - strength {comparison.strength}</p>
           <p>
             {mode === "sl"
               ? `Selisih SL ke support: ${currency(Math.abs(comparison.differenceFromSL || 0))} (${(comparison.differencePercentFromSL || 0).toFixed(2)}%)`
@@ -477,4 +521,5 @@ function Input({ value, onChange, placeholder, type = "text" }: { value: string;
 function EmptyText({ text }: { text: string }) {
   return <p className="text-sm text-silver-500">{text}</p>;
 }
+
 

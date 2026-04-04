@@ -3,6 +3,9 @@
 :root {
   --background: #0a1a14;
   --foreground: #e2e8f0;
+  --font-geist-sans: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-geist-mono: "Consolas", "SFMono-Regular", "Liberation Mono", monospace;
+  --font-playfair: Georgia, "Times New Roman", serif;
   --green-900: #064e3b;
   --green-800: #065f46;
   --green-700: #047857;
@@ -44,7 +47,7 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans);
   min-height: 100vh;
 }
 
@@ -163,4 +166,3 @@ body {
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
-

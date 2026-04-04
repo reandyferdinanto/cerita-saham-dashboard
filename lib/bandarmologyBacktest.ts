@@ -10,6 +10,8 @@ type BacktestArgs = {
   takeProfitPct?: number;
 };
 
+type HistoryPoint = Awaited<ReturnType<typeof getHistory>>[number];
+
 function toDateOnly(value: Date) {
   return value.toISOString().slice(0, 10);
 }
@@ -80,15 +82,15 @@ export async function getBandarmologyBacktest(args: BacktestArgs) {
   for (const snapshot of snapshots) {
     for (const row of snapshot.rows) {
       const history = historyByTicker.get(row.ticker) || [];
-      const startIndex = history.findIndex((point) => String(point.time).slice(0, 10) >= snapshot.snapshotDate);
+      const startIndex = history.findIndex((point: HistoryPoint) => String(point.time).slice(0, 10) >= snapshot.snapshotDate);
       if (startIndex === -1) continue;
 
       const window = history.slice(startIndex, startIndex + holdingDays);
       if (window.length === 0) continue;
 
       const entryPrice = row.price;
-      const maxHigh = Math.max(...window.map((point) => point.high ?? point.close));
-      const minLow = Math.min(...window.map((point) => point.low ?? point.close));
+      const maxHigh = Math.max(...window.map((point: HistoryPoint) => point.high ?? point.close));
+      const minLow = Math.min(...window.map((point: HistoryPoint) => point.low ?? point.close));
       const maxGainPct = entryPrice > 0 ? ((maxHigh - entryPrice) / entryPrice) * 100 : null;
       const maxDrawdownPct = entryPrice > 0 ? ((minLow - entryPrice) / entryPrice) * 100 : null;
 

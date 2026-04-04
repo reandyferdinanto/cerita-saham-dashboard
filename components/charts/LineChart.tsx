@@ -36,10 +36,6 @@ function toDateFromChartTime(time: Time): Date | null {
     return new Date(`${time}T00:00:00Z`);
   }
 
-  if ("timestamp" in time) {
-    return new Date(time.timestamp * 1000);
-  }
-
   return new Date(Date.UTC(time.year, time.month - 1, time.day));
 }
 

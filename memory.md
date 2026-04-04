@@ -84,9 +84,7 @@ Last updated: 2026-04-01
   - `NavbarWrapper`
   - `AdminAssistantPopup`
 - Global fonts:
-  - Geist
-  - Geist Mono
-  - Playfair Display
+  - local fallback stacks via CSS variables for sans, mono, and serif display usage
 
 ## Key Shared Components
 - `components/ui/AuthProvider.tsx`: client auth state, `useAuth()`

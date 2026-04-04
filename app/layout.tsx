@@ -1,26 +1,8 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import NavbarWrapper from "@/components/ui/NavbarWrapper";
 import { AuthProvider } from "@/components/ui/AuthProvider";
 import AdminAssistantPopup from "@/components/ui/AdminAssistantPopup";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-const playfair = Playfair_Display({
-  variable: "--font-playfair",
-  subsets: ["latin"],
-  weight: ["700", "800"],
-  style: ["normal", "italic"],
-});
 
 export const metadata: Metadata = {
   title: "Cerita Saham - Financial Dashboard",
@@ -35,7 +17,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${playfair.variable} antialiased bg-gradient-animated min-h-screen`}
+        className="antialiased bg-gradient-animated min-h-screen"
       >
         <AuthProvider>
           <NavbarWrapper />

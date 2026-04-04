@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUserSession } from "@/lib/userSession";
-import { getBandarmologyScreener, PriceBucket, ScreenerPreset } from "@/lib/bandarmologyScreener";
+import {
+  BandarmologyScreenerRow,
+  getBandarmologyScreener,
+  PriceBucket,
+  ScreenerPreset,
+} from "@/lib/bandarmologyScreener";
 
 export async function GET(req: NextRequest) {
   const session = await requireUserSession(req);
@@ -32,7 +37,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     preset,
     priceBucket,
-    rows: result.rows.map((row) => ({
+    rows: result.rows.map((row: BandarmologyScreenerRow) => ({
       ticker: row.ticker,
       name: row.name,
       price: row.price,
