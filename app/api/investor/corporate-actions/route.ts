@@ -1,8 +1,10 @@
-﻿import { NextRequest, NextResponse } from "next/server";
-import { connectDB } from "@/lib/db";
-import CorporateAction from "@/lib/models/CorporateAction";
-import PortfolioHolding from "@/lib/models/PortfolioHolding";
+import { NextRequest, NextResponse } from "next/server";
 import { requireUserSession } from "@/lib/userSession";
+import {
+  createCorporateAction,
+  listCorporateActions,
+} from "@/lib/data/investorWorkspace";
+import { listPortfolioHoldings } from "@/lib/data/investorWorkspace";
 import { getAll as getWatchlist } from "@/lib/watchlistStore";
 
 type AutoNewsItem = {
@@ -101,9 +103,7 @@ async function buildAutoActions(origin: string, tickers: string[]) {
 
           const noteParts = [
             "Terdeteksi otomatis dari news terkait ticker ini.",
-            item.sentimentReason
-              ? `Sentimen: ${item.sentiment || "netral"} (${item.sentimentReason}).`
-              : "",
+            item.sentimentReason ? `Sentimen: ${item.sentiment || "netral"} (${item.sentimentReason}).` : "",
             actionType === "dividend" && fundamentalContext ? fundamentalContext : "",
           ].filter(Boolean);
 
@@ -131,11 +131,9 @@ export async function GET(req: NextRequest) {
   const session = await requireUserSession(req);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  await connectDB();
-
   const [manualActions, holdings, watchlist] = await Promise.all([
-    CorporateAction.find({ userId: session.userId }).sort({ actionDate: 1 }).lean(),
-    PortfolioHolding.find({ userId: session.userId }, { ticker: 1 }).lean(),
+    listCorporateActions(session.userId),
+    listPortfolioHoldings(session.userId),
     getWatchlist(),
   ]);
 
@@ -149,7 +147,7 @@ export async function GET(req: NextRequest) {
   const autoActions = trackedTickers.length > 0 ? await buildAutoActions(req.nextUrl.origin, trackedTickers) : [];
 
   const merged = [
-    ...manualActions.map((action) => ({ ...action, _id: String(action._id), source: "manual" as const })),
+    ...manualActions.map((action) => ({ ...action, source: "manual" as const })),
     ...autoActions,
   ].sort((a, b) => new Date(a.actionDate).getTime() - new Date(b.actionDate).getTime());
 
@@ -161,9 +159,7 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
-  await connectDB();
-
-  const created = await CorporateAction.create({
+  const created = await createCorporateAction({
     userId: session.userId,
     ticker: String(body.ticker || "").toUpperCase(),
     title: body.title || "Aksi korporasi",
@@ -173,5 +169,5 @@ export async function POST(req: NextRequest) {
     notes: body.notes || "",
   });
 
-  return NextResponse.json({ ...created.toObject(), _id: String(created._id), source: "manual" }, { status: 201 });
+  return NextResponse.json({ ...created, source: "manual" }, { status: 201 });
 }

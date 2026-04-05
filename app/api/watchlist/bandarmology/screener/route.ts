@@ -9,10 +9,10 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const preset = (req.nextUrl.searchParams.get("preset") as ScreenerPreset) || "ideal";
-    const priceBucket = (req.nextUrl.searchParams.get("priceBucket") as PriceBucket) || "all";
+    const preset = (req.nextUrl.searchParams.get("preset") as ScreenerPreset) || "under300_focus";
+    const priceBucket = (req.nextUrl.searchParams.get("priceBucket") as PriceBucket) || "under300";
     const limit = Math.min(Number(req.nextUrl.searchParams.get("limit") || 8), 12);
-    const candidateLimit = Math.min(Number(req.nextUrl.searchParams.get("candidateLimit") || (priceBucket === "under200" ? 180 : 140)), 220);
+    const candidateLimit = Math.min(Number(req.nextUrl.searchParams.get("candidateLimit") || (priceBucket === "under200" || priceBucket === "under300" ? 200 : 150)), 260);
     const filtered = await getBandarmologyScreener({ preset, priceBucket, limit, candidateLimit });
 
     return NextResponse.json(

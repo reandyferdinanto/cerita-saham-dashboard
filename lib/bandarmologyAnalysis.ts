@@ -155,6 +155,62 @@ function classifyPhase(args: {
   const inHealthyRsiZone = rsi !== null && rsi >= 40 && rsi <= 62;
   const demandDominant = (upDownVolumeRatio ?? 0) >= 1.02;
   const rangeCompressed = recentRangePct !== null && recentRangePct <= 16;
+  const nearBreakout = breakoutDistancePct !== null && breakoutDistancePct <= 8;
+  const isCheapStock = price > 0 && price <= 300;
+  const supportZone = priceVsMa20 !== null && priceVsMa20 >= -3.8 && priceVsMa20 <= 1.5;
+  const stealthRsiZone = rsi !== null && rsi >= 35 && rsi <= 58;
+
+  if (
+    isCheapStock &&
+    supportZone &&
+    rangeCompressed &&
+    obvSlope20 > 0 &&
+    adSlope20 > 0 &&
+    demandDominant &&
+    breakoutDistancePct !== null &&
+    breakoutDistancePct <= 12 &&
+    breakoutDistancePct >= 2
+  ) {
+    return {
+      phase: "Support dikunci bandar",
+      bias: "Harga murah sedang dijaga di support sambil supply diserap perlahan",
+      tone: "bullish" as const,
+    };
+  }
+
+  if (
+    isCheapStock &&
+    rangeCompressed &&
+    obvSlope20 > 0 &&
+    adSlope20 > 0 &&
+    (upDownVolumeRatio ?? 0) >= 0.98 &&
+    stealthRsiZone &&
+    (priceVsMa20 ?? -99) >= -4.2 &&
+    (priceVsMa20 ?? 99) <= 2.2
+  ) {
+    return {
+      phase: "Sideways akumulasi senyap",
+      bias: "Harga bergerak datar, tetapi barang belum tampak dilepas agresif",
+      tone: "bullish" as const,
+    };
+  }
+
+  if (
+    isCheapStock &&
+    obvSlope20 > 0 &&
+    adSlope20 > 0 &&
+    (upDownVolumeRatio ?? 0) >= 1.05 &&
+    (priceVsMa20 ?? -99) >= -0.8 &&
+    (priceVsMa20 ?? 99) <= 4.5 &&
+    breakoutDistancePct !== null &&
+    breakoutDistancePct <= 8
+  ) {
+    return {
+      phase: "Markup dini",
+      bias: "Bandar mulai mendorong harga, tetapi belum terlalu jauh dari area kumpul",
+      tone: "bullish" as const,
+    };
+  }
 
   if (ma20 && ma50 && price > ma20 && ma20 > ma50 && obvSlope20 > 0 && adSlope20 > 0) {
     if (breakoutDistancePct !== null && breakoutDistancePct <= 1.5 && volumeRatio < 1) {
@@ -168,6 +224,24 @@ function classifyPhase(args: {
 
   if (ma20 && ma50 && nearMa20 && aboveMa50 && obvSlope20 > 0 && adSlope20 > 0 && demandDominant && inHealthyRsiZone) {
     return { phase: "Trend pullback sehat", bias: "Supply ditekan ringan, demand masih menjaga struktur", tone: "bullish" as const };
+  }
+
+  if (
+    nearMa20 &&
+    nearBreakout &&
+    obvSlope20 > 0 &&
+    adSlope20 > 0 &&
+    demandDominant &&
+    (priceVsMa20 ?? 99) <= 0.8 &&
+    (priceVsMa20 ?? -99) >= -2.8 &&
+    (rsi ?? 0) >= 38 &&
+    (rsi ?? 100) <= 60
+  ) {
+    return {
+      phase: "Akumulasi di support",
+      bias: "Support ditahan sambil ada indikasi smart money menyerap supply",
+      tone: "bullish" as const,
+    };
   }
 
   if (ma20 && ma50 && price < ma20 && ma20 < ma50 && obvSlope20 < 0 && adSlope20 < 0) {
@@ -304,7 +378,11 @@ export async function analyzeBandarmologyTicker(ticker: string, nameHint?: strin
   if (obvSlope20 > 0) conviction += 10;
   if (adSlope20 > 0) conviction += 10;
   if ((breakoutDistancePct ?? 99) <= 3) conviction += 5;
+  if (phaseInfo.phase === "Support dikunci bandar") conviction += 10;
+  if (phaseInfo.phase === "Sideways akumulasi senyap") conviction += 8;
+  if (phaseInfo.phase === "Markup dini") conviction += 8;
   if (phaseInfo.phase === "Trend pullback sehat") conviction += 6;
+  if (phaseInfo.phase === "Akumulasi di support") conviction += 7;
   if (phaseInfo.phase === "Base building") conviction += 4;
   if (phaseInfo.phase === "Reclaim awal") conviction += 4;
   if (phaseInfo.phase === "False breakout risk") conviction -= 12;
@@ -322,6 +400,13 @@ export async function analyzeBandarmologyTicker(ticker: string, nameHint?: strin
       breakoutDistancePct !== null && breakoutDistancePct <= 2.5
         ? "Siapkan skenario buy on breakout / buy on weakness"
         : "Pantau pullback sehat untuk entry bertahap";
+    if (phaseInfo.phase === "Support dikunci bandar" || phaseInfo.phase === "Akumulasi di support") {
+      actionBias = "Support sedang dijaga; entry bertahap dekat support lebih menarik daripada menunggu breakout terlambat";
+    } else if (phaseInfo.phase === "Sideways akumulasi senyap") {
+      actionBias = "Cocok untuk posisi observasi aktif atau cicil kecil selama range tidak rusak dan supply tetap kalem";
+    } else if (phaseInfo.phase === "Markup dini") {
+      actionBias = "Jangan kejar terlalu tinggi; manfaatkan pullback tipis atau retest agar ikut fase markup sejak awal";
+    }
   } else if (phaseInfo.phase === "Base building") {
     actionBias = "Fokus observasi base; tunggu demand tetap konsisten atau breakout kecil sebelum entry agresif";
   } else if (phaseInfo.phase === "Reclaim awal") {
@@ -368,6 +453,11 @@ export async function analyzeBandarmologyTicker(ticker: string, nameHint?: strin
   ).slice(0, 3);
 
   const primaryResistance = resistances[0] ?? (highest20 > quote.price ? Math.round(highest20) : null);
+  const primarySupport = supports[0] ?? null;
+  const supportDistancePct =
+    primarySupport && primarySupport > 0 ? ((quote.price - primarySupport) / primarySupport) * 100 : null;
+  const resistanceUpsidePct =
+    primaryResistance && quote.price > 0 ? ((primaryResistance - quote.price) / quote.price) * 100 : null;
   const closes60 = recent60.map((bar) => bar.close);
   const ma20Series = smaSeries(closes60, 20);
   const ma50Series = smaSeries(closes60, 50);
@@ -448,29 +538,49 @@ export async function analyzeBandarmologyTicker(ticker: string, nameHint?: strin
     },
     sections: {
       overview: `${normalizedTicker.replace(".JK", "")} sedang berada pada fase "${phaseInfo.phase}". Harga ${formatPct(priceVsMa20)} vs MA20 dan ${formatPct(priceVsMa50)} vs MA50, dengan skor teknikal ${technical.score}/100. Ini memberi konteks awal apakah pergerakan saham didorong demand sehat atau hanya pantulan jangka pendek.`,
-      accumulationDistribution: phaseInfo.tone === "bullish"
+      accumulationDistribution: phaseInfo.phase === "Support dikunci bandar"
+        ? `Harga sedang dekat support dan belum dijatuhkan, sementara rasio volume naik/turun ${upDownVolumeRatio?.toFixed(2) || "-"}x serta OBV 20 hari masih menanjak. Dalam filosofi Cerita Saham, ini lebih menarik karena menunjukkan saham murah yang kemungkinan sedang dipelihara, bukan sekadar menunggu breakout yang sudah telat.`
+        : phaseInfo.phase === "Sideways akumulasi senyap"
+          ? `Harga tampak sideways dan tidak heboh, tetapi OBV/A-D line belum ikut melemah. Ini cocok dengan pola akumulasi diam-diam: bandar belum perlu mengerek harga dulu, cukup serap supply sambil menjaga range tetap tenang.`
+          : phaseInfo.tone === "bullish"
         ? `Dari sisi price-volume, jejak akumulasi terlihat lebih dominan. Rasio volume naik/turun ${upDownVolumeRatio?.toFixed(2) || "-"}x dan OBV 20 hari cenderung naik. Ini selaras dengan pendekatan bandarmology yang mencari tanda barang diserap saat range atau pullback.`
         : phaseInfo.tone === "bearish"
           ? `Jejak distribusi lebih terasa. OBV dan A/D line 20 hari sama-sama melemah, artinya kenaikan yang muncul belum cukup menunjukkan penyerapan supply. Dalam kacamata bandarmology, ini lebih dekat ke fase lepas barang daripada kumpul barang.`
           : phaseInfo.phase === "Base building"
             ? `Harga sedang membangun base yang lebih rapi. Range 20 hari sekitar ${formatPct(recentRangePct)} dan OBV/A-D line masih condong positif, jadi ini lebih cocok dibaca sebagai fase menata tenaga sebelum markup, bukan sekadar sideways tanpa arah.`
             : `Belum ada dominasi akumulasi atau distribusi yang benar-benar bersih. Volume dan struktur harga masih campuran, sehingga admin sebaiknya menunggu bukti tambahan sebelum memberi bias kuat.`,
-      operatorFootprint: pullbackLightVolume
-        ? `Pullback terakhir cenderung terjadi dengan volume lebih ringan dibanding hari-hari naik. Dalam praktik ala Ryan Filbert, ini sering dibaca sebagai koreksi sehat, karena tekanan jual tidak terlalu agresif dan barang tidak dibuang besar-besaran.`
+      operatorFootprint: phaseInfo.phase === "Support dikunci bandar"
+        ? `Harga sedang relatif dekat area support ${primarySupport ? primarySupport.toLocaleString("id-ID") : "terdekat"} dan belum dijebol, sementara OBV/A-D line masih menanjak. Ini lebih cocok dibaca sebagai support yang sedang dikunci sambil supply diserap, jadi ada peluang markup ke resistance tanpa harus menunggu candle breakout dulu.`
+        : phaseInfo.phase === "Sideways akumulasi senyap"
+          ? `Pergerakan harga masih kelihatan membosankan, tetapi justru itu yang sering dicari dalam gaya Cerita Saham. Selama volume tidak menunjukkan distribusi besar dan aliran akumulasi tetap bertahan, sideways seperti ini bisa menjadi area parkir bandar sebelum gerak berikutnya.`
+        : pullbackLightVolume
+        ? `Pullback terakhir cenderung terjadi dengan volume lebih ringan dibanding hari-hari naik. Dalam kerangka Cerita Saham, ini sering dibaca sebagai koreksi sehat, karena tekanan jual tidak terlalu agresif dan barang tidak dibuang besar-besaran.`
+        : phaseInfo.phase === "Akumulasi di support"
+          ? `Harga sedang relatif dekat area support ${primarySupport ? primarySupport.toLocaleString("id-ID") : "terdekat"} dan belum dijebol, sementara OBV/A-D line masih menanjak. Ini lebih cocok dibaca sebagai support yang sedang dikunci sambil supply diserap diam-diam, bukan sekadar sideways pasif.`
         : phaseInfo.phase === "False breakout risk"
           ? `Harga memang terlihat dekat atau sempat melewati area pecah, tetapi jejak operator belum rapi karena follow-through volume belum solid. Ini sering menjadi ciri false breakout: harga tampak kuat sebentar, lalu cepat kehilangan tenaga.`
           : `Pullback tidak cukup ringan, atau hari-hari turun masih membawa volume yang cukup besar. Itu berarti jejak bandar belum sepenuhnya bersih dari distribusi jangka pendek, sehingga entry agresif sebaiknya ditahan dulu.`,
-      ryanFilbertLens: `Analisa ini mengadaptasi lensa bandarmology yang umum dipakai Ryan Filbert: baca relasi harga dengan volume, petakan fase akumulasi-distribusi-markup-markdown, lalu tunggu konfirmasi area penting. Fokusnya bukan menebak bandar secara mistis, tetapi membaca jejak supply-demand yang tertinggal di chart.`,
+      ryanFilbertLens: `Lensa Cerita Saham menaruh perhatian lebih besar pada saham murah yang sedang dijaga di support, sideways rapi sambil akumulasi, atau mulai masuk markup dini. Fokusnya bukan mencari saham paling aman atau paling trend-following, tetapi mencari jejak supply-demand yang menunjukkan bandar belum selesai kumpul barang dan masih punya alasan mendorong harga dalam waktu dekat.`,
       executionPlan: phaseInfo.tone === "bullish"
         ? breakoutHasTriggered
           ? `Rencana eksekusi: karena harga sudah melewati area breakout ${Math.round(highest20).toLocaleString("id-ID")}, fokus berikutnya adalah menjaga area itu sebagai support baru. Entry tambahan lebih aman saat pullback tertahan di support ${supports[0] ? supports[0].toLocaleString("id-ID") : "terdekat"} atau saat harga melanjutkan gerak ke target resistance ${primaryResistance ? primaryResistance.toLocaleString("id-ID") : "berikutnya"} dengan volume tetap sehat.`
-          : `Rencana eksekusi: fokus ke area support ${supports[0] ? supports[0].toLocaleString("id-ID") : "terdekat"} untuk buy on weakness, atau tunggu breakout bersih di area ${primaryResistance ? primaryResistance.toLocaleString("id-ID") : "resistance terdekat"} dengan volume di atas rata-rata. Hindari mengejar harga jika sudah terlalu jauh dari support.`
+          : phaseInfo.phase === "Support dikunci bandar" || phaseInfo.phase === "Akumulasi di support"
+            ? `Rencana eksekusi: support ${primarySupport ? primarySupport.toLocaleString("id-ID") : "terdekat"} sedang relatif dijaga sambil ada jejak akumulasi. Ini membuat skenario cicil entry dekat support menjadi valid selama harga tetap tertahan dan volume jual tidak membesar. Target awalnya adalah dorongan ke resistance ${primaryResistance ? primaryResistance.toLocaleString("id-ID") : "terdekat"}${resistanceUpsidePct != null ? ` dengan upside sekitar ${resistanceUpsidePct.toFixed(2)}%` : ""}. Breakout tetap penting, tetapi dalam fase ini breakout lebih cocok dipakai sebagai konfirmasi add-on, bukan satu-satunya trigger entry.`
+            : phaseInfo.phase === "Sideways akumulasi senyap"
+              ? `Rencana eksekusi: perlakukan range saat ini sebagai area kumpul. Selama support ${primarySupport ? primarySupport.toLocaleString("id-ID") : "utama"} tidak rusak dan distribusi tidak membesar, entry kecil bertahap masih masuk akal untuk antisipasi markup. Target pertamanya tetap resistance ${primaryResistance ? primaryResistance.toLocaleString("id-ID") : "terdekat"}, lalu breakout dipakai untuk menilai apakah bandar benar-benar mulai mengangkat harga.`
+              : phaseInfo.phase === "Markup dini"
+                ? `Rencana eksekusi: saham ini sudah masuk fase markup dini. Hindari FOMO di candle panjang; lebih ideal menunggu pullback ringan atau retest di dekat support ${primarySupport ? primarySupport.toLocaleString("id-ID") : "terdekat"} agar posisi masih punya ruang ke resistance ${primaryResistance ? primaryResistance.toLocaleString("id-ID") : "berikutnya"}${resistanceUpsidePct != null ? ` dengan upside sekitar ${resistanceUpsidePct.toFixed(2)}%` : ""}.`
+            : `Rencana eksekusi: fokus ke area support ${supports[0] ? supports[0].toLocaleString("id-ID") : "terdekat"} untuk buy on weakness, atau tunggu breakout bersih di area ${primaryResistance ? primaryResistance.toLocaleString("id-ID") : "resistance terdekat"} dengan volume di atas rata-rata. Hindari mengejar harga jika sudah terlalu jauh dari support.`
         : phaseInfo.tone === "bearish"
           ? `Rencana eksekusi: jangan buru-buru averaging down. Tunggu demand kembali muncul di dekat support ${supports[0] ? supports[0].toLocaleString("id-ID") : "utama"} atau tunggu struktur harga memperbaiki diri di atas resistance ${primaryResistance ? primaryResistance.toLocaleString("id-ID") : "terdekat"}. Prioritas utama tetap proteksi modal.`
-          : `Rencana eksekusi: perlakukan saham ini sebagai kandidat observasi. Tunggu satu dari dua hal: volume akumulasi membaik di support, atau breakout valid di resistance dengan follow-through yang sehat.`,
+          : `Rencana eksekusi: perlakukan saham ini sebagai kandidat observasi aktif. Fokus utamanya adalah mencari tanda support mulai dijaga, volume jual makin tipis, atau sideways mulai berubah menjadi akumulasi. Breakout hanyalah bonus konfirmasi, bukan satu-satunya jalan masuk.`,
       riskNotes: breakoutHasTriggered
         ? `Harga sudah berada di atas area breakout ${Math.round(highest20).toLocaleString("id-ID")}. Risiko utamanya sekarang adalah false breakout: harga gagal bertahan di atas area itu, volume lanjutan mengecil (${formatRatio(volumeRatio5v20)}), atau harga cepat kembali masuk ke bawah level pecah. Selama breakout level masih terjaga sebagai support, struktur naik tetap valid.`
-        : `Risiko utama saham ini ada pada penolakan di resistance ${primaryResistance ? primaryResistance.toLocaleString("id-ID") : "dekat harga sekarang"} dan potensi false breakout bila harga mendekati area pecah tetapi volume belum mendukung (${formatRatio(volumeRatio5v20)}). Karena aplikasi tidak memiliki broker summary asli, hasil ini harus dipakai sebagai pembacaan jejak harga-volume, bukan pengganti konfirmasi transaksi broker.`,
+        : phaseInfo.phase === "Support dikunci bandar" || phaseInfo.phase === "Akumulasi di support"
+          ? `Risiko utama ada jika support ${primarySupport ? primarySupport.toLocaleString("id-ID") : "utama"} gagal dipertahankan${supportDistancePct != null ? `, terutama karena harga saat ini hanya berjarak ${supportDistancePct.toFixed(2)}% dari level itu` : ""}. Selama support tetap dijaga dan distribusi tidak membesar, skenario dorongan ke resistance ${primaryResistance ? primaryResistance.toLocaleString("id-ID") : "terdekat"} masih relevan.`
+          : phaseInfo.phase === "Sideways akumulasi senyap"
+            ? `Risiko utama pola ini adalah sideways ternyata hanya dead money, bukan parkiran bandar. Karena itu, fokuskan kontrol risiko pada area support ${primarySupport ? primarySupport.toLocaleString("id-ID") : "utama"} dan pantau apakah OBV/A-D mulai melemah. Jika support patah dan distribusi membesar, asumsi akumulasi senyap perlu dibatalkan.`
+          : `Risiko utama saham ini ada pada penolakan di resistance ${primaryResistance ? primaryResistance.toLocaleString("id-ID") : "dekat harga sekarang"} dan potensi false breakout bila harga mendekati area pecah tetapi volume belum mendukung (${formatRatio(volumeRatio5v20)}). Karena aplikasi tidak memiliki broker summary asli, hasil ini harus dipakai sebagai pembacaan jejak harga-volume, bukan pengganti konfirmasi transaksi broker.`,
     },
     chart: {
       points: recent60.map((bar, index) => ({
@@ -484,7 +594,7 @@ export async function analyzeBandarmologyTicker(ticker: string, nameHint?: strin
     assumptions: [
       "Analisa memakai data harga dan volume publik harian yang tersedia di aplikasi.",
       "Tidak memakai broker summary atau distribusi broker proprietary.",
-      "Kerangka dibangun sebagai adaptasi prinsip bandarmology ala Ryan Filbert, bukan klaim representasi resmi 1:1.",
+      "Kerangka dibangun sebagai adaptasi bandarmology yang diarahkan ke filosofi Cerita Saham: mencari saham murah yang sedang dijaga, diakumulasi diam-diam, atau siap masuk markup dini.",
     ],
   };
 }

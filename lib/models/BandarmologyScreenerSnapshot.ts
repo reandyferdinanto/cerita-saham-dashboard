@@ -31,6 +31,7 @@ type SnapshotRow = {
 
 export interface IBandarmologyScreenerSnapshot extends Document {
   snapshotDate: string;
+  snapshotVersion: string;
   preset: string;
   priceBucket: string;
   universeSize: number;
@@ -76,6 +77,7 @@ const SnapshotRowSchema = new Schema<SnapshotRow>(
 const BandarmologyScreenerSnapshotSchema = new Schema<IBandarmologyScreenerSnapshot>(
   {
     snapshotDate: { type: String, required: true, index: true },
+    snapshotVersion: { type: String, required: true, index: true, default: "v1" },
     preset: { type: String, required: true, index: true },
     priceBucket: { type: String, required: true, index: true },
     universeSize: { type: Number, required: true, default: 0 },
@@ -86,7 +88,7 @@ const BandarmologyScreenerSnapshotSchema = new Schema<IBandarmologyScreenerSnaps
   { timestamps: true }
 );
 
-BandarmologyScreenerSnapshotSchema.index({ snapshotDate: 1, preset: 1, priceBucket: 1 }, { unique: true });
+BandarmologyScreenerSnapshotSchema.index({ snapshotDate: 1, snapshotVersion: 1, preset: 1, priceBucket: 1 }, { unique: true });
 
 const BandarmologyScreenerSnapshot =
   models.BandarmologyScreenerSnapshot ||

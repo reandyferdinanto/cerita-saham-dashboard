@@ -17,7 +17,7 @@ type StockMasterStatus = {
 
 type BacktestResponse = {
   preset: ScreenerPreset;
-  priceBucket: "all" | "under200" | "200to500" | "above500";
+  priceBucket: "all" | "under200" | "under300" | "200to500" | "above500";
   lookbackDays: number;
   holdingDays: number;
   takeProfitPct: number;
@@ -103,27 +103,27 @@ function formatMetric(value: number | null, suffix = "", digits = 2) {
 }
 
 type ScreenerPreset =
-  | "ideal"
-  | "accumulation"
-  | "breakout"
-  | "demand"
-  | "defensive"
-  | "research_pullback"
-  | "research_breakout"
-  | "research_position";
+  | "support_lock"
+  | "sideways_accumulation"
+  | "early_markup"
+  | "demand_surge"
+  | "washout_reclaim"
+  | "under300_focus"
+  | "markup_scout"
+  | "stealth_rotation";
 
 const CORE_PRESETS: Array<{ value: ScreenerPreset; label: string; description: string }> = [
-  { value: "ideal", label: "Ideal", description: "Kandidat paling seimbang untuk scan cepat." },
-  { value: "accumulation", label: "Akumulasi", description: "Fokus ke tanda serap barang dan range sehat." },
-  { value: "breakout", label: "Near Breakout", description: "Harga dekat area pecah resistance." },
-  { value: "demand", label: "Demand Kuat", description: "Tekanan beli lebih dominan dari supply." },
-  { value: "defensive", label: "Defensif", description: "Struktur lebih aman untuk observasi tenang." },
+  { value: "under300_focus", label: "Under 300", description: "Radar utama untuk saham murah yang masih punya jejak akumulasi." },
+  { value: "support_lock", label: "Support Lock", description: "Support dijaga sambil supply diserap perlahan." },
+  { value: "sideways_accumulation", label: "Sideways Senyap", description: "Sideways rapi dengan akumulasi diam-diam." },
+  { value: "early_markup", label: "Markup Dini", description: "Mulai siap didorong ke resistance atau breakout pendek." },
+  { value: "demand_surge", label: "Demand Surge", description: "Tekanan beli mulai muncul lebih agresif." },
 ];
 
 const RESEARCH_PRESETS: Array<{ value: ScreenerPreset; label: string; description: string }> = [
-  { value: "research_pullback", label: "Trend Pullback", description: "Tren sehat, retrace terukur, tunggu momentum pulih." },
-  { value: "research_breakout", label: "Breakout Volume", description: "Dekat high 20 hari dengan kebutuhan konfirmasi volume." },
-  { value: "research_position", label: "Trend Position", description: "Struktur menengah lebih matang untuk hold lebih panjang." },
+  { value: "washout_reclaim", label: "Washout Reclaim", description: "Sempat ditekan, tetapi mulai direbut kembali tanpa distribusi berat." },
+  { value: "markup_scout", label: "Scout Markup", description: "Mencari kandidat yang belum meledak, tetapi sudah dekat fase angkat." },
+  { value: "stealth_rotation", label: "Rotasi Senyap", description: "Rotasi bandar yang belum ramai dan belum terlalu obvious." },
 ];
 
 function getPresetMeta(preset: ScreenerPreset) {
@@ -162,12 +162,12 @@ export default function AdminBandarmologyPanel() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
-  const [screenerPreset, setScreenerPreset] = useState<ScreenerPreset>("ideal");
+  const [screenerPreset, setScreenerPreset] = useState<ScreenerPreset>("under300_focus");
   const [screenerLoading, setScreenerLoading] = useState(false);
   const [screenerUniverseSize, setScreenerUniverseSize] = useState<number | null>(null);
   const [screenerBucketUniverseSize, setScreenerBucketUniverseSize] = useState<number | null>(null);
   const [screenerAnalyzedUniverseSize, setScreenerAnalyzedUniverseSize] = useState<number | null>(null);
-  const [priceBucket, setPriceBucket] = useState<"all" | "under200" | "200to500" | "above500">("all");
+  const [priceBucket, setPriceBucket] = useState<"all" | "under200" | "under300" | "200to500" | "above500">("under300");
   const [stockMasterStatus, setStockMasterStatus] = useState<StockMasterStatus | null>(null);
   const [stockMasterLoading, setStockMasterLoading] = useState(false);
   const [stockMasterSyncing, setStockMasterSyncing] = useState(false);
@@ -460,7 +460,7 @@ export default function AdminBandarmologyPanel() {
             }}
           >
             <p className="text-sm font-bold" style={{ color: mode === "screener" ? "#93c5fd" : "#e2e8f0" }}>Screener</p>
-            <p className="text-xs mt-1 text-silver-500">Shortlist saham ideal sesuai preset Ryan Filbert-inspired.</p>
+            <p className="text-xs mt-1 text-silver-500">Shortlist saham murah yang sedang dijaga, diakumulasi, atau siap markup dini.</p>
           </button>
           <button
             type="button"
@@ -483,9 +483,9 @@ export default function AdminBandarmologyPanel() {
           <div className="max-w-3xl">
             <h2 className="text-lg font-bold text-silver-100">Analisa Bandarmology</h2>
             <p className="text-sm text-silver-400 mt-2 leading-relaxed">
-              Tab ini membaca saham dengan kacamata bandarmology ala Ryan Filbert: fokus pada jejak akumulasi, distribusi,
-              relasi harga-volume, fase markup/markdown, dan area konfirmasi. Analisa ini memakai data publik yang tersedia
-              di aplikasi, jadi fungsinya sebagai kerangka baca detail untuk admin, bukan broker summary proprietary.
+              Tab ini membaca saham dengan filosofi Cerita Saham: fokus ke saham under 300 atau rotational yang sedang
+              dijaga di support, sideways sambil akumulasi, atau mulai masuk markup dini. Analisa ini memakai data publik
+              yang tersedia di aplikasi, jadi fungsinya sebagai kerangka baca detail untuk admin, bukan broker summary proprietary.
             </p>
           </div>
           <div className="px-3 py-2 rounded-xl text-xs font-semibold" style={{ background: "rgba(251,146,60,0.12)", color: "#fdba74", border: "1px solid rgba(251,146,60,0.18)" }}>
@@ -543,8 +543,8 @@ export default function AdminBandarmologyPanel() {
           <div>
             <h3 className="text-lg font-bold text-silver-100">Screener Saham Ideal</h3>
             <p className="text-sm text-silver-400 mt-2 leading-relaxed">
-              Screener ini mencari kandidat saham yang lebih cocok dengan lensa Ryan Filbert: akumulasi sehat,
-              demand lebih dominan, struktur harga membaik, dan cukup dekat ke area konfirmasi.
+              Screener ini sengaja dibelokkan ke filosofi Cerita Saham: bukan mencari saham paling aman atau paling
+              blue-chip, tetapi mencari saham murah yang sedang ditahan, diakumulasi diam-diam, atau siap masuk markup.
             </p>
           </div>
           <div className="px-3 py-2 rounded-xl text-xs font-semibold" style={{ background: "rgba(59,130,246,0.12)", color: "#93c5fd", border: "1px solid rgba(59,130,246,0.2)" }}>
@@ -600,18 +600,18 @@ export default function AdminBandarmologyPanel() {
 
         <div className="grid grid-cols-1 xl:grid-cols-[1.1fr,1fr] gap-4">
           <PresetGroup
-            title="Preset Cepat"
-            subtitle="Scan umum berbasis lensa bandarmology untuk shortlist harian."
-            badge="Core"
+            title="Preset Inti"
+            subtitle="Preset utama untuk mencari saham murah yang sedang ditahan, parkir, atau mulai diangkat."
+            badge="Cerita Saham Core"
             badgeTone="blue"
             presets={CORE_PRESETS}
             activePreset={screenerPreset}
             onSelect={setScreenerPreset}
           />
           <PresetGroup
-            title="Preset Riset"
-            subtitle="Diambil dari attachment riset trading 5-10% per trade: pullback, breakout volume, dan trend position."
-            badge="Research"
+            title="Preset Lanjutan"
+            subtitle="Preset lanjutan untuk pola washout reclaim, scout markup, dan rotasi bandar yang lebih senyap."
+            badge="Cerita Saham Advanced"
             badgeTone="orange"
             presets={RESEARCH_PRESETS}
             activePreset={screenerPreset}
@@ -628,6 +628,7 @@ export default function AdminBandarmologyPanel() {
               {[
                 ["all", "Semua Harga"],
                 ["under200", "< 200"],
+                ["under300", "< 300"],
                 ["200to500", "200 - 500"],
                 ["above500", "> 500"],
               ].map(([value, label]) => (
@@ -780,12 +781,12 @@ export default function AdminBandarmologyPanel() {
                     <ScreenerMetric label="Harga" value={`Rp ${row.price.toLocaleString("id-ID")}`} />
                     <ScreenerMetric label="Change" value={`${row.changePercent >= 0 ? "+" : ""}${row.changePercent.toFixed(2)}%`} />
                     <ScreenerMetric label="Tech" value={`${row.technicalScore}/100`} />
-                    <ScreenerMetric label="Breakout" value={row.breakoutDistancePct == null ? "-" : `${row.breakoutDistancePct.toFixed(2)}%`} />
+                    <ScreenerMetric label="Jarak Resist" value={row.breakoutDistancePct == null ? "-" : `${row.breakoutDistancePct.toFixed(2)}%`} />
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 mt-2">
                     <ScreenerMetric label="Akumulasi Bias" value={`${row.accumulationBias}/100`} />
-                    <ScreenerMetric label="Breakout Ready" value={`${row.breakoutReadiness}/100`} />
+                    <ScreenerMetric label="Markup Ready" value={`${row.breakoutReadiness}/100`} />
                   </div>
 
                   <div className="mt-4">
@@ -848,7 +849,7 @@ export default function AdminBandarmologyPanel() {
                         <ScreenerMetric label="Up/Down Vol" value={row.upDownVolumeRatio == null ? "-" : `${row.upDownVolumeRatio.toFixed(2)}x`} />
                         <ScreenerMetric label="OBV 20h" value={row.obvSlope20 == null ? "-" : row.obvSlope20.toFixed(0)} />
                         <ScreenerMetric label="A/D 20h" value={row.adSlope20 == null ? "-" : row.adSlope20.toFixed(0)} />
-                        <ScreenerMetric label="Breakout Dist." value={row.breakoutDistancePct == null ? "-" : `${row.breakoutDistancePct.toFixed(2)}%`} />
+                        <ScreenerMetric label="Jarak Resist" value={row.breakoutDistancePct == null ? "-" : `${row.breakoutDistancePct.toFixed(2)}%`} />
                         <ScreenerMetric label="Technical Score" value={`${row.technicalScore}/100`} />
                       </div>
 
@@ -905,7 +906,7 @@ export default function AdminBandarmologyPanel() {
           <div className="rounded-2xl p-5" style={{ background: tone?.bg, border: `1px solid ${tone?.border}` }}>
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div>
-                <p className="text-xs uppercase tracking-[0.2em] font-bold" style={{ color: tone?.color }}>Ryan Filbert Lens</p>
+                <p className="text-xs uppercase tracking-[0.2em] font-bold" style={{ color: tone?.color }}>Lensa Cerita Saham</p>
                 <h3 className="text-xl font-bold text-silver-100 mt-2">{analysis.ticker.replace(".JK", "")} · {analysis.name}</h3>
               </div>
               <span className="px-3 py-1 rounded-full text-xs font-bold" style={{ background: "rgba(255,255,255,0.08)", color: "#f8fafc" }}>
@@ -934,7 +935,7 @@ export default function AdminBandarmologyPanel() {
                 <MetricCell label="Up / Down Volume" value={formatMetric(analysis.metrics.upDownVolumeRatio, "x")} />
                 <MetricCell label="OBV Slope 20h" value={formatMetric(analysis.metrics.obvSlope20, "", 0)} />
                 <MetricCell label="A/D Slope 20h" value={formatMetric(analysis.metrics.adSlope20, "", 0)} />
-                <MetricCell label="Jarak ke High 20h" value={formatMetric(analysis.metrics.breakoutDistancePct, "%")} />
+                <MetricCell label="Jarak ke Resist 20h" value={formatMetric(analysis.metrics.breakoutDistancePct, "%")} />
                 <MetricCell label="Volume" value={`${(analysis.quote.volume / 1_000_000).toFixed(2)}M`} />
               </div>
             </div>
@@ -1163,7 +1164,7 @@ function BandarmologyMiniChart({ analysis }: { analysis: AnalysisResponse }) {
             Mini Chart Bandarmology
           </div>
           <p className="mt-3 max-w-2xl text-sm leading-relaxed text-silver-300">
-            Fokus utama chart ini adalah posisi harga terhadap level penting. Harga aktif, support, resistance, dan breakout sekarang tampil sebagai ringkasan cepat, jadi admin bisa scan struktur tanpa membaca terlalu banyak label.
+            Fokus utama chart ini adalah posisi harga terhadap level penting. Harga aktif, support, resistance, dan area markup sekarang tampil sebagai ringkasan cepat, jadi admin bisa scan struktur tanpa membaca terlalu banyak label.
           </p>
         </div>
         <div className="flex flex-wrap gap-2 text-[11px]">

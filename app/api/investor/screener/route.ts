@@ -11,27 +11,27 @@ export async function GET(req: NextRequest) {
   const session = await requireUserSession(req);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const rawPreset = req.nextUrl.searchParams.get("preset") || "ideal";
-  const rawPriceBucket = req.nextUrl.searchParams.get("priceBucket") || "all";
+  const rawPreset = req.nextUrl.searchParams.get("preset") || "under300";
+  const rawPriceBucket = req.nextUrl.searchParams.get("priceBucket") || "under300";
   const presetMap: Record<string, ScreenerPreset> = {
-    momentum: "ideal",
-    ideal: "ideal",
-    breakout: "research_breakout",
-    pullback: "research_pullback",
-    defensive: "defensive",
-    accumulation: "accumulation",
-    demand: "demand",
-    position: "research_position",
+    under300: "under300_focus",
+    support: "support_lock",
+    sideways: "sideways_accumulation",
+    markup: "early_markup",
+    scout: "markup_scout",
+    demand: "demand_surge",
+    reclaim: "washout_reclaim",
+    rotation: "stealth_rotation",
   };
 
-  const preset = presetMap[rawPreset] || "ideal";
-  const priceBucket = (["all", "under200", "200to500", "above500"].includes(rawPriceBucket) ? rawPriceBucket : "all") as PriceBucket;
+  const preset = presetMap[rawPreset] || "under300_focus";
+  const priceBucket = (["all", "under200", "under300", "200to500", "above500"].includes(rawPriceBucket) ? rawPriceBucket : "under300") as PriceBucket;
 
   const result = await getBandarmologyScreener({
     preset,
     priceBucket,
     limit: Math.min(Number(req.nextUrl.searchParams.get("limit") || 12), 12),
-    candidateLimit: Math.min(Number(req.nextUrl.searchParams.get("candidateLimit") || (priceBucket === "under200" ? 140 : 110)), 180),
+    candidateLimit: Math.min(Number(req.nextUrl.searchParams.get("candidateLimit") || (priceBucket === "under200" || priceBucket === "under300" ? 180 : 120)), 220),
   });
 
   return NextResponse.json({

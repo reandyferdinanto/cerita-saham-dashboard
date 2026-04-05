@@ -1,49 +1,20 @@
 import { NextResponse } from "next/server";
 import { getQuote } from "@/lib/yahooFinance";
-
-const IDX_LIQUID_TICKERS = [
-  "BBCA.JK",
-  "BBRI.JK",
-  "BMRI.JK",
-  "BBNI.JK",
-  "TLKM.JK",
-  "ASII.JK",
-  "AMMN.JK",
-  "BREN.JK",
-  "BYAN.JK",
-  "GOTO.JK",
-  "UNVR.JK",
-  "ICBP.JK",
-  "PGAS.JK",
-  "BRPT.JK",
-  "MEDC.JK",
-  "ADRO.JK",
-  "PTBA.JK",
-  "ITMG.JK",
-  "UNTR.JK",
-  "AKRA.JK",
-  "ANTM.JK",
-  "INCO.JK",
-  "MDKA.JK",
-  "AMRT.JK",
-  "CPIN.JK",
-  "JPFA.JK",
-  "KLBF.JK",
-  "MAPI.JK",
-  "ERAA.JK",
-  "INET.JK",
-];
+import { getIndonesiaStockUniverse } from "@/lib/indonesiaStockMaster";
 
 export async function GET() {
   try {
+    const universe = await getIndonesiaStockUniverse({ priceBucket: "all", candidateLimit: 180 });
+    const tickers = universe.stocks.map((stock) => stock.ticker).slice(0, 180);
+
     const quotes = await Promise.all(
-      IDX_LIQUID_TICKERS.map((ticker) => getQuote(ticker).catch(() => null))
+      tickers.map((ticker) => getQuote(ticker).catch(() => null))
     );
 
     const topGainers = quotes
-      .filter((quote): quote is NonNullable<typeof quote> => Boolean(quote && quote.changePercent !== undefined))
+      .filter((quote): quote is NonNullable<typeof quote> => Boolean(quote && quote.changePercent !== undefined && quote.price > 0))
       .sort((a, b) => b.changePercent - a.changePercent)
-      .slice(0, 10)
+      .slice(0, 40)
       .map((quote) => ({
         ticker: quote.ticker.replace(".JK", ""),
         name: quote.name,

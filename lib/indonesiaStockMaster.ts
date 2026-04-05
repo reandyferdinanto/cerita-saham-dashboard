@@ -2,7 +2,7 @@ import { connectDB } from "@/lib/db";
 import IndonesiaStock from "@/lib/models/IndonesiaStock";
 import { BANDARMOLOGY_SCREEN_UNIVERSE } from "@/lib/bandarmologyAnalysis";
 
-type PriceBucket = "all" | "under200" | "200to500" | "above500";
+type PriceBucket = "all" | "under200" | "under300" | "200to500" | "above500";
 
 type ParsedStockRow = {
   symbol: string;
@@ -165,25 +165,41 @@ export async function getIndonesiaStockUniverse(options?: {
 
   if (priceBucket === "under200") {
     bucketFilter.lastPrice = { $lt: 200 };
+  } else if (priceBucket === "under300") {
+    bucketFilter.lastPrice = { $lt: 300 };
   } else if (priceBucket === "200to500") {
     bucketFilter.lastPrice = { $gte: 200, $lte: 500 };
   } else if (priceBucket === "above500") {
     bucketFilter.lastPrice = { $gt: 500 };
   }
 
+  const fetchLimit = priceBucket === "all" ? Math.min(candidateLimit * 4, 600) : candidateLimit;
+
   const [masterUniverseSize, bucketUniverseSize, docs] = await Promise.all([
     IndonesiaStock.countDocuments(activeFilter),
     IndonesiaStock.countDocuments({ ...activeFilter, ...bucketFilter }),
     IndonesiaStock.find({ ...activeFilter, ...bucketFilter })
       .sort({ sourceRank: 1 })
-      .limit(candidateLimit)
+      .limit(fetchLimit)
       .select({ ticker: 1, name: 1, symbol: 1, lastPrice: 1, sourceRank: 1 })
       .lean(),
   ]);
 
+  const prioritizedDocs = docs
+    .slice()
+    .sort((left, right) => {
+      const leftPrice = typeof left.lastPrice === "number" ? left.lastPrice : Number.POSITIVE_INFINITY;
+      const rightPrice = typeof right.lastPrice === "number" ? right.lastPrice : Number.POSITIVE_INFINITY;
+      const leftBand = leftPrice <= 300 ? 0 : leftPrice <= 500 ? 1 : 2;
+      const rightBand = rightPrice <= 300 ? 0 : rightPrice <= 500 ? 1 : 2;
+      if (leftBand !== rightBand) return leftBand - rightBand;
+      return (left.sourceRank ?? Number.MAX_SAFE_INTEGER) - (right.sourceRank ?? Number.MAX_SAFE_INTEGER);
+    })
+    .slice(0, candidateLimit);
+
   const fallbackDocs =
-    docs.length > 0
-      ? docs
+    prioritizedDocs.length > 0
+      ? prioritizedDocs
       : BANDARMOLOGY_SCREEN_UNIVERSE.map((ticker, index) => ({
           ticker,
           symbol: ticker.replace(".JK", ""),

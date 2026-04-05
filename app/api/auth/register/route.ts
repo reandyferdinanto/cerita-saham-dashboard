@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { connectDB } from "@/lib/db";
-import User from "@/lib/models/User";
 import { signToken } from "@/lib/auth";
+import { createUserRecord, findUserByEmail } from "@/lib/data/users";
 
 export async function POST(req: NextRequest) {
   try {
@@ -53,9 +52,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    await connectDB();
-
-    const existing = await User.findOne({ email: email.toLowerCase() });
+    const existing = await findUserByEmail(email.toLowerCase());
     if (existing) {
       return NextResponse.json(
         { error: "Email sudah terdaftar" },
@@ -65,7 +62,7 @@ export async function POST(req: NextRequest) {
 
     const phoneHash = await bcrypt.hash(phone, 12);
 
-    const user = await User.create({
+    const user = await createUserRecord({
       email: email.toLowerCase(),
       phoneHash,
       name: name || null,

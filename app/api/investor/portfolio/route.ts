@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { connectDB } from "@/lib/db";
-import PortfolioHolding from "@/lib/models/PortfolioHolding";
 import { requireUserSession } from "@/lib/userSession";
+import {
+  createPortfolioHolding,
+  listPortfolioHoldings,
+} from "@/lib/data/investorWorkspace";
 
 export async function GET(req: NextRequest) {
   const session = await requireUserSession(req);
@@ -10,15 +12,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  await connectDB();
-  const holdings = await PortfolioHolding.find({ userId: session.userId }).sort({ updatedAt: -1 }).lean();
-
-  return NextResponse.json(
-    holdings.map((holding) => ({
-      ...holding,
-      _id: String(holding._id),
-    }))
-  );
+  return NextResponse.json(await listPortfolioHoldings(session.userId));
 }
 
 export async function POST(req: NextRequest) {
@@ -30,9 +24,7 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
 
-  await connectDB();
-
-  const created = await PortfolioHolding.create({
+  const created = await createPortfolioHolding({
     userId: session.userId,
     ticker: String(body.ticker || "").toUpperCase(),
     name: body.name || body.ticker,
@@ -44,5 +36,5 @@ export async function POST(req: NextRequest) {
     stopLoss: body.stopLoss ? Number(body.stopLoss) : null,
   });
 
-  return NextResponse.json({ ...created.toObject(), _id: String(created._id) }, { status: 201 });
+  return NextResponse.json(created, { status: 201 });
 }

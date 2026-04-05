@@ -1,11 +1,19 @@
+﻿
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import GlassCard from "@/components/ui/GlassCard";
 import { useAuth } from "@/components/ui/AuthProvider";
+import type { TechnicalResult } from "@/lib/technicalSignals";
 
 type Quote = { ticker: string; name: string; price: number; changePercent: number };
+type NewsItem = {
+  title: string;
+  sentiment: "positive" | "negative" | "neutral";
+  sentimentReason: string;
+  pubDate: string;
+};
 type LevelComparison = {
   price: number;
   strength: number;
@@ -35,7 +43,15 @@ type RiskResult = {
   supportComparison: LevelComparison | null;
   resistanceComparison: LevelComparison | null;
 };
-type AiBriefResponse = { ticker: string; name: string; brief: string; usedAI: boolean; quote: Quote };
+type AiBriefResponse = {
+  ticker: string;
+  name: string;
+  brief: string;
+  usedAI: boolean;
+  quote: Quote;
+  technical: TechnicalResult;
+  news: NewsItem[];
+};
 type Settings = { enabledInvestorTools?: string[] };
 type RightsIssueResult = {
   oldShares: number;
@@ -78,22 +94,45 @@ type InvestorScreenerResponse = {
   priceBucket: string;
   rows: InvestorScreenerRow[];
 };
+type ToolKey =
+  | "overview"
+  | "aiBrief"
+  | "riskCalculator"
+  | "investorScreener"
+  | "rightsIssueCalculator"
+  | "stockSplitCalculator";
 
 const currency = (value: number) => `Rp ${value.toLocaleString("id-ID")}`;
 const shortTicker = (ticker: string) => ticker.replace(".JK", "");
 const INVESTOR_SCREENER_PRESETS = [
-  { value: "ideal", label: "Momentum", note: "Shortlist paling seimbang untuk scan cepat." },
-  { value: "pullback", label: "Pullback", note: "Cari retrace sehat yang belum rusak struktur." },
-  { value: "breakout", label: "Breakout", note: "Cari kandidat dekat konfirmasi breakout." },
-  { value: "accumulation", label: "Akumulasi", note: "Tekan akumulasi dan demand lebih dominan." },
+  { value: "under300", label: "Under 300", note: "Radar utama untuk saham murah yang masih dijaga." },
+  { value: "support", label: "Support Lock", note: "Cari support yang dikunci sambil supply diserap." },
+  { value: "sideways", label: "Sideways Senyap", note: "Cari sideways rapi dengan akumulasi diam-diam." },
+  { value: "markup", label: "Markup Dini", note: "Cari kandidat yang mulai siap diangkat." },
 ] as const;
+const PRICE_BUCKET_OPTIONS = [
+  { value: "under200", label: "<200" },
+  { value: "under300", label: "<300" },
+  { value: "200to500", label: "200-500" },
+  { value: "above500", label: ">500" },
+  { value: "all", label: "Semua" },
+] as const;
+const TOOL_LABELS: Record<ToolKey, string> = {
+  overview: "Overview",
+  aiBrief: "AI Brief",
+  riskCalculator: "Risk Calculator",
+  investorScreener: "Radar Kandidat",
+  rightsIssueCalculator: "Right Issue",
+  stockSplitCalculator: "Stock Split",
+};
 
 export default function InvestorToolsPage() {
   const { user, loading } = useAuth();
   const [errorMessage, setErrorMessage] = useState("");
+  const [activeTool, setActiveTool] = useState<ToolKey>("overview");
   const [aiBrief, setAiBrief] = useState<AiBriefResponse | null>(null);
   const [aiBriefLoading, setAiBriefLoading] = useState(false);
-  const [briefTicker, setBriefTicker] = useState("BBCA");
+  const [briefTicker, setBriefTicker] = useState("LABS");
   const [riskForm, setRiskForm] = useState({ ticker: "", lots: "1", entryPrice: "", stopLoss: "", targetPrice: "" });
   const [riskResult, setRiskResult] = useState<RiskResult | null>(null);
   const [riskQuote, setRiskQuote] = useState<Quote | null>(null);
@@ -109,8 +148,8 @@ export default function InvestorToolsPage() {
     "stockSplitCalculator",
     "investorScreener",
   ]);
-  const [screenerPreset, setScreenerPreset] = useState<(typeof INVESTOR_SCREENER_PRESETS)[number]["value"]>("ideal");
-  const [screenerPriceBucket, setScreenerPriceBucket] = useState<"all" | "under200" | "200to500" | "above500">("all");
+  const [screenerPreset, setScreenerPreset] = useState<(typeof INVESTOR_SCREENER_PRESETS)[number]["value"]>("under300");
+  const [screenerPriceBucket, setScreenerPriceBucket] = useState<"all" | "under200" | "under300" | "200to500" | "above500">("under300");
   const [screenerLoading, setScreenerLoading] = useState(false);
   const [screenerError, setScreenerError] = useState("");
   const [screenerRows, setScreenerRows] = useState<InvestorScreenerRow[]>([]);
@@ -143,31 +182,41 @@ export default function InvestorToolsPage() {
         if (!res.ok || !("rows" in data)) {
           throw new Error(("error" in data && data.error) || "Screener investor gagal dimuat");
         }
-        if (!cancelled) {
-          setScreenerRows(Array.isArray(data.rows) ? data.rows : []);
-        }
+        if (!cancelled) setScreenerRows(Array.isArray(data.rows) ? data.rows : []);
       } catch (error) {
         if (!cancelled) {
           setScreenerRows([]);
           setScreenerError(error instanceof Error ? error.message : "Screener investor gagal dimuat");
         }
       } finally {
-        if (!cancelled) {
-          setScreenerLoading(false);
-        }
+        if (!cancelled) setScreenerLoading(false);
       }
     }
 
-    loadScreener();
+    void loadScreener();
     return () => {
       cancelled = true;
     };
   }, [enabledTools, screenerPreset, screenerPriceBucket, user]);
 
-  const handleGenerateBrief = async (event: React.FormEvent) => {
+  const enabledToolCards = useMemo(() => {
+    const cards: Array<{ key: ToolKey; eyebrow: string; title: string; desc: string; accent: string }> = [
+      { key: "aiBrief", eyebrow: "Baca cepat", title: "AI Brief Cerita Saham", desc: "Ringkasan yang tidak cuma bilang bullish atau bearish, tapi apakah setup-nya masih enak disentuh sekarang.", accent: "#fb923c" },
+      { key: "riskCalculator", eyebrow: "Jaga risiko", title: "Risk Calculator", desc: "Masukkan lots, entry, TP, dan SL lalu lihat apakah skenarionya realistis terhadap support-resistance.", accent: "#c084fc" },
+      { key: "investorScreener", eyebrow: "Cari kandidat", title: "Radar Kandidat", desc: "Shortlist saham murah, support lock, sideways senyap, dan markup dini sesuai filosofi Cerita Saham.", accent: "#10b981" },
+      { key: "rightsIssueCalculator", eyebrow: "Corporate action", title: "Right Issue", desc: "Hitung saham tambahan, biaya tebus, dan average price baru tanpa ribet hitung manual.", accent: "#86efac" },
+      { key: "stockSplitCalculator", eyebrow: "Corporate action", title: "Stock Split", desc: "Lihat dampak split ke jumlah saham dan harga teoritis supaya tidak salah baca value portofolio.", accent: "#93c5fd" },
+    ];
+
+    return cards.filter((card) => enabledTools.includes(card.key));
+  }, [enabledTools]);
+
+  const screenerPresetMeta = INVESTOR_SCREENER_PRESETS.find((item) => item.value === screenerPreset);
+  const handleGenerateBrief = async (event: FormEvent) => {
     event.preventDefault();
     setAiBriefLoading(true);
     setErrorMessage("");
+    setActiveTool("aiBrief");
 
     try {
       const res = await fetch("/api/investor/ai-brief", {
@@ -185,9 +234,10 @@ export default function InvestorToolsPage() {
     }
   };
 
-  const handleRiskCalculate = async (event: React.FormEvent) => {
+  const handleRiskCalculate = async (event: FormEvent) => {
     event.preventDefault();
     setErrorMessage("");
+    setActiveTool("riskCalculator");
 
     try {
       const res = await fetch("/api/investor/risk", {
@@ -215,19 +265,14 @@ export default function InvestorToolsPage() {
     setRiskQuote(null);
 
     const trimmed = nextTicker.trim();
-    if (!trimmed) {
-      return;
-    }
+    if (!trimmed) return;
 
     setRiskQuoteLoading(true);
     try {
       const normalizedTicker = trimmed.endsWith(".JK") ? trimmed : `${trimmed}.JK`;
       const res = await fetch(`/api/stocks/quote/${encodeURIComponent(normalizedTicker)}`);
       const data = (await res.json()) as Quote | { error?: string };
-
-      if (!res.ok || !("price" in data)) {
-        return;
-      }
+      if (!res.ok || !("price" in data)) return;
 
       setRiskQuote(data);
       setRiskForm((current) => ({
@@ -242,9 +287,23 @@ export default function InvestorToolsPage() {
     }
   };
 
-  const handleRightsCalculate = (event: React.FormEvent) => {
+  const applyRiskTemplate = (type: "tight" | "balanced" | "wide") => {
+    if (!riskQuote) return;
+    const entry = Number(riskForm.entryPrice || riskQuote.price);
+    const stopPercent = type === "tight" ? 0.04 : type === "balanced" ? 0.06 : 0.08;
+    const targetPercent = type === "tight" ? 0.08 : type === "balanced" ? 0.12 : 0.18;
+    setRiskForm((current) => ({
+      ...current,
+      entryPrice: current.entryPrice || String(entry),
+      stopLoss: String(Math.max(1, Math.round(entry * (1 - stopPercent)))),
+      targetPrice: String(Math.round(entry * (1 + targetPercent))),
+    }));
+  };
+
+  const handleRightsCalculate = (event: FormEvent) => {
     event.preventDefault();
     setErrorMessage("");
+    setActiveTool("rightsIssueCalculator");
 
     const oldShares = Number(rightsForm.shares || 0);
     const avgPrice = Number(rightsForm.avgPrice || 0);
@@ -264,21 +323,13 @@ export default function InvestorToolsPage() {
     const totalCost = oldValue + rightsCost;
     const terp = totalCost / totalShares;
 
-    setRightsResult({
-      oldShares,
-      newShares,
-      totalShares,
-      oldValue,
-      rightsCost,
-      totalCost,
-      terp,
-      averagePrice: terp,
-    });
+    setRightsResult({ oldShares, newShares, totalShares, oldValue, rightsCost, totalCost, terp, averagePrice: terp });
   };
 
-  const handleSplitCalculate = (event: React.FormEvent) => {
+  const handleSplitCalculate = (event: FormEvent) => {
     event.preventDefault();
     setErrorMessage("");
+    setActiveTool("stockSplitCalculator");
 
     const oldShares = Number(splitForm.shares || 0);
     const oldPrice = Number(splitForm.price || 0);
@@ -295,15 +346,7 @@ export default function InvestorToolsPage() {
     const oldValue = oldShares * oldPrice;
     const newValue = newShares * theoreticalPrice;
 
-    setSplitResult({
-      oldShares,
-      newShares,
-      oldPrice,
-      theoreticalPrice,
-      oldValue,
-      newValue,
-      ratioText: `${splitOld}:${splitNew}`,
-    });
+    setSplitResult({ oldShares, newShares, oldPrice, theoreticalPrice, oldValue, newValue, ratioText: `${splitOld}:${splitNew}` });
   };
 
   if (loading) {
@@ -314,7 +357,7 @@ export default function InvestorToolsPage() {
     return (
       <GlassCard hover={false}>
         <h1 className="text-2xl font-bold text-silver-100">Investor Tools</h1>
-        <p className="text-silver-400 mt-2">Masuk dulu untuk membuka AI Stock Brief dan Risk Calculator.</p>
+        <p className="text-silver-400 mt-2">Masuk dulu untuk membuka workspace investor Cerita Saham.</p>
         <Link href="/login" className="inline-block mt-4 px-4 py-2 rounded-xl text-sm font-semibold" style={{ background: "linear-gradient(135deg,#ea580c,#fb923c)", color: "#fff" }}>
           Masuk Sekarang
         </Link>
@@ -324,174 +367,337 @@ export default function InvestorToolsPage() {
 
   return (
     <div className="space-y-6 pb-10">
-      <div>
-        <p className="text-[11px] uppercase tracking-[0.24em] text-orange-400">Retail Investor Workspace</p>
-        <h1 className="text-3xl font-bold text-silver-100 mt-1">Investor Tools</h1>
-        <p className="text-sm text-silver-400 mt-2 max-w-3xl">Halaman ini sekarang fokus ke AI Stock Brief dan Risk Calculator yang lebih jelas untuk skenario TP/SL nyata.</p>
-      </div>
+      <section className="relative overflow-hidden rounded-[28px] p-6 sm:p-8" style={{ background: "radial-gradient(circle at top left, rgba(249,115,22,0.18), transparent 30%), linear-gradient(145deg, rgba(2,6,23,0.92), rgba(15,23,42,0.88))", border: "1px solid rgba(251,146,60,0.14)" }}>
+        <div className="absolute inset-y-0 right-0 w-1/2 pointer-events-none" style={{ background: "radial-gradient(circle at center, rgba(16,185,129,0.12), transparent 55%)" }} />
+        <div className="relative grid grid-cols-1 xl:grid-cols-[1.25fr_0.9fr] gap-6 items-start">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.24em] text-orange-400">Cerita Saham Investor Workspace</p>
+            <h1 className="text-3xl md:text-4xl font-bold text-silver-100 mt-2 leading-tight">Tools yang membantu membaca cerita gerak, bukan cuma menghitung angka.</h1>
+            <p className="text-sm text-silver-400 mt-3 max-w-2xl leading-7">Mulai dari radar kandidat, cek AI brief dengan konteks Cerita Saham, lalu kunci skenario entry lewat risk calculator. Semua dibuat lebih cepat dibaca dan lebih dekat ke workflow real investor ritel.</p>
+            <div className="flex flex-wrap gap-2 mt-5">
+              {["Overview", "AI lebih kontekstual", "Risk plan lebih cepat", "Radar kandidat member"].map((item) => (
+                <span key={item} className="px-3 py-1.5 rounded-full text-xs font-semibold" style={{ background: "rgba(255,255,255,0.04)", color: "#cbd5e1", border: "1px solid rgba(226,232,240,0.08)" }}>{item}</span>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <HeroMetric title="Mulai dari" value="Radar Kandidat" helper="Buka shortlist dulu sebelum tenggelam di detail." accent="#10b981" />
+            <HeroMetric title="AI Brief" value="Lebih Smart" helper="Baca setup, bukan sekadar sentimen generik." accent="#fb923c" />
+            <HeroMetric title="Risk Plan" value="1 Halaman" helper="Entry, TP, SL, dan level pembanding jadi lebih cepat." accent="#c084fc" />
+            <HeroMetric title="Filosofi" value="Cerita Saham" helper="Fokus ke kualitas area entry dan ruang gerak." accent="#93c5fd" />
+          </div>
+        </div>
+      </section>
 
       {errorMessage ? <p className="text-sm text-red-400">{errorMessage}</p> : null}
+      <section className="grid grid-cols-1 xl:grid-cols-[1.05fr_1.35fr] gap-6">
+        <GlassCard hover={false}>
+          <SectionTitle title="Pilih Jalur Kerja" subtitle="Tiap tool sekarang punya peran yang lebih jelas, jadi Anda tidak perlu mulai dari nol setiap kali buka halaman ini." />
+          <div className="space-y-3">
+            {enabledToolCards.map((card) => (
+              <button
+                key={card.key}
+                type="button"
+                onClick={() => setActiveTool(card.key)}
+                className="w-full text-left rounded-2xl p-4 transition-all"
+                style={{
+                  background: activeTool === card.key ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.02)",
+                  border: `1px solid ${activeTool === card.key ? `${card.accent}33` : "rgba(226,232,240,0.05)"}`,
+                }}
+              >
+                <p className="text-[10px] uppercase tracking-[0.22em]" style={{ color: card.accent }}>{card.eyebrow}</p>
+                <p className="text-sm font-semibold text-silver-100 mt-1">{card.title}</p>
+                <p className="text-xs text-silver-400 mt-2 leading-6">{card.desc}</p>
+              </button>
+            ))}
+          </div>
+        </GlassCard>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        {enabledTools.includes("aiBrief") ? <GlassCard hover={false}>
-          <SectionTitle title="AI Stock Brief" subtitle="Ringkasan cepat saham dengan harga, teknikal, dan news" />
-          <form className="flex flex-col md:flex-row gap-3 mb-4" onSubmit={handleGenerateBrief}>
-            <Input value={briefTicker} onChange={setBriefTicker} placeholder="Contoh: BBCA" />
-            <button type="submit" disabled={aiBriefLoading} className="px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-60" style={{ background: "linear-gradient(135deg,#ea580c,#fb923c)", color: "#fff" }}>
-              {aiBriefLoading ? "Mengecek..." : "Cek Brief"}
+        <GlassCard hover={false}>
+          <SectionTitle title="Cara Pakai Cepat" subtitle="Urutan yang paling aman untuk workflow harian investor Cerita Saham." />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <WorkflowCard step="1" title="Scan kandidat" body="Mulai dari Radar Kandidat untuk cari nama yang murah, dijaga, atau mulai ada cerita markup." accent="#10b981" />
+            <WorkflowCard step="2" title="Baca konteks" body="Buka AI Brief untuk tahu apakah setup-nya masih enak, terlalu panas, atau justru masih layak pantau." accent="#fb923c" />
+            <WorkflowCard step="3" title="Kunci skenario" body="Masuk ke Risk Calculator agar entry, TP, dan SL lebih realistis terhadap level teknikal." accent="#c084fc" />
+          </div>
+          <div className="mt-4 rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(226,232,240,0.05)" }}>
+            <p className="text-sm font-semibold text-silver-100">Tool aktif sekarang: <span style={{ color: "#fb923c" }}>{TOOL_LABELS[activeTool]}</span></p>
+            <p className="text-xs text-silver-400 mt-2 leading-6">Gunakan panel di bawah sesuai kebutuhan. Anda bisa lompat antar tool kapan saja tanpa kehilangan konteks utama halaman.</p>
+          </div>
+        </GlassCard>
+      </section>
+
+      {enabledTools.includes("investorScreener") ? (
+        <GlassCard hover={false}>
+          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 mb-5">
+            <SectionTitle title="Radar Kandidat Member" subtitle="Shortlist pembuka sebelum Anda masuk ke AI brief atau kalkulasi risiko. Semua preset ini mengikuti filosofi Cerita Saham." />
+            <button type="button" onClick={() => setActiveTool("investorScreener")} className="px-4 py-2 rounded-xl text-sm font-semibold self-start" style={{ background: "rgba(16,185,129,0.12)", color: "#86efac", border: "1px solid rgba(16,185,129,0.22)" }}>
+              Fokus ke Radar
             </button>
-          </form>
-          {aiBrief ? (
-            <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(226,232,240,0.08)" }}>
-              <div className="flex flex-wrap items-center gap-3 mb-3">
-                <p className="text-sm font-bold text-silver-100">{shortTicker(aiBrief.ticker)} - {aiBrief.name}</p>
-                <span className="text-xs px-2 py-1 rounded-full" style={{ background: aiBrief.usedAI ? "rgba(16,185,129,0.14)" : "rgba(59,130,246,0.14)", color: aiBrief.usedAI ? "#86efac" : "#93c5fd" }}>
-                  {aiBrief.usedAI ? "Cerita Saham AI" : "Brief Otomatis"}
-                </span>
-                <span className="text-xs text-silver-400">{currency(aiBrief.quote.price)} - {aiBrief.quote.changePercent.toFixed(2)}%</span>
-              </div>
-              <pre className="whitespace-pre-wrap text-sm leading-7 text-silver-300 font-sans">{aiBrief.brief}</pre>
-            </div>
-          ) : <EmptyText text="Masukkan ticker lalu biarkan sistem menyusun brief singkat untuk investor ritel." />}
-        </GlassCard> : null}
-
-        {enabledTools.includes("riskCalculator") ? <GlassCard hover={false}>
-          <SectionTitle title="Risk Calculator" subtitle="Masukkan entry, TP, SL, dan lots untuk melihat profit, loss, risk ratio, serta pembanding support/resistance 1H dan 4H" />
-          <form className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4" onSubmit={handleRiskCalculate}>
-            <div className="md:col-span-2 space-y-2">
-              <Input value={riskForm.ticker} onChange={handleRiskTickerChange} placeholder="Ticker opsional, contoh BBCA" />
-              <p className="text-xs text-silver-500">
-                {riskQuoteLoading
-                  ? "Mengambil harga ticker saat ini..."
-                  : riskQuote
-                    ? `Harga terakhir ${shortTicker(riskQuote.ticker)} saat ini ${currency(riskQuote.price)} (${riskQuote.changePercent.toFixed(2)}%). Entry otomatis diisi jika masih kosong.`
-                    : "Isi ticker jika ingin membandingkan TP/SL dengan support dan resistance timeframe 4H."}
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Input type="number" value={riskForm.lots} onChange={(value) => setRiskForm((current) => ({ ...current, lots: value }))} placeholder="Jumlah lots, misal 1 = 100 lembar" />
-              <p className="text-xs text-silver-500">Di BEI, `1 lot = 100 lembar saham`. Jadi 5 lot berarti 500 lembar.</p>
-            </div>
-            <Input type="number" value={riskForm.entryPrice} onChange={(value) => setRiskForm((current) => ({ ...current, entryPrice: value }))} placeholder="Harga beli / entry" />
-            <Input type="number" value={riskForm.targetPrice} onChange={(value) => setRiskForm((current) => ({ ...current, targetPrice: value }))} placeholder="Target TP" />
-            <Input type="number" value={riskForm.stopLoss} onChange={(value) => setRiskForm((current) => ({ ...current, stopLoss: value }))} placeholder="Level SL" />
-            <button type="submit" className="px-4 py-2 rounded-xl text-sm font-semibold" style={{ background: "rgba(168,85,247,0.16)", color: "#d8b4fe", border: "1px solid rgba(168,85,247,0.25)" }}>
-              Hitung Skenario
-            </button>
-          </form>
-          {riskResult ? (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <MetricCard label="Nilai Posisi" value={currency(riskResult.positionValue)} compact />
-                <MetricCard label="Jumlah Saham" value={`${riskResult.shares.toLocaleString("id-ID")}`} helper={`${riskResult.lots} lots`} compact />
-                <MetricCard label="Profit Jika TP Tercapai" value={currency(riskResult.potentialProfit)} helper={`${riskResult.profitPercent.toFixed(2)}% dari harga entry`} accent="#34d399" compact />
-                <MetricCard label="Loss Jika SL Tersentuh" value={currency(riskResult.maxLoss)} helper={`${riskResult.lossPercent.toFixed(2)}% dari harga entry`} accent="#f87171" compact />
-                <MetricCard label="Reward per Share" value={currency(riskResult.rewardPerShare)} compact />
-                <MetricCard label="Risk per Share" value={currency(riskResult.riskPerShare)} compact />
-              </div>
-
-              <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(226,232,240,0.08)" }}>
-                <p className="text-sm font-semibold text-silver-100">Risk Ratio</p>
-                <p className="text-2xl font-bold text-orange-400 mt-2">1 : {riskResult.riskRewardRatio.toFixed(2)}</p>
-                <p className="text-xs text-silver-500 mt-2">Semakin besar angka di kanan, semakin menarik secara risk/reward, selama TP tetap realistis.</p>
-              </div>
-
-              {riskResult.ticker ? (
-                <div className="space-y-3">
-                  <p className="text-sm font-semibold text-silver-100">Pembanding Level 4H - {shortTicker(riskResult.ticker)}</p>
-                  <div className="grid grid-cols-1 gap-3">
-                    <LevelCard
-                      title="SL vs Support 1H"
-                      levelLabel="Nearest support"
-                      comparison={riskResult.supportComparison1h}
-                      primaryValue={riskResult.stopLoss}
-                      primaryLabel="SL Anda"
-                      mode="sl"
-                    />
-                    <LevelCard
-                      title="TP vs Resistance 1H"
-                      levelLabel="Nearest resistance"
-                      comparison={riskResult.resistanceComparison1h}
-                      primaryValue={riskResult.targetPrice}
-                      primaryLabel="TP Anda"
-                      mode="tp"
-                    />
-                    <LevelCard
-                      title="SL vs Support 4H"
-                      levelLabel="Nearest support"
-                      comparison={riskResult.supportComparison}
-                      primaryValue={riskResult.stopLoss}
-                      primaryLabel="SL Anda"
-                      mode="sl"
-                    />
-                    <LevelCard
-                      title="TP vs Resistance 4H"
-                      levelLabel="Nearest resistance"
-                      comparison={riskResult.resistanceComparison}
-                      primaryValue={riskResult.targetPrice}
-                      primaryLabel="TP Anda"
-                      mode="tp"
-                    />
+          </div>
+          <div className="flex flex-wrap gap-2 mb-3">
+            {INVESTOR_SCREENER_PRESETS.map((preset) => (
+              <button
+                key={preset.value}
+                type="button"
+                onClick={() => {
+                  setScreenerPreset(preset.value);
+                  setActiveTool("investorScreener");
+                }}
+                className="px-3 py-2 rounded-xl text-xs font-semibold transition-all"
+                style={{
+                  background: screenerPreset === preset.value ? "rgba(249,115,22,0.14)" : "rgba(255,255,255,0.03)",
+                  color: screenerPreset === preset.value ? "#fb923c" : "#94a3b8",
+                  border: `1px solid ${screenerPreset === preset.value ? "rgba(249,115,22,0.24)" : "rgba(226,232,240,0.06)"}`,
+                }}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-2 mb-4">
+            {PRICE_BUCKET_OPTIONS.map((bucket) => (
+              <button
+                key={bucket.value}
+                type="button"
+                onClick={() => {
+                  setScreenerPriceBucket(bucket.value);
+                  setActiveTool("investorScreener");
+                }}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                style={{
+                  background: screenerPriceBucket === bucket.value ? "rgba(16,185,129,0.14)" : "rgba(255,255,255,0.02)",
+                  color: screenerPriceBucket === bucket.value ? "#86efac" : "#94a3b8",
+                  border: `1px solid ${screenerPriceBucket === bucket.value ? "rgba(16,185,129,0.24)" : "rgba(226,232,240,0.05)"}`,
+                }}
+              >
+                {bucket.label}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-silver-500 mb-4">{screenerPresetMeta?.note}</p>
+          {screenerLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">{Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-36 rounded-2xl animate-pulse" style={{ background: "rgba(255,255,255,0.04)" }} />)}</div>
+          ) : screenerError ? (
+            <EmptyText text={screenerError} />
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              {screenerRows.map((row) => (
+                <div key={row.ticker} className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: activeTool === "investorScreener" ? "1px solid rgba(16,185,129,0.18)" : "1px solid rgba(226,232,240,0.06)" }}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-bold text-silver-100">{row.ticker}</p>
+                      <p className="text-xs text-silver-500 mt-1 line-clamp-2">{row.name}</p>
+                    </div>
+                    <span className="text-[10px] px-2 py-1 rounded-lg font-semibold" style={{ background: "rgba(249,115,22,0.14)", color: "#fb923c" }}>{row.phase}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 mt-4">
+                    <MiniStat label="Harga" value={currency(row.price)} />
+                    <MiniStat label="Conviction" value={String(row.conviction)} accent="#10b981" />
+                    <MiniStat label="Teknikal" value={String(row.technicalScore)} accent="#93c5fd" />
+                  </div>
+                  <p className="text-xs text-silver-400 mt-4 leading-6">{row.reasons[0] || "Kandidat ini lolos radar Cerita Saham."}</p>
+                  <div className="flex flex-wrap gap-2 mt-4">
+                    <button type="button" onClick={() => { setBriefTicker(row.ticker); setActiveTool("aiBrief"); }} className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: "rgba(249,115,22,0.14)", color: "#fb923c", border: "1px solid rgba(249,115,22,0.2)" }}>Brief-kan</button>
+                    <button type="button" onClick={() => { void handleRiskTickerChange(row.ticker); setActiveTool("riskCalculator"); }} className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: "rgba(168,85,247,0.14)", color: "#d8b4fe", border: "1px solid rgba(168,85,247,0.2)" }}>Buat Skenario</button>
                   </div>
                 </div>
-              ) : null}
+              ))}
             </div>
-          ) : <EmptyText text="Masukkan harga beli, target TP, SL, dan lots. Jika ticker diisi, sistem juga akan membandingkan levelmu dengan support/resistance 1 jam dan 4 jam." />}
-        </GlassCard> : null}
+          )}
+        </GlassCard>
+      ) : null}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        {enabledTools.includes("aiBrief") ? (
+          <GlassCard hover={false}>
+            <SectionTitle title="AI Stock Brief" subtitle="Brief ini sekarang dibangun dengan konteks teknikal, support-resistance, dan gaya baca Cerita Saham." />
+            <div className="flex flex-wrap gap-2 mb-4">
+              {["LABS", "WIFI", "BRMS", "DOID"].map((ticker) => (
+                <button key={ticker} type="button" onClick={() => { setBriefTicker(ticker); setActiveTool("aiBrief"); }} className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: briefTicker === ticker ? "rgba(249,115,22,0.14)" : "rgba(255,255,255,0.03)", color: briefTicker === ticker ? "#fb923c" : "#94a3b8", border: `1px solid ${briefTicker === ticker ? "rgba(249,115,22,0.22)" : "rgba(226,232,240,0.06)"}` }}>
+                  {ticker}
+                </button>
+              ))}
+            </div>
+            <form className="flex flex-col md:flex-row gap-3 mb-4" onSubmit={handleGenerateBrief}>
+              <Input value={briefTicker} onChange={setBriefTicker} placeholder="Contoh: LABS" />
+              <button type="submit" disabled={aiBriefLoading} className="px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-60" style={{ background: "linear-gradient(135deg,#ea580c,#fb923c)", color: "#fff" }}>
+                {aiBriefLoading ? "Menyusun brief..." : "Buat Brief"}
+              </button>
+            </form>
+            {aiBrief ? (
+              <div className="space-y-4">
+                <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${activeTool === "aiBrief" ? "rgba(249,115,22,0.16)" : "rgba(226,232,240,0.08)"}` }}>
+                  <div className="flex flex-wrap items-center gap-3 mb-4">
+                    <p className="text-sm font-bold text-silver-100">{shortTicker(aiBrief.ticker)} - {aiBrief.name}</p>
+                    <span className="text-xs px-2 py-1 rounded-full" style={{ background: aiBrief.usedAI ? "rgba(16,185,129,0.14)" : "rgba(59,130,246,0.14)", color: aiBrief.usedAI ? "#86efac" : "#93c5fd" }}>
+                      {aiBrief.usedAI ? "Cerita Saham AI" : "Brief Otomatis"}
+                    </span>
+                    <span className="text-xs text-silver-400">{currency(aiBrief.quote.price)} · {aiBrief.quote.changePercent.toFixed(2)}%</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                    <MiniStat label="Sinyal" value={aiBrief.technical.conclusionTitle} accent="#fb923c" />
+                    <MiniStat label="Skor" value={`${aiBrief.technical.score}/100`} accent="#10b981" />
+                    <MiniStat label="Action" value={aiBrief.technical.actionBias} accent="#93c5fd" />
+                  </div>
+                  <BriefContent text={aiBrief.brief} />
+                </div>
+                {aiBrief.news.length > 0 ? (
+                  <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(226,232,240,0.08)" }}>
+                    <p className="text-sm font-semibold text-silver-100">News yang ikut dibaca AI</p>
+                    <div className="space-y-2 mt-3">
+                      {aiBrief.news.slice(0, 3).map((item) => (
+                        <div key={`${item.title}-${item.pubDate}`} className="rounded-xl p-3" style={{ background: "rgba(15,23,42,0.45)" }}>
+                          <p className="text-xs font-semibold text-silver-100">{item.title}</p>
+                          <p className="text-[11px] text-silver-500 mt-1">{item.sentiment} · {item.sentimentReason}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : <EmptyText text="Masukkan ticker lalu biarkan sistem menyusun brief singkat yang menilai apakah setup ini masih enak, sudah terlalu panas, atau masih perlu dipantau dulu." />}
+          </GlassCard>
+        ) : null}
 
-        {enabledTools.includes("rightsIssueCalculator") ? <GlassCard hover={false}>
-          <SectionTitle title="Right Issue Calculator" subtitle="Hitung tambahan saham, biaya tebus HMETD, dan average price baru setelah right issue" />
-          <form className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4" onSubmit={handleRightsCalculate}>
-            <Input type="number" value={rightsForm.shares} onChange={(value) => setRightsForm((current) => ({ ...current, shares: value }))} placeholder="Jumlah saham lama" />
-            <Input type="number" value={rightsForm.avgPrice} onChange={(value) => setRightsForm((current) => ({ ...current, avgPrice: value }))} placeholder="Average price lama" />
-            <Input type="number" value={rightsForm.ratioOld} onChange={(value) => setRightsForm((current) => ({ ...current, ratioOld: value }))} placeholder="Rasio lama, misal 5" />
-            <Input type="number" value={rightsForm.ratioNew} onChange={(value) => setRightsForm((current) => ({ ...current, ratioNew: value }))} placeholder="Rasio baru, misal 1" />
-            <Input type="number" value={rightsForm.rightsPrice} onChange={(value) => setRightsForm((current) => ({ ...current, rightsPrice: value }))} placeholder="Harga tebus right issue" />
-            <button type="submit" className="px-4 py-2 rounded-xl text-sm font-semibold" style={{ background: "rgba(34,197,94,0.14)", color: "#86efac", border: "1px solid rgba(34,197,94,0.25)" }}>
-              Hitung Right Issue
-            </button>
-          </form>
-          {rightsResult ? (
-            <div className="grid grid-cols-2 gap-3">
-              <MetricCard label="Saham Baru" value={rightsResult.newShares.toLocaleString("id-ID")} compact />
-              <MetricCard label="Total Saham" value={rightsResult.totalShares.toLocaleString("id-ID")} compact />
-              <MetricCard label="Biaya Tebus" value={currency(rightsResult.rightsCost)} compact />
-              <MetricCard label="TERP / Avg Baru" value={currency(rightsResult.averagePrice)} compact />
-            </div>
-          ) : <EmptyText text="Contoh rasio 5:1 berarti setiap 5 saham lama mendapat hak beli 1 saham baru." />}
-        </GlassCard> : null}
+        {enabledTools.includes("riskCalculator") ? (
+          <GlassCard hover={false}>
+            <SectionTitle title="Risk Calculator" subtitle="Buat skenario entry lebih cepat, lalu cek apakah TP dan SL Anda masih masuk akal terhadap level teknikal." />
+            <form className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4" onSubmit={handleRiskCalculate}>
+              <div className="md:col-span-2 space-y-2">
+                <Input value={riskForm.ticker} onChange={handleRiskTickerChange} placeholder="Ticker opsional, contoh LABS" />
+                <p className="text-xs text-silver-500">
+                  {riskQuoteLoading
+                    ? "Mengambil harga ticker saat ini..."
+                    : riskQuote
+                      ? `Harga terakhir ${shortTicker(riskQuote.ticker)} sekitar ${currency(riskQuote.price)} (${riskQuote.changePercent.toFixed(2)}%). Entry otomatis diisi jika masih kosong.`
+                      : "Isi ticker jika ingin membandingkan TP/SL dengan support dan resistance 1H serta 4H."}
+                </p>
+                {riskQuote ? (
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <button type="button" onClick={() => applyRiskTemplate("tight")} className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: "rgba(255,255,255,0.03)", color: "#cbd5e1", border: "1px solid rgba(226,232,240,0.08)" }}>Template ketat</button>
+                    <button type="button" onClick={() => applyRiskTemplate("balanced")} className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: "rgba(168,85,247,0.14)", color: "#d8b4fe", border: "1px solid rgba(168,85,247,0.22)" }}>Template seimbang</button>
+                    <button type="button" onClick={() => applyRiskTemplate("wide")} className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: "rgba(249,115,22,0.14)", color: "#fb923c", border: "1px solid rgba(249,115,22,0.22)" }}>Template agresif</button>
+                  </div>
+                ) : null}
+              </div>
+              <div className="space-y-2">
+                <Input type="number" value={riskForm.lots} onChange={(value) => setRiskForm((current) => ({ ...current, lots: value }))} placeholder="Jumlah lots" />
+                <p className="text-xs text-silver-500">Di BEI, `1 lot = 100 lembar saham`.</p>
+              </div>
+              <Input type="number" value={riskForm.entryPrice} onChange={(value) => setRiskForm((current) => ({ ...current, entryPrice: value }))} placeholder="Harga entry" />
+              <Input type="number" value={riskForm.targetPrice} onChange={(value) => setRiskForm((current) => ({ ...current, targetPrice: value }))} placeholder="Target TP" />
+              <Input type="number" value={riskForm.stopLoss} onChange={(value) => setRiskForm((current) => ({ ...current, stopLoss: value }))} placeholder="Level SL" />
+              <button type="submit" className="px-4 py-2 rounded-xl text-sm font-semibold" style={{ background: "rgba(168,85,247,0.16)", color: "#d8b4fe", border: "1px solid rgba(168,85,247,0.25)" }}>
+                Hitung Skenario
+              </button>
+            </form>
+            {riskResult ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <MetricCard label="Nilai Posisi" value={currency(riskResult.positionValue)} compact />
+                  <MetricCard label="Jumlah Saham" value={`${riskResult.shares.toLocaleString("id-ID")}`} helper={`${riskResult.lots} lots`} compact />
+                  <MetricCard label="Profit Jika TP" value={currency(riskResult.potentialProfit)} helper={`${riskResult.profitPercent.toFixed(2)}% dari entry`} accent="#34d399" compact />
+                  <MetricCard label="Loss Jika SL" value={currency(riskResult.maxLoss)} helper={`${riskResult.lossPercent.toFixed(2)}% dari entry`} accent="#f87171" compact />
+                  <MetricCard label="Reward per Share" value={currency(riskResult.rewardPerShare)} compact />
+                  <MetricCard label="Risk per Share" value={currency(riskResult.riskPerShare)} compact />
+                </div>
+                <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(226,232,240,0.08)" }}>
+                  <p className="text-sm font-semibold text-silver-100">Risk Ratio</p>
+                  <p className="text-2xl font-bold text-orange-400 mt-2">1 : {riskResult.riskRewardRatio.toFixed(2)}</p>
+                  <p className="text-xs text-silver-500 mt-2">Semakin besar angka di kanan, semakin menarik secara risk/reward, selama targetnya tetap realistis.</p>
+                </div>
+                {riskResult.ticker ? (
+                  <div className="space-y-3">
+                    <p className="text-sm font-semibold text-silver-100">Pembanding Level untuk {shortTicker(riskResult.ticker)}</p>
+                    <div className="grid grid-cols-1 gap-3">
+                      <LevelCard title="SL vs Support 1H" levelLabel="Nearest support" comparison={riskResult.supportComparison1h} primaryValue={riskResult.stopLoss} primaryLabel="SL Anda" mode="sl" />
+                      <LevelCard title="TP vs Resistance 1H" levelLabel="Nearest resistance" comparison={riskResult.resistanceComparison1h} primaryValue={riskResult.targetPrice} primaryLabel="TP Anda" mode="tp" />
+                      <LevelCard title="SL vs Support 4H" levelLabel="Nearest support" comparison={riskResult.supportComparison} primaryValue={riskResult.stopLoss} primaryLabel="SL Anda" mode="sl" />
+                      <LevelCard title="TP vs Resistance 4H" levelLabel="Nearest resistance" comparison={riskResult.resistanceComparison} primaryValue={riskResult.targetPrice} primaryLabel="TP Anda" mode="tp" />
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : <EmptyText text="Isi lots, entry, TP, dan SL. Kalau ticker diisi, sistem juga membacakan seberapa realistis level Anda terhadap support dan resistance terdekat." />}
+          </GlassCard>
+        ) : null}
+        {enabledTools.includes("rightsIssueCalculator") ? (
+          <GlassCard hover={false}>
+            <SectionTitle title="Right Issue Calculator" subtitle="Hitung saham tambahan, biaya tebus HMETD, dan average price baru tanpa perlu bongkar Excel." />
+            <form className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4" onSubmit={handleRightsCalculate}>
+              <Input type="number" value={rightsForm.shares} onChange={(value) => setRightsForm((current) => ({ ...current, shares: value }))} placeholder="Jumlah saham lama" />
+              <Input type="number" value={rightsForm.avgPrice} onChange={(value) => setRightsForm((current) => ({ ...current, avgPrice: value }))} placeholder="Average price lama" />
+              <Input type="number" value={rightsForm.ratioOld} onChange={(value) => setRightsForm((current) => ({ ...current, ratioOld: value }))} placeholder="Rasio lama" />
+              <Input type="number" value={rightsForm.ratioNew} onChange={(value) => setRightsForm((current) => ({ ...current, ratioNew: value }))} placeholder="Rasio baru" />
+              <Input type="number" value={rightsForm.rightsPrice} onChange={(value) => setRightsForm((current) => ({ ...current, rightsPrice: value }))} placeholder="Harga tebus rights" />
+              <button type="submit" className="px-4 py-2 rounded-xl text-sm font-semibold" style={{ background: "rgba(34,197,94,0.14)", color: "#86efac", border: "1px solid rgba(34,197,94,0.25)" }}>Hitung Right Issue</button>
+            </form>
+            {rightsResult ? (
+              <div className="grid grid-cols-2 gap-3">
+                <MetricCard label="Saham Baru" value={rightsResult.newShares.toLocaleString("id-ID")} compact />
+                <MetricCard label="Total Saham" value={rightsResult.totalShares.toLocaleString("id-ID")} compact />
+                <MetricCard label="Biaya Tebus" value={currency(rightsResult.rightsCost)} compact />
+                <MetricCard label="TERP / Avg Baru" value={currency(rightsResult.averagePrice)} compact />
+              </div>
+            ) : <EmptyText text="Contoh rasio 5:1 berarti setiap 5 saham lama mendapat hak beli 1 saham baru." />}
+          </GlassCard>
+        ) : null}
 
-        {enabledTools.includes("stockSplitCalculator") ? <GlassCard hover={false}>
-          <SectionTitle title="Stock Split Calculator" subtitle="Lihat dampak stock split terhadap jumlah saham dan harga teoritis" />
-          <form className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4" onSubmit={handleSplitCalculate}>
-            <Input type="number" value={splitForm.shares} onChange={(value) => setSplitForm((current) => ({ ...current, shares: value }))} placeholder="Jumlah saham sebelum split" />
-            <Input type="number" value={splitForm.price} onChange={(value) => setSplitForm((current) => ({ ...current, price: value }))} placeholder="Harga sebelum split" />
-            <Input type="number" value={splitForm.splitOld} onChange={(value) => setSplitForm((current) => ({ ...current, splitOld: value }))} placeholder="Rasio lama, misal 1" />
-            <Input type="number" value={splitForm.splitNew} onChange={(value) => setSplitForm((current) => ({ ...current, splitNew: value }))} placeholder="Rasio baru, misal 5" />
-            <button type="submit" className="md:col-span-2 px-4 py-2 rounded-xl text-sm font-semibold" style={{ background: "rgba(59,130,246,0.14)", color: "#93c5fd", border: "1px solid rgba(59,130,246,0.25)" }}>
-              Hitung Stock Split
-            </button>
-          </form>
-          {splitResult ? (
-            <div className="grid grid-cols-2 gap-3">
-              <MetricCard label="Rasio Split" value={splitResult.ratioText} compact />
-              <MetricCard label="Saham Setelah Split" value={splitResult.newShares.toLocaleString("id-ID")} compact />
-              <MetricCard label="Harga Teoritis Baru" value={currency(splitResult.theoreticalPrice)} compact />
-              <MetricCard label="Nilai Portofolio" value={currency(splitResult.newValue)} helper="Secara teori tetap setara" compact />
-            </div>
-          ) : <EmptyText text="Contoh split 1:5 berarti 1 saham lama berubah menjadi 5 saham baru, dan harga teoritis menyesuaikan turun." />}
-        </GlassCard> : null}
+        {enabledTools.includes("stockSplitCalculator") ? (
+          <GlassCard hover={false}>
+            <SectionTitle title="Stock Split Calculator" subtitle="Baca dampak split terhadap jumlah saham dan harga teoritis supaya tidak salah menilai portofolio." />
+            <form className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4" onSubmit={handleSplitCalculate}>
+              <Input type="number" value={splitForm.shares} onChange={(value) => setSplitForm((current) => ({ ...current, shares: value }))} placeholder="Jumlah saham sebelum split" />
+              <Input type="number" value={splitForm.price} onChange={(value) => setSplitForm((current) => ({ ...current, price: value }))} placeholder="Harga sebelum split" />
+              <Input type="number" value={splitForm.splitOld} onChange={(value) => setSplitForm((current) => ({ ...current, splitOld: value }))} placeholder="Rasio lama" />
+              <Input type="number" value={splitForm.splitNew} onChange={(value) => setSplitForm((current) => ({ ...current, splitNew: value }))} placeholder="Rasio baru" />
+              <button type="submit" className="md:col-span-2 px-4 py-2 rounded-xl text-sm font-semibold" style={{ background: "rgba(59,130,246,0.14)", color: "#93c5fd", border: "1px solid rgba(59,130,246,0.25)" }}>Hitung Stock Split</button>
+            </form>
+            {splitResult ? (
+              <div className="grid grid-cols-2 gap-3">
+                <MetricCard label="Rasio Split" value={splitResult.ratioText} compact />
+                <MetricCard label="Saham Setelah Split" value={splitResult.newShares.toLocaleString("id-ID")} compact />
+                <MetricCard label="Harga Teoritis Baru" value={currency(splitResult.theoreticalPrice)} compact />
+                <MetricCard label="Nilai Portofolio" value={currency(splitResult.newValue)} helper="Secara teori tetap setara" compact />
+              </div>
+            ) : <EmptyText text="Contoh split 1:5 berarti 1 saham lama berubah menjadi 5 saham baru, dan harga teoritis ikut menyesuaikan." />}
+          </GlassCard>
+        ) : null}
       </div>
     </div>
   );
 }
 
 function SectionTitle({ title, subtitle }: { title: string; subtitle: string }) {
-  return <div className="mb-4"><h2 className="text-lg font-bold text-silver-100">{title}</h2><p className="text-xs text-silver-500 mt-1">{subtitle}</p></div>;
+  return <div className="mb-4"><h2 className="text-lg font-bold text-silver-100">{title}</h2><p className="text-xs text-silver-500 mt-1 leading-6">{subtitle}</p></div>;
+}
+
+function HeroMetric({ title, value, helper, accent }: { title: string; value: string; helper: string; accent: string }) {
+  return (
+    <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${accent}22` }}>
+      <p className="text-[10px] uppercase tracking-[0.18em] text-silver-500">{title}</p>
+      <p className="text-xl font-bold mt-2" style={{ color: accent }}>{value}</p>
+      <p className="text-xs text-silver-500 mt-2 leading-6">{helper}</p>
+    </div>
+  );
+}
+
+function WorkflowCard({ step, title, body, accent }: { step: string; title: string; body: string; accent: string }) {
+  return (
+    <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${accent}18` }}>
+      <p className="text-[11px] font-bold" style={{ color: accent }}>Langkah {step}</p>
+      <p className="text-sm font-semibold text-silver-100 mt-2">{title}</p>
+      <p className="text-xs text-silver-500 mt-2 leading-6">{body}</p>
+    </div>
+  );
 }
 
 function MetricCard({ label, value, helper, accent = "#fb923c", compact = false }: { label: string; value: string; helper?: string; accent?: string; compact?: boolean }) {
-  return <div className={`rounded-2xl ${compact ? "p-4" : "p-5"}`} style={{ background: "rgba(15,23,42,0.5)", border: "1px solid rgba(226,232,240,0.06)" }}><p className="text-[11px] uppercase tracking-[0.18em] text-silver-500">{label}</p><p className={`${compact ? "text-xl" : "text-2xl"} font-bold mt-2`} style={{ color: accent }}>{value}</p>{helper ? <p className="text-xs text-silver-500 mt-1">{helper}</p> : null}</div>;
+  return <div className={`rounded-2xl ${compact ? "p-4" : "p-5"}`} style={{ background: "rgba(15,23,42,0.5)", border: "1px solid rgba(226,232,240,0.06)" }}><p className="text-[11px] uppercase tracking-[0.18em] text-silver-500">{label}</p><p className={`${compact ? "text-xl" : "text-2xl"} font-bold mt-2`} style={{ color: accent }}>{value}</p>{helper ? <p className="text-xs text-silver-500 mt-1 leading-6">{helper}</p> : null}</div>;
+}
+
+function MiniStat({ label, value, accent = "#cbd5e1" }: { label: string; value: string; accent?: string }) {
+  return <div className="rounded-xl p-3" style={{ background: "rgba(15,23,42,0.42)", border: "1px solid rgba(226,232,240,0.05)" }}><p className="text-[10px] uppercase tracking-[0.18em] text-silver-500">{label}</p><p className="text-sm font-semibold mt-2" style={{ color: accent }}>{value}</p></div>;
 }
 
 function LevelCard({ title, levelLabel, comparison, primaryValue, primaryLabel, mode }: { title: string; levelLabel: string; comparison: LevelComparison | null; primaryValue: number; primaryLabel: string; mode: "sl" | "tp" }) {
@@ -501,7 +707,7 @@ function LevelCard({ title, levelLabel, comparison, primaryValue, primaryLabel, 
       {comparison ? (
         <div className="mt-3 space-y-2 text-sm text-silver-300">
           <p>{primaryLabel}: <span className="text-silver-100">{currency(primaryValue)}</span></p>
-          <p>{levelLabel}: <span className="text-silver-100">{currency(comparison.price)}</span> - strength {comparison.strength}</p>
+          <p>{levelLabel}: <span className="text-silver-100">{currency(comparison.price)}</span> · strength {comparison.strength}</p>
           <p>
             {mode === "sl"
               ? `Selisih SL ke support: ${currency(Math.abs(comparison.differenceFromSL || 0))} (${(comparison.differencePercentFromSL || 0).toFixed(2)}%)`
@@ -513,13 +719,38 @@ function LevelCard({ title, levelLabel, comparison, primaryValue, primaryLabel, 
     </div>
   );
 }
-
 function Input({ value, onChange, placeholder, type = "text" }: { value: string; onChange: (value: string) => void; placeholder: string; type?: string }) {
   return <input type={type} value={value} onChange={(event) => onChange(event.target.value)} className="glass-input w-full px-3 py-2 text-sm text-silver-200" placeholder={placeholder} />;
 }
 
-function EmptyText({ text }: { text: string }) {
-  return <p className="text-sm text-silver-500">{text}</p>;
+function BriefContent({ text }: { text: string }) {
+  const blocks = text.split(/\n\n+/).map((item) => item.trim()).filter(Boolean);
+  return (
+    <div className="space-y-4">
+      {blocks.map((block, index) => {
+        const lines = block.split("\n").map((line) => line.trim()).filter(Boolean);
+        const isList = lines.every((line) => line.startsWith("-") || /^\d+\./.test(line));
+
+        if (isList) {
+          return (
+            <div key={index} className="space-y-2">
+              {lines.map((line, lineIndex) => (
+                <div key={lineIndex} className="flex items-start gap-2 text-sm text-silver-300 leading-7">
+                  <span style={{ color: "#fb923c" }}>•</span>
+                  <span>{line.replace(/^[-*]\s*/, "").replace(/^\d+\.\s*/, "")}</span>
+                </div>
+              ))}
+            </div>
+          );
+        }
+
+        return <p key={index} className="text-sm leading-7 text-silver-300">{block}</p>;
+      })}
+    </div>
+  );
 }
 
+function EmptyText({ text }: { text: string }) {
+  return <p className="text-sm text-silver-500 leading-7">{text}</p>;
+}
 

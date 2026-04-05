@@ -56,6 +56,10 @@ type StockAccumulationCandidate = {
   recentStrongCloseDays: number;
   recentLocalPressureDays: number;
   windowDays: number;
+  bandarmologyPhase: string | null;
+  bandarmologyTone: "bullish" | "neutral" | "bearish" | "warning" | null;
+  bandarmologyAlignment: "selaras" | "campuran" | "bertabrakan" | "tidak_tersedia";
+  bandarmologyNote: string | null;
 };
 
 type StockSeriesPoint = {
@@ -221,15 +225,14 @@ export default function AdminStockSummaryPanel() {
       setAccumulationRows(nextRows);
       setAccumulationLookbackDays(typeof data.lookbackDays === "number" ? data.lookbackDays : 1);
       if (nextRows[0]?.stockCode) {
-        setSelectedTicker((current) => (current && nextRows.some((row) => row.stockCode === current) ? current : nextRows[0].stockCode));
+        setSelectedTicker((current) => current || nextRows[0].stockCode);
       } else {
-        setSelectedTicker("");
+        setSelectedTicker((current) => current);
       }
     } catch (err) {
       setAccumulationError(err instanceof Error ? err.message : "Gagal memuat analisa akumulasi");
       setAccumulationRows([]);
       setAccumulationLookbackDays(1);
-      setSelectedTicker("");
     } finally {
       setAccumulationLoading(false);
     }
@@ -626,7 +629,7 @@ export default function AdminStockSummaryPanel() {
           <div className="max-w-3xl">
             <h3 className="text-base font-bold text-silver-100">Analisa Akumulasi dan Mau Jalan</h3>
             <p className="mt-2 text-sm leading-relaxed text-silver-400">
-              Shortlist ini memakai hari aktif sebagai anchor utama, lalu mengecek konsistensi jejak serap, foreign flow, tekanan lokal, dan kualitas close selama {lookbackLabel}.
+              Shortlist ini memakai hari aktif sebagai anchor utama, lalu mengecek konsistensi jejak serap, foreign flow, tekanan lokal, kualitas close, dan keselarasan bandarmology selama {lookbackLabel} untuk menonjolkan kandidat yang mulai siap jalan.
             </p>
           </div>
           <button
@@ -649,10 +652,17 @@ export default function AdminStockSummaryPanel() {
         ) : accumulationRows.length > 0 ? (
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             {accumulationRows.map((item) => (
-              <button
+              <div
                 key={item.stockCode}
-                type="button"
                 onClick={() => setSelectedTicker(item.stockCode)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setSelectedTicker(item.stockCode);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
                 className="rounded-2xl p-4 space-y-4 text-left transition-all"
                 style={{
                   background: selectedTicker === item.stockCode ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.04)",
@@ -694,6 +704,19 @@ export default function AdminStockSummaryPanel() {
 
                 <p className="text-sm leading-relaxed text-silver-400">{item.summary}</p>
 
+                {item.bandarmologyPhase ? (
+                  <div className="rounded-2xl p-3" style={{ background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.14)" }}>
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-sky-300">Bandarmology</p>
+                      <span className="text-xs font-semibold" style={{ color: item.bandarmologyAlignment === "selaras" ? "#6ee7b7" : "#fcd34d" }}>
+                        {item.bandarmologyAlignment === "selaras" ? "Selaras" : item.bandarmologyAlignment === "campuran" ? "Masih Perlu Pantau" : "Netral"}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm font-semibold text-silver-100">{item.bandarmologyPhase}</p>
+                    {item.bandarmologyNote ? <p className="mt-1 text-xs leading-relaxed text-silver-400">{item.bandarmologyNote}</p> : null}
+                  </div>
+                ) : null}
+
                 <div className="flex flex-wrap gap-2">
                   {item.reasons.map((reason) => (
                     <span
@@ -730,7 +753,7 @@ export default function AdminStockSummaryPanel() {
                     Buat Draft Watchlist
                   </button>
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         ) : (

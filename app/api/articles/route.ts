@@ -1,17 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { connectDB } from "@/lib/db";
-import Article from "@/lib/models/Article";
 import { verifyToken } from "@/lib/auth";
-import "@/lib/models/User"; // Ensure User model is registered for populate
+import { listArticles } from "@/lib/data/articles";
 
 export async function GET(req: NextRequest) {
   try {
-    await connectDB();
-    
-    // Check if user is logged in
     const token = req.cookies.get("auth_token")?.value;
     let isLoggedIn = false;
-    
+
     if (token) {
       const session = await verifyToken(token);
       if (session) {
@@ -19,13 +14,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // If logged in, can see all articles. If not, only public.
-    const query = isLoggedIn ? {} : { isPublic: true };
-    
-    const articles = await Article.find(query)
-      .sort({ createdAt: -1 })
-      .populate("authorId", "name");
-
+    const articles = await listArticles({ includePrivate: isLoggedIn, adminView: false });
     return NextResponse.json(articles);
   } catch (error) {
     console.error("GET public articles error:", error);

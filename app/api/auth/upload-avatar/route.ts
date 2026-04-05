@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken, signToken } from "@/lib/auth";
-import { connectDB } from "@/lib/db";
-import User from "@/lib/models/User";
+import { updateUserAvatar } from "@/lib/data/users";
 
 export async function POST(req: NextRequest) {
   const token = req.cookies.get("auth_token")?.value;
@@ -63,8 +62,7 @@ export async function POST(req: NextRequest) {
   const uploadJson = await uploadRes.json();
   const avatarUrl = uploadJson.secure_url as string;
 
-  await connectDB();
-  await User.findByIdAndUpdate(session.userId, { avatarUrl });
+  await updateUserAvatar(session.userId, avatarUrl);
 
   // Refresh token with new avatarUrl
   const newToken = await signToken({ ...session, avatarUrl });

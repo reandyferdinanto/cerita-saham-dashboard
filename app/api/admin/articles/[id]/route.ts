@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { connectDB } from "@/lib/db";
-import Article from "@/lib/models/Article";
 import { requireAdminSession } from "@/lib/adminSession";
+import { deleteArticleRecord, updateArticleRecord } from "@/lib/data/articles";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireAdminSession(req);
@@ -11,22 +10,15 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   try {
     const body = await req.json();
-    await connectDB();
-    
     const { id } = await params;
-    
-    const article = await Article.findByIdAndUpdate(
-      id,
-      {
-        $set: {
-          title: body.title,
-          content: body.content,
-          imageUrl: body.imageUrl || null,
-          isPublic: body.isPublic ?? false,
-        },
-      },
-      { new: true }
-    );
+
+    const article = await updateArticleRecord(id, {
+      title: body.title,
+      content: body.content,
+      imageUrl: body.imageUrl || null,
+      isPublic: body.isPublic ?? false,
+      authorId: body.authorId,
+    });
 
     if (!article) return NextResponse.json({ error: "Article not found" }, { status: 404 });
     return NextResponse.json(article);
@@ -43,10 +35,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   }
 
   try {
-    await connectDB();
     const { id } = await params;
-    const article = await Article.findByIdAndDelete(id);
-    if (!article) return NextResponse.json({ error: "Article not found" }, { status: 404 });
+    await deleteArticleRecord(id);
     return NextResponse.json({ message: "Article deleted" });
   } catch (error) {
     console.error("DELETE article error:", error);

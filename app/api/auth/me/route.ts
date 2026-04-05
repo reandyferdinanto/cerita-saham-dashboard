@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
-import { connectDB } from "@/lib/db";
-import User from "@/lib/models/User";
+import { findUserById } from "@/lib/data/users";
 
 export async function GET(req: NextRequest) {
   const token = req.cookies.get("auth_token")?.value;
@@ -18,13 +17,12 @@ export async function GET(req: NextRequest) {
   // Fetch freshest data from DB to prevent stale JWT issues
   if (session.userId !== "superadmin") {
     try {
-      await connectDB();
-      const user = await User.findById(session.userId).lean();
+      const user = await findUserById(session.userId);
       if (user) {
         membershipStatus = user.membershipStatus;
         role = user.role;
         avatarUrl = user.avatarUrl;
-        membershipEndDate = user.membershipEndDate ? (user.membershipEndDate as Date).toISOString() : null;
+        membershipEndDate = user.membershipEndDate ? user.membershipEndDate.toISOString() : null;
       }
     } catch (e) {
       console.error("Failed to fetch fresh user in /me:", e);

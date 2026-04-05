@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireUserSession } from "@/lib/userSession";
 import { getHistory, getQuote, searchStocks } from "@/lib/yahooFinance";
 import { calcTechnicalSignals } from "@/lib/technicalSignals";
@@ -8,6 +8,26 @@ type NewsItem = {
   sentiment: "positive" | "negative" | "neutral";
   sentimentReason: string;
   pubDate: string;
+};
+
+type AiContext = {
+  ticker: string;
+  name: string;
+  price: number;
+  changePercent: number;
+  dayRangePercent: number;
+  ninetyDayHigh: number;
+  ninetyDayLow: number;
+  technicalLabel: string;
+  technicalScore: number;
+  technicalAction: string;
+  technicalConclusionTitle: string;
+  technicalConclusionBody: string;
+  rsi: number | null;
+  supportLevels: number[];
+  resistanceLevels: number[];
+  positiveNewsCount: number;
+  negativeNewsCount: number;
 };
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1";
@@ -35,7 +55,7 @@ async function requestGroq(prompt: string) {
         {
           role: "system",
           content:
-            "Anda adalah analis saham untuk investor ritel Indonesia. Tulis ringkasan singkat, jelas, dan seimbang. Gunakan paragraf pendek dan bullet list bila perlu.",
+            "Anda adalah analis Cerita Saham untuk investor ritel Indonesia. Filosofi Anda bukan mengejar saham blue-chip yang sudah terlalu obvious, tetapi membaca apakah ada cerita gerak, akumulasi, support yang dijaga, ruang markup, atau justru harga sudah terlalu tinggi untuk dikejar. Tulis ringkasan singkat, jujur, mudah dicerna, dan fokus pada kualitas setup serta risk/reward entry. Jangan terdengar seperti promosi. Jika setup belum menarik, katakan dengan jelas.",
         },
         { role: "user", content: prompt },
       ],
@@ -52,27 +72,59 @@ async function requestGroq(prompt: string) {
   return typeof content === "string" && content.trim() ? content.trim() : null;
 }
 
-function buildFallbackBrief(args: {
+function buildAiContext(args: {
   ticker: string;
   name: string;
   price: number;
   changePercent: number;
-  technicalLabel: string;
-  score: number;
-  rsi: number | null;
+  technical: ReturnType<typeof calcTechnicalSignals>;
+  history: Awaited<ReturnType<typeof getHistory>>;
   news: NewsItem[];
-}) {
-  const pos = args.news.filter((item) => item.sentiment === "positive").length;
-  const neg = args.news.filter((item) => item.sentiment === "negative").length;
+}): AiContext {
+  const highs = args.history.slice(-90).map((item: { high: number }) => item.high);
+  const lows = args.history.slice(-90).map((item: { low: number }) => item.low);
+  const recentHigh = highs.length > 0 ? Math.max(...highs) : args.price;
+  const recentLow = lows.length > 0 ? Math.min(...lows) : args.price;
+  const lastBar = args.history[args.history.length - 1];
+  const dayHigh = lastBar?.high ?? args.price;
+  const dayLow = lastBar?.low ?? args.price;
+  const positiveNewsCount = args.news.filter((item) => item.sentiment === "positive").length;
+  const negativeNewsCount = args.news.filter((item) => item.sentiment === "negative").length;
+
+  return {
+    ticker: args.ticker,
+    name: args.name,
+    price: args.price,
+    changePercent: args.changePercent,
+    dayRangePercent: dayLow > 0 ? ((dayHigh - dayLow) / dayLow) * 100 : 0,
+    ninetyDayHigh: recentHigh,
+    ninetyDayLow: recentLow,
+    technicalLabel: args.technical.label,
+    technicalScore: args.technical.score,
+    technicalAction: args.technical.actionBias,
+    technicalConclusionTitle: args.technical.conclusionTitle,
+    technicalConclusionBody: args.technical.conclusionBody,
+    rsi: args.technical.rsi,
+    supportLevels: args.technical.srLevels.filter((level) => level.type === "S").map((level) => level.price).sort((a, b) => b - a).slice(0, 3),
+    resistanceLevels: args.technical.srLevels.filter((level) => level.type === "R").map((level) => level.price).sort((a, b) => a - b).slice(0, 3),
+    positiveNewsCount,
+    negativeNewsCount,
+  };
+}
+
+function buildFallbackBrief(args: { context: AiContext; news: NewsItem[] }) {
+  const pos = args.context.positiveNewsCount;
+  const neg = args.context.negativeNewsCount;
   const tone = pos > neg ? "sentimen cenderung positif" : neg > pos ? "sentimen cenderung negatif" : "sentimen cenderung berimbang";
+  const supportText = args.context.supportLevels.length > 0 ? args.context.supportLevels.map((level) => `Rp ${level.toLocaleString("id-ID")}`).join(", ") : "belum terbaca jelas";
+  const resistanceText = args.context.resistanceLevels.length > 0 ? args.context.resistanceLevels.map((level) => `Rp ${level.toLocaleString("id-ID")}`).join(", ") : "belum terbaca jelas";
 
   return [
-    `${args.ticker.replace(".JK", "")} (${args.name}) diperdagangkan di sekitar Rp ${args.price.toLocaleString("id-ID")} dengan perubahan ${args.changePercent.toFixed(2)}% pada sesi terakhir.`,
-    `Secara teknikal, sinyal utama saat ini adalah ${args.technicalLabel} dengan skor ${args.score}/100${args.rsi !== null ? ` dan RSI ${args.rsi.toFixed(1)}` : ""}.`,
-    `Dari sisi berita, ${tone}. Investor ritel sebaiknya tetap mencocokkan momentum harga dengan risk management pribadi sebelum mengambil posisi.`,
-    args.news.length > 0
-      ? ["Poin penting terbaru:", ...args.news.slice(0, 3).map((item) => `- ${item.title}`)].join("\n")
-      : "Belum ada berita spesifik yang cukup kuat untuk mengubah narasi utama saham ini.",
+    `${args.context.ticker.replace(".JK", "")} (${args.context.name}) diperdagangkan di sekitar Rp ${args.context.price.toLocaleString("id-ID")} dengan perubahan ${args.context.changePercent.toFixed(2)}% pada sesi terakhir.`,
+    `Kesimpulan teknikal saat ini: ${args.context.technicalConclusionTitle}. Skor teknikal berada di ${args.context.technicalScore}/100${args.context.rsi !== null ? ` dengan RSI ${args.context.rsi.toFixed(1)}` : ""}.`,
+    `Dalam kacamata Cerita Saham, fokusnya bukan sekadar apakah tren sedang hijau, tetapi apakah entry masih enak. Support terdekat: ${supportText}. Resistance terdekat: ${resistanceText}.`,
+    `Dari sisi berita, ${tone}. ${args.context.technicalConclusionBody}`,
+    args.news.length > 0 ? ["Poin yang layak dipantau:", ...args.news.slice(0, 3).map((item) => `- ${item.title}`)].join("\n") : "Belum ada berita spesifik yang cukup kuat untuk mengubah narasi utama saham ini.",
   ].join("\n\n");
 }
 
@@ -88,8 +140,7 @@ export async function POST(req: NextRequest) {
   }
 
   const searchResults = await searchStocks(topic);
-  const matched =
-    searchResults.find((item) => item.symbol.replace(".JK", "").toLowerCase() === topic.toLowerCase()) || searchResults[0];
+  const matched = searchResults.find((item) => item.symbol.replace(".JK", "").toLowerCase() === topic.toLowerCase()) || searchResults[0];
 
   if (!matched) {
     return NextResponse.json({ error: "Ticker tidak ditemukan" }, { status: 404 });
@@ -107,28 +158,35 @@ export async function POST(req: NextRequest) {
 
   const technical = calcTechnicalSignals(history);
   const news = newsRes.ok ? (((await newsRes.json()) as NewsItem[]).slice(0, 5)) : [];
-
-  const prompt = [
-    `Buat stock brief untuk investor ritel Indonesia tentang ${matched.symbol.replace(".JK", "")} (${matched.name}).`,
-    `Harga saat ini Rp ${quote.price.toLocaleString("id-ID")}, perubahan ${quote.changePercent.toFixed(2)}%.`,
-    `Sinyal teknikal: ${technical.label}, skor ${technical.score}, RSI ${technical.rsi?.toFixed(1) || "-"}.`,
-    news.length > 0
-      ? `Ringkasan news:\n${news.map((item) => `- ${item.title} (${item.sentiment}; ${item.sentimentReason})`).join("\n")}`
-      : "Belum ada news ticker spesifik yang kuat.",
-    "Format output: paragraf pembuka singkat, lalu bullet untuk katalis positif, risiko, dan rencana pantau investor ritel.",
-  ].join("\n\n");
-
-  const aiBrief = await requestGroq(prompt);
-  const fallbackBrief = buildFallbackBrief({
+  const context = buildAiContext({
     ticker: matched.symbol,
     name: matched.name,
     price: quote.price,
     changePercent: quote.changePercent,
-    technicalLabel: technical.label,
-    score: technical.score,
-    rsi: technical.rsi,
+    technical,
+    history,
     news,
   });
+
+  const prompt = [
+    `Buat stock brief untuk investor ritel Indonesia tentang ${context.ticker.replace(".JK", "")} (${context.name}).`,
+    "Pakai filosofi Cerita Saham: utamakan pembacaan kualitas setup, posisi harga, area entry, support yang dijaga, ruang ke resistance, potensi markup, atau tanda bahwa harga sudah terlalu panas untuk dikejar.",
+    `Harga saat ini Rp ${context.price.toLocaleString("id-ID")} dengan perubahan ${context.changePercent.toFixed(2)}%. Range hari terakhir sekitar ${context.dayRangePercent.toFixed(2)}%.`,
+    `Posisi 90 hari: high Rp ${context.ninetyDayHigh.toLocaleString("id-ID")}, low Rp ${context.ninetyDayLow.toLocaleString("id-ID")}.`,
+    `Sinyal teknikal inti: ${context.technicalLabel}, skor ${context.technicalScore}/100, action bias ${context.technicalAction}, kesimpulan ${context.technicalConclusionTitle}.`,
+    `Penjelasan teknikal: ${context.technicalConclusionBody}`,
+    `RSI: ${context.rsi?.toFixed(1) || "-"}. Support: ${context.supportLevels.length > 0 ? context.supportLevels.join(", ") : "tidak jelas"}. Resistance: ${context.resistanceLevels.length > 0 ? context.resistanceLevels.join(", ") : "tidak jelas"}.`,
+    news.length > 0 ? `Ringkasan news:\n${news.map((item) => `- ${item.title} (${item.sentiment}; ${item.sentimentReason})`).join("\n")}` : "Belum ada news ticker spesifik yang kuat.",
+    "Format output wajib:",
+    "1. Ringkasan singkat 2-3 kalimat yang menjawab: menarik sekarang atau belum.",
+    "2. Bullet 'Yang Menarik' maksimal 3 poin.",
+    "3. Bullet 'Yang Perlu Diwaspadai' maksimal 3 poin.",
+    "4. Bullet 'Rencana Eksekusi' yang spesifik dan realistis untuk investor ritel.",
+    "Jika harga sudah terlalu tinggi, jangan beri kesan buy hanya karena momentum kuat. Sebutkan bahwa lebih sehat menunggu pullback/konsolidasi.",
+  ].join("\n\n");
+
+  const aiBrief = await requestGroq(prompt);
+  const fallbackBrief = buildFallbackBrief({ context, news });
 
   return NextResponse.json({
     ticker: matched.symbol,
@@ -140,3 +198,4 @@ export async function POST(req: NextRequest) {
     usedAI: Boolean(aiBrief),
   });
 }
+

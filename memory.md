@@ -1,6 +1,6 @@
 # Cerita Saham Memory
 
-Last updated: 2026-04-01
+Last updated: 2026-04-05
 
 ## Purpose
 - Quick project memory for future work.
@@ -12,6 +12,7 @@ Last updated: 2026-04-01
 - React 19
 - Tailwind CSS v4
 - Mongoose + MongoDB
+- Optional `pg` Postgres adapter for VPS-backed primary storage
 - JWT auth via cookie `auth_token`
 - Yahoo Finance as market data source
 - Framer Motion + lightweight-charts for UI/chart interactions
@@ -22,7 +23,9 @@ Last updated: 2026-04-01
 - `components/`: reusable UI, charts, watchlist UI
 - `lib/`: data access, auth/session helpers, technical analysis engine, Yahoo integration
 - `lib/models/`: Mongoose models
+- `lib/data/`: env-driven Postgres-or-Mongo data adapters for core app entities
 - `scripts/`: maintenance/migration/env check scripts
+- `scripts/postgres/`: Postgres schema + Mongo-to-Postgres core migration helper
 - `proxy.ts`: route protection by auth, role, and membership status
 
 ## Core Product Areas
@@ -58,7 +61,7 @@ Last updated: 2026-04-01
 - `/search`: IDX stock search, quote, chart, fundamentals, news, technical panel
 - `/watchlist`: tracked stocks with quotes, sorting, TP/SL display
 - `/stock/[ticker]`: dedicated stock detail page with chart + watchlist note overlay
-- `/investor-tools`: AI brief, risk calculator, right issue calculator, stock split calculator
+- `/investor-tools`: member workspace with guided workflow, AI brief, investor screener radar, risk calculator, right issue calculator, and stock split calculator
 - `/guidance`: detailed beginner onboarding page aligned with actual app flows, access levels, Cerita Saham philosophy, market-reading basics, tool usage, and practical daily workflow
 - `/simulation`: interactive trading simulator and money management education
 
@@ -91,7 +94,7 @@ Last updated: 2026-04-01
 - `components/ui/Navbar.tsx`: desktop/mobile navigation + user menu
 - `components/ui/GlassCard.tsx`: common surface wrapper used widely
 - `components/ui/FundamentalSection.tsx`: stock fundamentals UI
-- `components/ui/TechnicalSignalPanel.tsx`: renders output of technical signal engine
+- `components/ui/TechnicalSignalPanel.tsx`: renders output of technical signal engine, including a plain-language action summary above the numeric score
 - `components/ui/TickerPill.tsx`: detects ticker mentions in text and opens quick modal
 - `components/ui/AdminAssistantPopup.tsx`: admin-side assistant entry point
 - `components/charts/LineChart.tsx`: area/line chart
@@ -107,14 +110,18 @@ Last updated: 2026-04-01
   - `4h` history is emulated from Yahoo `1h` source data
 - Watchlist:
   - `lib/watchlistStore.ts`
-  - backed by MongoDB model `Watchlist`
+  - backed by env-driven adapter with Postgres support and Mongo fallback
 - Auth/session:
   - `lib/auth.ts` signs/verifies JWT
   - `lib/session.ts` reads cookie session in server context
   - `lib/userSession.ts` and `lib/adminSession.ts` are API helpers
+- Core app persistence:
+  - `lib/data/*`
+  - `DB_PROVIDER=mongo | postgres | postgres-prefer`
+  - migrated entities can run on Postgres in VPS mode while Mongo remains fallback/backup
 - Technical analysis:
   - `lib/technicalSignals.ts`
-  - computes RSI, MACD, MA(5/20/50/200), support/resistance, weighted BUY/SELL/WAIT score
+  - computes RSI, MACD, MA(5/20/50/200), support/resistance, weighted BUY/SELL/WAIT score, and entry-quality context so overheated trends can resolve to wait/pullback instead of blind BUY
 - AI/article context:
   - `lib/adminArticleContext.ts`
   - builds stock/topic context from quote, technicals, and relevant news
@@ -202,6 +209,11 @@ Last updated: 2026-04-01
 - `CLOUDINARY_API_SECRET`
 - `CRON_SECRET`
 - `BROKER_SUMMARY_SOURCE_URL`
+- `DB_PROVIDER`
+- `POSTGRES_URL` or `DATABASE_URL`
+- `POSTGRES_SSL`
+- `POSTGRES_SSL_REJECT_UNAUTHORIZED`
+- `POSTGRES_MAX_CONNECTIONS`
 
 ## Current Product Conventions
 - IDX stocks usually normalized with `.JK`
@@ -209,18 +221,29 @@ Last updated: 2026-04-01
 - Yahoo quote/history endpoints are central to charts and stock pages
 - Settings are stored in DB and used by register, pending, and admin pages
 - Investor tools visibility is configurable from admin settings
+- Investor tools page now acts as a guided workspace: radar shortlist first, then AI brief, then risk planning; AI brief output is formatted around Cerita Saham setup quality instead of generic bullish/bearish summaries
+- `/api/investor/ai-brief` now builds richer Cerita Saham context from technical conclusion, support/resistance, recent range, and news tone before prompting AI, so the brief can explicitly say when a setup is too hot to chase
 - Articles can be public or private
+- VPS-oriented Postgres support now covers auth users, site settings, watchlist, articles, investor portfolio, investor journal, investor alerts, and manual corporate actions through `lib/data/*`
+- Mongo should still stay configured when using `postgres-prefer`, because stock summary, broker summary, Indonesia stock master, and bandarmology snapshot/backtest flows still read Mongo-first models
 - Admin bandarmology analysis now includes a mini annotated chart driven by `/api/watchlist/bandarmology`, with price, MA20/MA50, support, resistance, breakout, and explanation markers
 - Admin bandarmology screener now includes research-based presets from the attached trading report: `Trend Pullback`, `Breakout Volume`, and `Trend Position`, and each result can jump into the full analysis view with the same mini chart
 - Admin bandarmology screener UI is split into two preset groups (`Preset Cepat` and `Preset Riset`) plus an active-preset summary card to reduce overlap and make scan mode easier to read
 - Admin bandarmology screener now scans a broader curated IDX universe (not just the initial big-cap list), and the UI explicitly shows the current curated universe size so users do not mistake it for a full IDX screener
 - Admin bandarmology screener supports explicit price buckets (`all`, `<200`, `200-500`, `>500`) and the research presets were tightened to reduce overlap with the core Ryan Filbert-style presets
 - Member screener (`/api/investor/screener`) now reuses the same shared bandarmology shortlist engine as admin, with mapped presets plus shared accumulation/breakout bias fields instead of the old small hardcoded universe
+- `/search` UI now hides bank stocks from the visual search-result list and default top-gainer module to stay aligned with Cerita Saham positioning, but direct ticker search/open flow still works as usual (for example via Enter/direct selection)
+- `/search` chart timeframes now follow candle-interval semantics: intraday buttons are `5m`, `15m`, `1h`, `4h`, while higher-timeframe buttons are `1D`, `1W`, `1M`; each button uses a matching history window so the chart stays readable without changing what one candle represents
+- `/api/stocks/history/[ticker]` now widens the fetch window automatically for empty `5m` intraday responses (`1d` -> fallback `5d`) so the `/search` chart does not appear broken when Yahoo returns no same-day IDX intraday candles
+- `/api/stocks/top-gainers` now pulls from the broader Indonesia stock master universe and returns a wider sorted set so the `/search` page can show today's strongest non-bank movers in the UI instead of the old small liquid-only list
 - `Trend Pullback` research preset now uses looser thresholds for `<200` stocks (price vs MA, RSI, volume, demand) so low-priced candidates are not filtered out by big-cap-biased rules
 - There is now a DB-backed Indonesia stock master (`IndonesiaStock`) synced from a broad IDX list source, and the bandarmology screener uses that DB list as its prefilter universe before running deep analysis on a smaller candidate subset
 - Indonesia stock master sync is tolerant of partial source failures: if early pages succeed and a later page fails, the sync keeps the rows already collected instead of failing the whole screener
 - Admin bandarmology panel now shows stock master status (`activeCount`, `last sync`, source link) and provides a `Sync Ulang Stock Master` action that refreshes the screener after sync
 - Bandarmology phase detection now distinguishes more early-stage structures such as `Trend pullback sehat`, `Base building`, `Reclaim awal`, and `False breakout risk` so analysis is not limited to pure markup/markdown states
+- Bandarmology analysis and screener now also recognize `Akumulasi di support`: when support is defended while OBV/A-D and demand stay constructive, the app can frame it as staged-entry territory toward nearby resistance, with breakout treated as add-on confirmation instead of the only trigger
+- Cerita Saham bandarmology is now explicitly biased toward low-priced / rotational IDX names instead of blue-chip trend names: the analysis engine now elevates phases like `Support dikunci bandar`, `Sideways akumulasi senyap`, and `Markup dini` for under-300 stocks that look defended and potentially ready for markup
+- Bandarmology screener presets were rebuilt around that philosophy (`Under 300`, `Support Lock`, `Sideways Senyap`, `Markup Dini`, `Demand Surge`, plus advanced presets) and the default admin/member scan bucket now starts at `<300` rather than broad-market `all`
 - Admin control center now exposes `Stock Summary` instead of `Broker Summary`; the stock summary panel handles IDX `.xlsx` upload, accumulation shortlist, and price-vs-flow visualization
 - `Stock Summary` parser now accepts both English and Indonesian IDX headers, including variants like `Stock Code`/`Kode Saham`, `Company Name`/`Nama Perusahaan`, `Open Price`/`Harga Pembukaan`, `Close`/`Harga Penutupan`, `Value`/`Nilai`, and `Foreign Buy/Sell`/`Asing Beli/Jual`
 - IDX summary uploads now support `.xlsx` / `.xlsm` parsing on the server via a lightweight workbook reader in `lib/xlsxWorkbook.ts`; trade date can be inferred from filenames like `Stock Summary-20260331.xlsx`
@@ -228,6 +251,8 @@ Last updated: 2026-04-01
 - `Stock Summary` admin mode now includes an accumulation shortlist for stocks that show foreign support, stronger bid than offer, active liquidity, and closes near the daily high; the current day remains the anchor, but the scorer now also checks consistency over the last 3-5 trading days via `/api/admin/stock-summary/analysis`
 - The `Stock Summary` accumulation shortlist now exposes a `Conviction Score Smart Money` plus label (`Awal`, `Menarik`, `Kuat`, `Sangat Kuat`) so candidates are ranked by stronger combined evidence of accumulation + readiness
 - Stock Summary accumulation scoring now mixes absolute liquidity/foreign thresholds with relative flow-to-value checks so lower-priced and mid-cap names are less penalized versus big caps
+- Stock Summary `Analisa Akumulasi dan Mau Jalan` now softly prioritizes cheaper names in the default ranking (especially sub-500) through scoring/sort bias, while the UI copy stays generic and does not mention a hard price rule
+- Stock Summary `Analisa Akumulasi dan Mau Jalan` now runs a bandarmology alignment pass on top-ranked candidates, filters out names whose daily flow setup conflicts with bearish/distribution bandarmology structure, and surfaces the aligned/campuran bandarmology phase directly in the shortlist card
 - `Stock Summary` now also provides a ticker chart section that overlays Yahoo Finance daily candlesticks with two line series derived from stock summary history: `Akumulasi Lokal` and `Akumulasi Foreign`; API lives at `/api/admin/stock-summary/series`
 - Admin trading workflow now supports query-param deep links between `Stock Summary`, `Bandarmology`, and `Watchlist`, including draft watchlist prefills (`prefillTicker`, `prefillName`, `prefillTp`, `prefillSl`, `prefillNote`) and direct ticker handoff via `/admin?tab=bandarmology&ticker=...` or `/admin?tab=stock-summary&ticker=...`
 - `Stock Summary` admin route now supports deletion workflows via `DELETE /api/admin/stock-summary`: delete all data with `scope=all` or delete one trading date with `scope=date&date=YYYY-MM-DD`; the admin panel exposes both controls
@@ -245,6 +270,8 @@ Last updated: 2026-04-01
 - Indonesia stock master / screener universe issue: `lib/indonesiaStockMaster.ts`, `lib/models/IndonesiaStock.ts`, `app/api/admin/stocks/master/route.ts`, `app/api/watchlist/bandarmology/screener/route.ts`
 - Stock summary admin issue: `lib/stockSummary.ts`, `lib/models/StockSummaryRow.ts`, `app/api/admin/stock-summary/route.ts`, `app/admin/AdminStockSummaryPanel.tsx`, `lib/xlsxWorkbook.ts`
 - Stock summary analysis issue: `lib/stockSummaryAnalysis.ts`, `app/api/admin/stock-summary/analysis/route.ts`, `app/api/admin/stock-summary/series/route.ts`, `app/admin/AdminStockSummaryPanel.tsx`, `app/admin/StockSummaryAccumulationChart.tsx`
+- Postgres / VPS setup issue: `lib/postgres.ts`, `lib/data/*`, `scripts/postgres/schema.sql`, `docs/postgres-vps-setup.md`
+- VPS rollout issue: `.env.production.example`, `docs/vps-deploy-checklist.md`, `scripts/postgres/migrate-core.js`
 
 ## Memory Update Rules
 - Update this file whenever any of these change:

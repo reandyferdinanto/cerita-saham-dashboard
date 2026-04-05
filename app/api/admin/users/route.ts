@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
-import { connectDB } from "@/lib/db";
-import User from "@/lib/models/User";
+import {
+  deleteUserRecord,
+  listUsersForAdmin,
+  patchUserAdminFields,
+} from "@/lib/data/users";
 
 async function requireSuperAdmin(req: NextRequest) {
   const token = req.cookies.get("auth_token")?.value;
@@ -18,8 +21,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
-  await connectDB();
-  const users = await User.find({}, { phoneHash: 0 }).sort({ createdAt: -1 }).lean();
+  const users = await listUsersForAdmin();
 
   return NextResponse.json({ users });
 }
@@ -37,18 +39,14 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
-  await connectDB();
-  const updated = await User.findByIdAndUpdate(
-    userId,
-    { role },
-    { new: true, select: "-phoneHash" }
-  );
+  const updated = await patchUserAdminFields(userId, { role });
 
   if (!updated) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ success: true, user: updated });
+  const { phoneHash: _phoneHash, ...safeUser } = updated;
+  return NextResponse.json({ success: true, user: safeUser });
 }
 
 // DELETE /api/admin/users — delete a user
@@ -63,8 +61,7 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "userId required" }, { status: 400 });
   }
 
-  await connectDB();
-  await User.findByIdAndDelete(userId);
+  await deleteUserRecord(userId);
   return NextResponse.json({ success: true });
 }
 

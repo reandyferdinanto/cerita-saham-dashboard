@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef, Suspense } from "react";
+import { useEffect, useState, useCallback, useRef, Suspense, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -88,17 +88,31 @@ interface PopularStockItem {
   changePercent: number;
 }
 
-// Timeframe config: { label, range (for API period), interval (for API) }
+const HIDDEN_BANK_TICKERS = new Set([
+  "BBCA", "BBRI", "BMRI", "BBNI", "BRIS", "BTPS", "BBYB", "ARTO", "BNGA", "MEGA",
+  "BNII", "BJBR", "BJTM", "NISP", "BTPN", "AGRO", "BABP", "SDRA", "MAYA", "MCOR",
+]);
+
+function isBankUiHiddenStock(args: { ticker?: string; symbol?: string; name?: string }) {
+  const rawTicker = args.ticker || args.symbol || "";
+  const ticker = rawTicker.toUpperCase().replace(".JK", "");
+  const name = (args.name || "").toLowerCase();
+
+  if (HIDDEN_BANK_TICKERS.has(ticker)) return true;
+  if (name.includes(" bank ") || name.startsWith("bank ") || name.includes("bk syariah") || name.includes("banking")) return true;
+  return false;
+}
+
+// Timeframe config: button label reflects the candle interval itself,
+// while range controls how much history is shown for that interval.
 const TIMEFRAMES = [
-  // Intraday
-  { label: "5m",  group: "intraday", range: "1d",  interval: "5m"  },
+  { label: "5m", group: "intraday", range: "1d",  interval: "5m"  },
   { label: "15m", group: "intraday", range: "5d",  interval: "15m" },
-  { label: "1h",  group: "intraday", range: "5d",  interval: "1h"  },
-  { label: "4h",  group: "intraday", range: "1mo", interval: "4h"  },
-  // Daily+
-  { label: "1Y",  group: "swing",   range: "1y",  interval: "1d"  },
-  { label: "1W",  group: "swing",   range: "1y",  interval: "1wk" },
-  { label: "1M",  group: "swing",   range: "5y",  interval: "1mo" },
+  { label: "1h", group: "intraday", range: "1mo", interval: "1h"  },
+  { label: "4h", group: "intraday", range: "3mo", interval: "4h"  },
+  { label: "1D", group: "higher",   range: "1y",  interval: "1d"  },
+  { label: "1W", group: "higher",   range: "5y",  interval: "1wk" },
+  { label: "1M", group: "higher",   range: "5y",  interval: "1mo" },
 ];
 export default function SearchPage() {
   return (
@@ -120,7 +134,7 @@ function SearchPageInner() {
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
   const [quote, setQuote] = useState<StockQuote | null>(null);
   const [history, setHistory] = useState<OHLCData[]>([]);
-  const [activeTimeframe, setActiveTimeframe] = useState(TIMEFRAMES[4]); // default 1Y daily
+  const [activeTimeframe, setActiveTimeframe] = useState(TIMEFRAMES[4]); // default 1D
   const [chartType, setChartType] = useState<ChartType>("candlestick");
   const [loadingChart, setLoadingChart] = useState(false);
   const [stockNews, setStockNews] = useState<NewsItemWithSentiment[]>([]);
@@ -132,6 +146,15 @@ function SearchPageInner() {
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchParams = useSearchParams();
   const initializedRef = useRef(false);
+  const visibleResults = useMemo(
+    () => results.filter((result) => !isBankUiHiddenStock({ symbol: result.symbol, name: result.name })),
+    [results]
+  );
+  const visiblePopularStocks = useMemo(
+    () => popularStocks.filter((stock) => !isBankUiHiddenStock({ ticker: stock.ticker, name: stock.name })).slice(0, 10),
+    [popularStocks]
+  );
+  const hasOnlyHiddenBankResults = results.length > 0 && visibleResults.length === 0;
 
   // Debounced search — auto-add .JK
   const handleSearch = useCallback((searchQuery: string) => {
@@ -273,6 +296,23 @@ function SearchPageInner() {
     [activeTimeframe, fetchChart, fetchStockNews, fetchFundamental]
   );
 
+  const openDirectMatch = useCallback(() => {
+    const normalizedQuery = query.trim().toUpperCase().replace(".JK", "");
+    if (!normalizedQuery) return;
+
+    const directMatch =
+      results.find((result) => result.symbol.replace(".JK", "").toUpperCase() === normalizedQuery) ||
+      results[0];
+
+    if (directMatch) {
+      setQuery(directMatch.symbol.replace(".JK", ""));
+      void selectStock(directMatch.symbol);
+      return;
+    }
+
+    void selectStock(`${normalizedQuery}.JK`);
+  }, [query, results, selectStock]);
+
   // ── Auto-select from URL param ?q=BBCA ──────────────────────────────────────
   useEffect(() => {
     if (initializedRef.current) return;
@@ -302,7 +342,7 @@ function SearchPageInner() {
   const isPositive = change >= 0;
 
   const intradayTF = TIMEFRAMES.filter((t) => t.group === "intraday");
-  const swingTF = TIMEFRAMES.filter((t) => t.group === "swing");
+  const higherTF = TIMEFRAMES.filter((t) => t.group === "higher");
 
   return (
     <div className="space-y-6">
@@ -313,7 +353,7 @@ function SearchPageInner() {
           <span style={{ color: "#fb923c" }}>Saham</span>
         </h1>
         <p className="text-sm mt-1" style={{ color: "#64748b" }}>
-          Cari saham IDX berdasarkan kode atau nama perusahaan
+          Radar Cerita Saham untuk berburu kandidat yang lagi punya cerita gerak, bukan sekadar ticker besar yang itu-itu saja.
         </p>
       </div>
 
@@ -328,7 +368,13 @@ function SearchPageInner() {
           type="text"
           value={query}
           onChange={(e) => handleQueryChange(e.target.value)}
-          placeholder="Ketik kode saham IDX (cth: BBCA, TLKM, ANTM) atau nama perusahaan..."
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              openDirectMatch();
+            }
+          }}
+          placeholder="Ketik kode saham IDX (cth: ANTM, GOTO, BRMS) atau nama perusahaan..."
           className="glass-input w-full pl-12 pr-12 py-4 text-base placeholder:text-silver-500"
           style={{ color: "#e2e8f0" }}
           autoFocus
@@ -351,10 +397,10 @@ function SearchPageInner() {
       </div>
 
       {/* Search Results */}
-      {results.length > 0 && !selectedTicker && (
+      {visibleResults.length > 0 && !selectedTicker && (
         <GlassCard hover={false} className="!p-2">
           <div className="max-h-[360px] overflow-y-auto space-y-0.5">
-            {results.map((result) => (
+            {visibleResults.map((result) => (
               <button
                 key={result.symbol}
                 onClick={() => {
@@ -399,6 +445,27 @@ function SearchPageInner() {
         </GlassCard>
       )}
 
+      {hasOnlyHiddenBankResults && !selectedTicker && (
+        <GlassCard hover={false}>
+          <div className="flex items-start justify-between gap-4 flex-col sm:flex-row">
+            <div>
+              <p className="text-sm font-semibold" style={{ color: "#e2e8f0" }}>Hasil cocok ditemukan</p>
+              <p className="text-xs mt-1 leading-relaxed" style={{ color: "#64748b" }}>
+                Saham bank memang tidak ditampilkan di daftar visual halaman ini. Kalau Anda tetap ingin buka tickernya, tekan `Enter` atau gunakan buka langsung.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={openDirectMatch}
+              className="px-4 py-2 rounded-xl text-sm font-semibold"
+              style={{ background: "rgba(249,115,22,0.14)", color: "#fb923c", border: "1px solid rgba(249,115,22,0.22)" }}
+            >
+              Buka Langsung
+            </button>
+          </div>
+        </GlassCard>
+      )}
+
       {/* No results */}
       {query.length >= 2 && results.length === 0 && !searching && !selectedTicker && (
         <GlassCard>
@@ -407,7 +474,7 @@ function SearchPageInner() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <p style={{ color: "#94a3b8" }}>Tidak ada saham IDX untuk &ldquo;{query}&rdquo;</p>
-            <p className="text-xs mt-1" style={{ color: "#475569" }}>Coba kode ticker seperti BBCA, TLKM, atau ASII</p>
+            <p className="text-xs mt-1" style={{ color: "#475569" }}>Coba kode ticker seperti ANTM, GOTO, BRMS, atau WIFI</p>
           </div>
         </GlassCard>
       )}
@@ -543,8 +610,8 @@ function SearchPageInner() {
                   ))}
                 </div>
                 <div className="flex items-center gap-0.5 rounded-lg p-0.5 flex-shrink-0" style={{ background: "rgba(6,78,59,0.25)", border: "1px solid rgba(16,185,129,0.08)" }}>
-                  <span className="text-[10px] px-1.5 font-medium flex-shrink-0" style={{ color: "#334155" }}>Swing</span>
-                  {swingTF.map((tf) => (
+                  <span className="text-[10px] px-1.5 font-medium flex-shrink-0" style={{ color: "#334155" }}>Harian+</span>
+                  {higherTF.map((tf) => (
                     <button key={tf.label} onClick={() => setActiveTimeframe(tf)}
                       className="px-2.5 py-1 rounded-md text-xs font-medium transition-all flex-shrink-0"
                       style={activeTimeframe.label === tf.label
@@ -1073,14 +1140,14 @@ function SearchPageInner() {
               <svg className="w-4 h-4" style={{ color: "#fb923c" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
               </svg>
-              <h3 className="text-sm font-bold" style={{ color: "#cbd5e1" }}>Tips Pencarian</h3>
+              <h3 className="text-sm font-bold" style={{ color: "#cbd5e1" }}>Cara Pakai Radar</h3>
             </div>
             <ul className="space-y-2 text-xs" style={{ color: "#64748b" }}>
               {[
-                { tip: "Ketik kode saham IDX", example: "BBCA, TLKM, ASII, GOTO" },
-                { tip: "Atau nama perusahaan", example: "Bank Central Asia" },
-                { tip: "Tidak perlu tambahkan .JK", example: "cukup ketik BBCA" },
-                { tip: "Klik hasil untuk lihat chart", example: "candle & line tersedia" },
+                { tip: "Ketik kode saham atau nama emiten", example: "ANTM, GOTO, WIFI, LABS" },
+                { tip: "Tidak perlu tambahkan .JK", example: "cukup ketik ANTM" },
+                { tip: "Tekan Enter untuk buka ticker langsung", example: "berguna saat hasil visual disembunyikan" },
+                { tip: "Fokuskan riset ke saham yang sedang punya cerita", example: "sideways akumulasi, support dijaga, atau mulai markup" },
               ].map((item) => (
                 <li key={item.tip} className="flex items-start gap-2">
                   <svg className="w-3 h-3 mt-0.5 flex-shrink-0" style={{ color: "#fb923c" }} fill="currentColor" viewBox="0 0 8 8">
@@ -1101,17 +1168,17 @@ function SearchPageInner() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 16.121A3 3 0 1012.015 11L11 14H9c0 .768.293 1.536.879 2.121z" />
               </svg>
-              <h3 className="text-sm font-bold" style={{ color: "#cbd5e1" }}>Saham Populer IDX</h3>
+              <h3 className="text-sm font-bold" style={{ color: "#cbd5e1" }}>Top Gainer Hari Ini</h3>
             </div>
             <p className="text-[11px] mb-3" style={{ color: "#64748b" }}>
-              Top gainer IDX berbasis update harga terbaru di daftar saham likuid proyek ini.
+              Sepuluh penguat terbesar hari ini yang tampil di radar visual Cerita Saham.
             </p>
             <div className="flex flex-wrap gap-2">
               {(loadingPopularStocks
-                ? ["BBCA", "BBRI", "TLKM", "ASII", "BMRI", "UNVR"]
-                : popularStocks.map((stock) => stock.ticker)
+                ? ["ANTM", "GOTO", "WIFI", "LABS", "DOID", "BRMS"]
+                : visiblePopularStocks.map((stock) => stock.ticker)
               ).map((ticker, index) => {
-                const stock = popularStocks[index];
+                const stock = visiblePopularStocks[index];
                 return (
                   <button
                     key={ticker}
@@ -1147,9 +1214,9 @@ function SearchPageInner() {
                 );
               })}
             </div>
-            {!loadingPopularStocks && popularStocks.length > 0 ? (
+            {!loadingPopularStocks && visiblePopularStocks.length > 0 ? (
               <div className="mt-3 space-y-1.5">
-                {popularStocks.slice(0, 3).map((stock) => (
+                {visiblePopularStocks.slice(0, 10).map((stock, index) => (
                   <button
                     key={stock.ticker}
                     type="button"
@@ -1160,21 +1227,31 @@ function SearchPageInner() {
                     className="w-full flex items-center justify-between text-left rounded-xl px-3 py-2 transition-all"
                     style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(226,232,240,0.05)" }}
                   >
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold truncate" style={{ color: "#e2e8f0" }}>{stock.ticker}</p>
-                      <p className="text-[11px] truncate" style={{ color: "#64748b" }}>{stock.name}</p>
+                    <div className="min-w-0 flex items-center gap-3">
+                      <span className="text-[11px] font-bold w-5 text-center" style={{ color: "#fb923c" }}>
+                        {index + 1}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold truncate" style={{ color: "#e2e8f0" }}>{stock.ticker}</p>
+                        <p className="text-[11px] truncate" style={{ color: "#64748b" }}>{stock.name}</p>
+                      </div>
                     </div>
                     <div className="text-right flex-shrink-0">
                       <p className="text-xs font-semibold" style={{ color: "#e2e8f0" }}>
                         {stock.price.toLocaleString("id-ID")}
                       </p>
-                      <p className="text-[11px]" style={{ color: stock.changePercent >= 0 ? "#10b981" : "#f87171" }}>
+                      <p className="text-[11px] font-semibold" style={{ color: stock.changePercent >= 0 ? "#10b981" : "#f87171" }}>
                         {stock.changePercent >= 0 ? "+" : ""}
                         {stock.changePercent.toFixed(2)}%
                       </p>
                     </div>
                   </button>
                 ))}
+              </div>
+            ) : null}
+            {!loadingPopularStocks && visiblePopularStocks.length === 0 ? (
+              <div className="mt-3 rounded-xl p-4 text-xs text-center" style={{ background: "rgba(255,255,255,0.03)", color: "#64748b" }}>
+                Belum ada kandidat top gainer non-bank yang layak ditampilkan hari ini.
               </div>
             ) : null}
           </GlassCard>

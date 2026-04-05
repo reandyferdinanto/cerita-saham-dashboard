@@ -1,5 +1,6 @@
 import { connectDB } from "@/lib/db";
 import StockSummaryRow, { IStockSummaryRow } from "@/lib/models/StockSummaryRow";
+import { analyzeBandarmologyTicker, BandarmologyAnalysisResult } from "@/lib/bandarmologyAnalysis";
 
 export type StockAccumulationCandidate = {
   stockCode: string;
@@ -26,6 +27,10 @@ export type StockAccumulationCandidate = {
   recentStrongCloseDays: number;
   recentLocalPressureDays: number;
   windowDays: number;
+  bandarmologyPhase: string | null;
+  bandarmologyTone: "bullish" | "neutral" | "bearish" | "warning" | null;
+  bandarmologyAlignment: "selaras" | "campuran" | "bertabrakan" | "tidak_tersedia";
+  bandarmologyNote: string | null;
 };
 
 export type StockAccumulationSeriesPoint = {
@@ -57,6 +62,10 @@ function round(value: number | null, digits = 2) {
   return Math.round(value * factor) / factor;
 }
 
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
 function buildLocalPressure(row: IStockSummaryRow) {
   const close = safeNumber(row.close);
   const high = safeNumber(row.high);
@@ -72,6 +81,63 @@ function buildLocalPressure(row: IStockSummaryRow) {
   const liquidityBoost = value >= 15_000_000_000 ? 1.18 : value >= 5_000_000_000 ? 1 : value >= 1_500_000_000 ? 0.9 : 0.78;
 
   return ((closeStrength * 50) + ((bidOfferEdge - 1) * 30) + Math.max(intradayPush, -2) * 6) * liquidityBoost;
+}
+
+function buildBandarmologyAlignment(analysis: BandarmologyAnalysisResult) {
+  const phase = analysis.summary.phase;
+  const tone = analysis.summary.tone;
+
+  if (tone === "bearish" || phase === "Markdown / distribusi lanjut") {
+    return {
+      score: -36,
+      alignment: "bertabrakan" as const,
+      note: "Bandarmology masih membaca distribusi, jadi sinyal flow harian belum cukup aman untuk disebut siap jalan.",
+    };
+  }
+
+  if (phase === "False breakout risk" || tone === "warning") {
+    return {
+      score: -16,
+      alignment: "bertabrakan" as const,
+      note: "Bandarmology melihat struktur masih rawan false move, jadi kandidat ini belum cukup sinkron.",
+    };
+  }
+
+  if (
+    phase === "Support dikunci bandar" ||
+    phase === "Akumulasi di support" ||
+    phase === "Sideways akumulasi senyap" ||
+    phase === "Markup dini" ||
+    phase === "Akumulasi menuju markup"
+  ) {
+    return {
+      score: 18,
+      alignment: "selaras" as const,
+      note: `Bandarmology ikut mendukung lewat fase "${phase}", jadi flow harian dan struktur harga saling menguatkan.`,
+    };
+  }
+
+  if (phase === "Trend pullback sehat" || phase === "Base building" || phase === "Reclaim awal" || phase === "Akumulasi dalam range") {
+    return {
+      score: 8,
+      alignment: "campuran" as const,
+      note: `Bandarmology belum seagresif stock summary, tetapi fase "${phase}" masih cukup layak untuk pantauan lanjutan.`,
+    };
+  }
+
+  if (tone === "bullish" || tone === "neutral") {
+    return {
+      score: 4,
+      alignment: "campuran" as const,
+      note: "Bandarmology belum sekuat flow harian, tetapi juga belum memberi sinyal konflik yang berat.",
+    };
+  }
+
+  return {
+    score: 0,
+    alignment: "tidak_tersedia" as const,
+    note: "Bandarmology belum memberi sinyal yang cukup kuat untuk memperjelas kandidat ini.",
+  };
 }
 
 function buildCandidate(currentRow: IStockSummaryRow, recentRows: IStockSummaryRow[]): StockAccumulationCandidate | null {
@@ -99,6 +165,7 @@ function buildCandidate(currentRow: IStockSummaryRow, recentRows: IStockSummaryR
   const intradayRecovery = openPrice && openPrice > 0 ? ((close - openPrice) / openPrice) * 100 : null;
   const netForeignRatio = safeNumber(value) > 0 ? (netForeign / safeNumber(value)) * 100 : 0;
   const liquidityMultiple = safeNumber(value) >= 15_000_000_000 ? 1 : safeNumber(value) >= 5_000_000_000 ? 0.75 : safeNumber(value) >= 1_500_000_000 ? 0.52 : 0.3;
+  const pricePreferenceScore = close <= 200 ? 14 : close <= 500 ? 10 : close <= 900 ? 3 : -8;
 
   let accumulationScore = 0;
   let readinessScore = 0;
@@ -200,6 +267,7 @@ function buildCandidate(currentRow: IStockSummaryRow, recentRows: IStockSummaryR
   let convictionScore = 0;
   convictionScore += Math.min(accumulationScore, 58);
   convictionScore += Math.min(readinessScore, 42);
+  convictionScore += pricePreferenceScore;
   if (netForeign > 0) convictionScore += 4;
   if (netForeignRatio >= 4) convictionScore += 4;
   if ((bidOfferRatio ?? 0) >= 1.5) convictionScore += 4;
@@ -255,6 +323,10 @@ function buildCandidate(currentRow: IStockSummaryRow, recentRows: IStockSummaryR
     recentStrongCloseDays: strongCloseDays,
     recentLocalPressureDays: localPressureDays,
     windowDays: historyWindow.length,
+    bandarmologyPhase: null,
+    bandarmologyTone: null,
+    bandarmologyAlignment: "tidak_tersedia",
+    bandarmologyNote: null,
   };
 }
 
@@ -295,19 +367,82 @@ export async function getAccumulationAnalysis(args: { tradeDate: string; limit?:
     .map((row) => buildCandidate(row, historyByStock.get(row.stockCode) || [row]))
     .filter((row): row is StockAccumulationCandidate => Boolean(row))
     .sort((a, b) => {
+      const leftPriceBand = (a.close ?? Number.MAX_SAFE_INTEGER) <= 500 ? 0 : (a.close ?? Number.MAX_SAFE_INTEGER) <= 900 ? 1 : 2;
+      const rightPriceBand = (b.close ?? Number.MAX_SAFE_INTEGER) <= 500 ? 0 : (b.close ?? Number.MAX_SAFE_INTEGER) <= 900 ? 1 : 2;
+      if (leftPriceBand !== rightPriceBand) return leftPriceBand - rightPriceBand;
       const scoreDiff = b.convictionScore - a.convictionScore;
       if (scoreDiff !== 0) return scoreDiff;
       const persistenceDiff = b.recentPositiveForeignDays - a.recentPositiveForeignDays;
       if (persistenceDiff !== 0) return persistenceDiff;
       return (b.netForeign || 0) - (a.netForeign || 0);
     })
+    .slice(0, Math.max(limit * 2, 18));
+
+  const alignedCandidates = await Promise.all(
+    candidates.map(async (candidate) => {
+      try {
+        const analysis = await analyzeBandarmologyTicker(`${candidate.stockCode}.JK`, candidate.companyName || undefined);
+        const alignment = buildBandarmologyAlignment(analysis);
+        const mergedReasons = [candidate.reasons[0], `Bandarmology ${analysis.summary.phase}`, ...candidate.reasons.slice(1)]
+          .filter((reason, index, list): reason is string => Boolean(reason) && list.indexOf(reason) === index)
+          .slice(0, 6);
+
+        const nextConviction = clamp(candidate.convictionScore + alignment.score, 0, 140);
+        const nextPhase =
+          alignment.alignment === "selaras" && candidate.phase === "Akumulasi Kuat"
+            ? "Akumulasi Siap Jalan"
+            : alignment.alignment === "bertabrakan"
+              ? "Pantau"
+              : candidate.phase;
+        const nextSummary =
+          alignment.alignment === "selaras"
+            ? `${candidate.summary} ${alignment.note}`
+            : alignment.alignment === "campuran"
+              ? `${candidate.summary} ${alignment.note}`
+              : `Flow harian terlihat menarik, tetapi ${alignment.note}`;
+
+        return {
+          ...candidate,
+          convictionScore: nextConviction,
+          convictionLabel:
+            nextConviction >= 92
+              ? "Sangat Kuat"
+              : nextConviction >= 80
+                ? "Kuat"
+                : nextConviction >= 66
+                  ? "Menarik"
+                  : "Awal",
+          phase: nextPhase,
+          reasons: mergedReasons,
+          summary: nextSummary,
+          bandarmologyPhase: analysis.summary.phase,
+          bandarmologyTone: analysis.summary.tone,
+          bandarmologyAlignment: alignment.alignment,
+          bandarmologyNote: alignment.note,
+        } satisfies StockAccumulationCandidate;
+      } catch {
+        return candidate;
+      }
+    })
+  );
+
+  const filteredCandidates = alignedCandidates
+    .filter((candidate) => candidate.bandarmologyAlignment !== "bertabrakan")
+    .sort((a, b) => {
+      const alignmentRank = { selaras: 0, campuran: 1, tidak_tersedia: 2, bertabrakan: 3 } as const;
+      const alignmentDiff = alignmentRank[a.bandarmologyAlignment] - alignmentRank[b.bandarmologyAlignment];
+      if (alignmentDiff !== 0) return alignmentDiff;
+      const scoreDiff = b.convictionScore - a.convictionScore;
+      if (scoreDiff !== 0) return scoreDiff;
+      return (b.netForeign || 0) - (a.netForeign || 0);
+    })
     .slice(0, limit);
 
   return {
     date: args.tradeDate,
-    count: candidates.length,
+    count: filteredCandidates.length,
     lookbackDays: recentDates.length,
-    data: candidates,
+    data: filteredCandidates,
   };
 }
 

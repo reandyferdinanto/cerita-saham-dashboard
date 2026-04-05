@@ -1,19 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { connectDB } from "@/lib/db";
-import Article from "@/lib/models/Article";
 import { verifyToken } from "@/lib/auth";
-import "@/lib/models/User";
+import { findArticleById } from "@/lib/data/articles";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await connectDB();
-    
     const { id } = await params;
-    
-    const article = await Article.findById(id).populate("authorId", "name");
+    const article = await findArticleById(id);
     if (!article) return NextResponse.json({ error: "Article not found" }, { status: 404 });
 
-    // If the article is private, we need to ensure the user is logged in
     if (!article.isPublic) {
       const token = req.cookies.get("auth_token")?.value;
       if (!token) {

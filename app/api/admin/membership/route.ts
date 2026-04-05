@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { connectDB } from "@/lib/db";
-import User from "@/lib/models/User";
 import { verifyToken } from "@/lib/auth";
+import {
+  expireUsersWithPastMembership,
+  findUserById,
+  listUsersForAdmin,
+  patchUserAdminFields,
+} from "@/lib/data/users";
 
 function addDuration(from: Date, duration: string): Date {
   const d = new Date(from);
@@ -20,18 +24,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  await connectDB();
-
-  // Auto-expire anyone whose end date has passed
-  await User.updateMany(
-    { membershipStatus: "active", membershipEndDate: { $lt: new Date() } },
-    { $set: { membershipStatus: "expired" } }
-  );
-
-  const users = await User.find({ role: { $ne: "superadmin" } })
-    .select("email name role avatarUrl membershipStatus membershipDuration membershipStartDate membershipEndDate membershipNote createdAt")
-    .sort({ createdAt: -1 })
-    .lean();
+  await expireUsersWithPastMembership();
+  const users = await listUsersForAdmin({ excludeSuperadmin: true });
 
   return NextResponse.json({ users });
 }
@@ -50,8 +44,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "userId and action required" }, { status: 400 });
   }
 
-  await connectDB();
-  const user = await User.findById(userId);
+  const user = await findUserById(userId);
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
   if (user.role === "superadmin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
@@ -60,41 +53,43 @@ export async function PATCH(req: NextRequest) {
   if (action === "activate") {
     const duration = user.membershipDuration || "3months";
     const endDate = addDuration(now, duration);
-    await User.findByIdAndUpdate(userId, {
+    await patchUserAdminFields(userId, {
       membershipStatus: "active",
       membershipStartDate: now,
       membershipEndDate: endDate,
       membershipNote: note || null,
     });
   } else if (action === "deactivate") {
-    await User.findByIdAndUpdate(userId, {
+    await patchUserAdminFields(userId, {
       membershipStatus: "expired",
       membershipNote: note || null,
     });
   } else if (action === "suspend") {
-    await User.findByIdAndUpdate(userId, {
+    await patchUserAdminFields(userId, {
       membershipStatus: "suspended",
       membershipNote: note || "Suspended by admin",
     });
   } else if (action === "reject") {
-    await User.findByIdAndUpdate(userId, {
+    await patchUserAdminFields(userId, {
       membershipStatus: "rejected",
       membershipNote: note || null,
     });
   } else if (action === "reset_pending") {
-    await User.findByIdAndUpdate(userId, {
+    await patchUserAdminFields(userId, {
       membershipStatus: "pending",
       membershipNote: note || null,
     });
   } else if (action === "promote") {
-    await User.findByIdAndUpdate(userId, { role: "admin" });
+    await patchUserAdminFields(userId, { role: "admin" });
   } else if (action === "demote") {
-    await User.findByIdAndUpdate(userId, { role: "user" });
+    await patchUserAdminFields(userId, { role: "user" });
   } else {
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });
   }
 
-  const updated = await User.findById(userId).lean();
-  return NextResponse.json({ success: true, user: updated });
+  const updated = await findUserById(userId);
+  if (!updated) return NextResponse.json({ error: "User not found" }, { status: 404 });
+  const { phoneHash: _phoneHash, ...safeUser } = updated;
+  return NextResponse.json({ success: true, user: safeUser });
 }
 

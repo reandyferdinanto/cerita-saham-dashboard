@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { connectDB } from "@/lib/db";
-import User from "@/lib/models/User";
 import { signToken } from "@/lib/auth";
+import {
+  findUserByEmail,
+  updateUserMembershipStatus,
+} from "@/lib/data/users";
 
 export async function POST(req: NextRequest) {
   try {
@@ -41,9 +43,7 @@ export async function POST(req: NextRequest) {
       return response;
     }
 
-    await connectDB();
-
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await findUserByEmail(email.toLowerCase());
     if (!user) {
       return NextResponse.json(
         { error: "Email atau nomor telepon salah" },
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
     let membershipStatus = user.membershipStatus;
     if (membershipStatus === "active" && user.membershipEndDate && user.membershipEndDate < new Date()) {
       membershipStatus = "expired";
-      await User.findByIdAndUpdate(user._id, { membershipStatus: "expired" });
+      await updateUserMembershipStatus(user._id, "expired");
     }
 
     const token = await signToken({

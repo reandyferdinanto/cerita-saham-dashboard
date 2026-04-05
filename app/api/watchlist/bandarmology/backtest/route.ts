@@ -10,8 +10,8 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const preset = (req.nextUrl.searchParams.get("preset") as ScreenerPreset) || "ideal";
-    const priceBucket = (req.nextUrl.searchParams.get("priceBucket") as PriceBucket) || "all";
+    const preset = (req.nextUrl.searchParams.get("preset") as ScreenerPreset) || "under300_focus";
+    const priceBucket = (req.nextUrl.searchParams.get("priceBucket") as PriceBucket) || "under300";
     const lookbackDays = Math.min(Number(req.nextUrl.searchParams.get("lookbackDays") || 20), 90);
     const holdingDays = Math.min(Number(req.nextUrl.searchParams.get("holdingDays") || 5), 20);
     const takeProfitPct = Math.min(Number(req.nextUrl.searchParams.get("takeProfitPct") || 5), 20);

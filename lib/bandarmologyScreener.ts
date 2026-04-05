@@ -4,16 +4,16 @@ import { getIndonesiaStockUniverse } from "@/lib/indonesiaStockMaster";
 import BandarmologyScreenerSnapshot from "@/lib/models/BandarmologyScreenerSnapshot";
 
 export type ScreenerPreset =
-  | "ideal"
-  | "accumulation"
-  | "breakout"
-  | "demand"
-  | "defensive"
-  | "research_pullback"
-  | "research_breakout"
-  | "research_position";
+  | "support_lock"
+  | "sideways_accumulation"
+  | "early_markup"
+  | "demand_surge"
+  | "washout_reclaim"
+  | "under300_focus"
+  | "markup_scout"
+  | "stealth_rotation";
 
-export type PriceBucket = "all" | "under200" | "200to500" | "above500";
+export type PriceBucket = "all" | "under200" | "under300" | "200to500" | "above500";
 
 export type BandarmologyScreenerRow = {
   ticker: string;
@@ -61,6 +61,7 @@ type CachedAnalysis = {
 };
 
 const ANALYSIS_CACHE_TTL_MS = 5 * 60 * 1000;
+const SCREENER_SNAPSHOT_VERSION = "v2";
 const analysisCache = new Map<string, CachedAnalysis>();
 
 function getSnapshotDate(value = new Date()) {
@@ -92,28 +93,88 @@ async function getAnalysisWithCache(ticker: string, name?: string) {
 
 function buildAccumulationBias(row: BandarmologyAnalysisResult) {
   let score = 0;
-  if (row.summary.phase.toLowerCase().includes("akumulasi")) score += 26;
-  if (row.metrics.obvSlope20 && row.metrics.obvSlope20 > 0) score += 18;
-  if (row.metrics.adSlope20 && row.metrics.adSlope20 > 0) score += 18;
-  if ((row.metrics.upDownVolumeRatio ?? 0) >= 1.05) score += 14;
-  if ((row.metrics.priceVsMa20 ?? -99) >= -3) score += 10;
-  if ((row.metrics.rsi ?? 0) >= 40 && (row.metrics.rsi ?? 100) <= 62) score += 8;
+  const phase = row.summary.phase.toLowerCase();
+  const price = row.quote.price;
+  const isCheap = price > 0 && price <= 300;
+
+  if (phase.includes("akumulasi")) score += 24;
+  if (row.summary.phase === "Support dikunci bandar") score += 18;
+  if (row.summary.phase === "Sideways akumulasi senyap") score += 18;
+  if (row.metrics.obvSlope20 && row.metrics.obvSlope20 > 0) score += 16;
+  if (row.metrics.adSlope20 && row.metrics.adSlope20 > 0) score += 16;
+  if ((row.metrics.upDownVolumeRatio ?? 0) >= 1.02) score += 10;
+  if ((row.metrics.upDownVolumeRatio ?? 0) >= 1.12) score += 6;
+  if ((row.metrics.priceVsMa20 ?? -99) >= -3.5 && (row.metrics.priceVsMa20 ?? 99) <= 2.2) score += 12;
+  if ((row.metrics.volumeRatio5v20 ?? 0) >= 0.75 && (row.metrics.volumeRatio5v20 ?? 0) <= 1.35) score += 10;
+  if ((row.metrics.rsi ?? 0) >= 36 && (row.metrics.rsi ?? 100) <= 60) score += 8;
+  if (isCheap) score += 8;
   return Math.max(0, Math.min(100, Math.round(score)));
 }
 
 function buildBreakoutReadiness(row: BandarmologyAnalysisResult) {
   let score = 0;
-  if ((row.metrics.breakoutDistancePct ?? 999) <= 2.5) score += 34;
-  else if ((row.metrics.breakoutDistancePct ?? 999) <= 5) score += 24;
-  else if ((row.metrics.breakoutDistancePct ?? 999) <= 8) score += 12;
+  const distance = row.metrics.breakoutDistancePct ?? 999;
+  const isCheap = row.quote.price > 0 && row.quote.price <= 300;
 
-  if ((row.metrics.volumeRatio5v20 ?? 0) >= 1.15) score += 20;
-  else if ((row.metrics.volumeRatio5v20 ?? 0) >= 0.95) score += 12;
+  if (row.summary.phase === "Markup dini") score += 18;
+  if (distance <= 3) score += 26;
+  else if (distance <= 6) score += 22;
+  else if (distance <= 10) score += 14;
+  else if (distance <= 14) score += 8;
 
-  if ((row.metrics.technicalScore ?? 0) >= 60) score += 16;
-  if ((row.metrics.priceVsMa20 ?? -99) > 0) score += 12;
-  if ((row.metrics.upDownVolumeRatio ?? 0) > 1.05) score += 10;
+  if ((row.metrics.volumeRatio5v20 ?? 0) >= 1.05) score += 12;
+  else if ((row.metrics.volumeRatio5v20 ?? 0) >= 0.8) score += 8;
+
+  if ((row.metrics.technicalScore ?? 0) >= 48) score += 10;
+  if ((row.metrics.priceVsMa20 ?? -99) >= -1 && (row.metrics.priceVsMa20 ?? 99) <= 3.8) score += 14;
+  if ((row.metrics.upDownVolumeRatio ?? 0) > 1.05) score += 14;
   if (row.summary.tone === "bullish") score += 8;
+  if (isCheap) score += 8;
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+function getSupportDistancePct(row: BandarmologyAnalysisResult) {
+  const support = row.metrics.support[0];
+  if (!support || support <= 0 || row.quote.price <= 0) return null;
+  return ((row.quote.price - support) / support) * 100;
+}
+
+function buildSupportDefenseScore(row: BandarmologyAnalysisResult) {
+  let score = 0;
+  const distance = getSupportDistancePct(row);
+  const isCheap = row.quote.price > 0 && row.quote.price <= 300;
+
+  if (row.summary.phase === "Support dikunci bandar") score += 24;
+  if (row.summary.phase === "Akumulasi di support") score += 18;
+  if (distance != null && distance <= 2.5) score += 24;
+  else if (distance != null && distance <= 5) score += 18;
+  else if (distance != null && distance <= 8) score += 10;
+  if ((row.metrics.obvSlope20 ?? 0) > 0) score += 14;
+  if ((row.metrics.adSlope20 ?? 0) > 0) score += 14;
+  if ((row.metrics.upDownVolumeRatio ?? 0) >= 1) score += 12;
+  if ((row.metrics.priceVsMa20 ?? -99) >= -3.5 && (row.metrics.priceVsMa20 ?? 99) <= 1.5) score += 10;
+  if (isCheap) score += 8;
+
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+function buildStealthAccumulationScore(row: BandarmologyAnalysisResult) {
+  let score = 0;
+  const phase = row.summary.phase;
+  const isCheap = row.quote.price > 0 && row.quote.price <= 300;
+  const vr = row.metrics.volumeRatio5v20 ?? 0;
+  const upDown = row.metrics.upDownVolumeRatio ?? 0;
+
+  if (phase === "Sideways akumulasi senyap") score += 28;
+  if (phase === "Support dikunci bandar") score += 18;
+  if ((row.metrics.obvSlope20 ?? 0) > 0) score += 14;
+  if ((row.metrics.adSlope20 ?? 0) > 0) score += 14;
+  if (vr >= 0.7 && vr <= 1.2) score += 12;
+  if (upDown >= 0.98 && upDown <= 1.18) score += 10;
+  if ((row.metrics.priceVsMa20 ?? -99) >= -4 && (row.metrics.priceVsMa20 ?? 99) <= 2) score += 10;
+  if ((row.metrics.rsi ?? 0) >= 35 && (row.metrics.rsi ?? 100) <= 58) score += 8;
+  if (isCheap) score += 8;
+
   return Math.max(0, Math.min(100, Math.round(score)));
 }
 
@@ -121,71 +182,116 @@ function buildFitScore(row: BandarmologyAnalysisResult) {
   let score = row.summary.conviction;
   const accumulationBias = buildAccumulationBias(row);
   const breakoutReadiness = buildBreakoutReadiness(row);
+  const supportDefense = buildSupportDefenseScore(row);
+  const stealthAccumulation = buildStealthAccumulationScore(row);
+  const price = row.quote.price;
 
-  score += Math.round(accumulationBias * 0.16);
-  score += Math.round(breakoutReadiness * 0.18);
+  score += Math.round(accumulationBias * 0.18);
+  score += Math.round(breakoutReadiness * 0.16);
+  score += Math.round(supportDefense * 0.18);
+  score += Math.round(stealthAccumulation * 0.12);
 
-  if (row.summary.tone === "bullish") score += 12;
-  if (row.metrics.technicalScore >= 60) score += 8;
-  if ((row.metrics.upDownVolumeRatio ?? 0) > 1.05) score += 6;
-  if ((row.metrics.volumeRatio5v20 ?? 0) >= 0.9 && (row.metrics.volumeRatio5v20 ?? 0) <= 1.8) score += 5;
-  if ((row.metrics.priceVsMa50 ?? -99) > -2) score += 4;
+  if (row.summary.tone === "bullish") score += 8;
+  if (price > 0 && price <= 300) score += 12;
+  else if (price <= 500) score += 4;
+  else score -= 10;
+  if (row.summary.phase === "Support dikunci bandar") score += 10;
+  if (row.summary.phase === "Sideways akumulasi senyap") score += 8;
+  if (row.summary.phase === "Markup dini") score += 8;
+  if ((row.metrics.upDownVolumeRatio ?? 0) > 1.08) score += 6;
 
   return Math.max(0, Math.min(100, Math.round(score)));
 }
 
-function buildResearchFitScore(preset: ScreenerPreset, row: BandarmologyAnalysisResult) {
+function buildPresetFitScore(preset: ScreenerPreset, row: BandarmologyAnalysisResult) {
   let score = buildFitScore(row);
-  const isLowPrice = row.quote.price < 200;
   const accumulationBias = buildAccumulationBias(row);
   const breakoutReadiness = buildBreakoutReadiness(row);
+  const supportDefense = buildSupportDefenseScore(row);
+  const stealthAccumulation = buildStealthAccumulationScore(row);
+  const cheap = row.quote.price > 0 && row.quote.price <= 300;
 
-  if (preset === "research_pullback") {
-    score += Math.round(accumulationBias * 0.12);
-    if ((row.metrics.priceVsMa20 ?? -99) >= -3 && (row.metrics.priceVsMa20 ?? 99) <= 2) score += 8;
-    if ((row.metrics.rsi ?? 0) >= 38 && (row.metrics.rsi ?? 100) <= 58) score += 8;
-    if ((row.metrics.priceVsMa50 ?? -99) > 0) score += 6;
-    if (isLowPrice) {
-      if ((row.metrics.priceVsMa50 ?? -99) > -6) score += 6;
-      if ((row.metrics.volumeRatio5v20 ?? 0) >= 0.75) score += 4;
-      if ((row.metrics.upDownVolumeRatio ?? 0) >= 0.95) score += 4;
-    }
-  }
-
-  if (preset === "research_breakout") {
-    score += Math.round(breakoutReadiness * 0.15);
-    if ((row.metrics.breakoutDistancePct ?? 999) <= 3.5) score += 10;
-    if ((row.metrics.volumeRatio5v20 ?? 0) >= 1.1) score += 8;
-    if ((row.metrics.technicalScore ?? 0) >= 58) score += 6;
-  }
-
-  if (preset === "research_position") {
-    score += Math.round(accumulationBias * 0.1);
-    if ((row.metrics.priceVsMa50 ?? -99) > 0) score += 10;
-    if ((row.metrics.priceVsMa20 ?? -99) > 0) score += 6;
-    if (row.summary.conviction >= 65) score += 6;
-    if ((row.metrics.technicalScore ?? 0) >= 60) score += 6;
+  switch (preset) {
+    case "support_lock":
+      score += Math.round(supportDefense * 0.2);
+      if (cheap) score += 8;
+      break;
+    case "sideways_accumulation":
+      score += Math.round(stealthAccumulation * 0.24);
+      if (cheap) score += 8;
+      break;
+    case "early_markup":
+      score += Math.round(breakoutReadiness * 0.22);
+      if (cheap) score += 6;
+      break;
+    case "demand_surge":
+      score += Math.round(accumulationBias * 0.12);
+      if ((row.metrics.upDownVolumeRatio ?? 0) >= 1.15) score += 10;
+      break;
+    case "washout_reclaim":
+      score += Math.round(supportDefense * 0.1);
+      if ((row.metrics.priceVsMa50 ?? -99) > -8) score += 8;
+      break;
+    case "under300_focus":
+      score += cheap ? 18 : -18;
+      score += Math.round(accumulationBias * 0.12);
+      break;
+    case "markup_scout":
+      score += Math.round(breakoutReadiness * 0.18);
+      score += Math.round(supportDefense * 0.08);
+      break;
+    case "stealth_rotation":
+      score += Math.round(stealthAccumulation * 0.18);
+      score += Math.round(accumulationBias * 0.08);
+      break;
+    default:
+      break;
   }
 
   return Math.max(0, Math.min(100, Math.round(score)));
 }
 
-function buildResearchMeta(preset: ScreenerPreset, row: BandarmologyAnalysisResult) {
+function buildPresetMeta(preset: ScreenerPreset, row: BandarmologyAnalysisResult) {
   switch (preset) {
-    case "research_pullback":
+    case "support_lock":
       return {
-        strategyLabel: "Trend Pullback",
-        thesis: "Tren masih sehat, harga sedang retrace terukur, lalu menunggu momentum pulih tanpa rusak struktur.",
+        strategyLabel: "Support Lock",
+        thesis: "Fokus ke saham murah yang support-nya dijaga sambil supply diserap, lalu menunggu dorongan ke resistance terdekat.",
       };
-    case "research_breakout":
+    case "sideways_accumulation":
       return {
-        strategyLabel: "Breakout Volume",
-        thesis: "Harga dekat high 20 hari dan butuh volume yang cukup untuk konfirmasi lanjutan 5-10%.",
+        strategyLabel: "Sideways Senyap",
+        thesis: "Fokus ke sideways rapi dengan volume tidak meledak, tetapi OBV/A-D dan demand masih memberi jejak akumulasi diam-diam.",
       };
-    case "research_position":
+    case "early_markup":
       return {
-        strategyLabel: "Trend Position",
-        thesis: "Struktur menengah masih sehat sehingga kandidat lebih layak untuk hold lebih panjang.",
+        strategyLabel: "Markup Dini",
+        thesis: "Fokus ke saham murah yang sudah dipelihara dan mulai siap didorong menuju resistance atau breakout pendek.",
+      };
+    case "demand_surge":
+      return {
+        strategyLabel: "Demand Surge",
+        thesis: "Fokus ke kandidat dengan tekanan beli yang mulai terlihat lebih agresif daripada supply, sering jadi tanda bandar mulai menampakkan tangan.",
+      };
+    case "washout_reclaim":
+      return {
+        strategyLabel: "Washout Reclaim",
+        thesis: "Fokus ke saham yang sempat ditekan, tetapi tidak lanjut dibuang dan mulai direbut kembali secara perlahan.",
+      };
+    case "under300_focus":
+      return {
+        strategyLabel: "Under 300",
+        thesis: "Fokus ke saham di bawah 300 yang masih punya jejak akumulasi dan ruang markup jangka dekat.",
+      };
+    case "markup_scout":
+      return {
+        strategyLabel: "Scout Markup",
+        thesis: "Mencari kandidat yang belum meledak, tetapi sudah punya kombinasi support defense, demand, dan jarak dekat ke area markup.",
+      };
+    case "stealth_rotation":
+      return {
+        strategyLabel: "Rotasi Senyap",
+        thesis: "Mencari rotasi bandar yang belum ramai: sideways, volume tidak berisik, tetapi barang tampak belum dilepas.",
       };
     default:
       return {
@@ -204,53 +310,53 @@ function passesPreset(preset: ScreenerPreset, row: BandarmologyAnalysisResult) {
   const priceVsMa20 = row.metrics.priceVsMa20 ?? -99;
   const priceVsMa50 = row.metrics.priceVsMa50 ?? -99;
   const price = row.quote.price;
-  const isLowPrice = price < 200;
   const accumulationBias = buildAccumulationBias(row);
   const breakoutReadiness = buildBreakoutReadiness(row);
+  const supportDefense = buildSupportDefenseScore(row);
+  const stealthAccumulation = buildStealthAccumulationScore(row);
+  const isCheap = price <= 300;
 
   switch (preset) {
-    case "research_pullback":
-      if (isLowPrice) {
-        return (
-          tone !== "bearish" &&
-          tech >= 45 &&
-          accumulationBias >= 42 &&
-          priceVsMa50 > -6 &&
-          priceVsMa20 >= -7 &&
-          priceVsMa20 <= 1.5 &&
-          (row.metrics.rsi ?? 0) >= 35 &&
-          (row.metrics.rsi ?? 100) <= 56 &&
-          upDown >= 0.9 &&
-          vr >= 0.75 &&
-          breakoutDistance >= 2
-        );
-      }
+    case "support_lock":
       return (
         tone !== "bearish" &&
-        accumulationBias >= 46 &&
-        priceVsMa50 > 0 &&
-        priceVsMa20 >= -4.5 &&
-        priceVsMa20 <= 0.8 &&
-        (row.metrics.rsi ?? 0) >= 38 &&
-        (row.metrics.rsi ?? 100) <= 52 &&
-        upDown >= 0.95 &&
-        breakoutDistance >= 2.5
+        isCheap &&
+        supportDefense >= 55 &&
+        accumulationBias >= 48 &&
+        upDown >= 1 &&
+        vr >= 0.72 &&
+        priceVsMa20 >= -3.6 &&
+        priceVsMa20 <= 1.5 &&
+        breakoutDistance <= 12
       );
-    case "research_breakout":
-      return tone === "bullish" && breakoutReadiness >= 58 && breakoutDistance <= 2.5 && vr >= 1.15 && tech >= 60 && priceVsMa20 > 0.5;
-    case "research_position":
-      return tone === "bullish" && accumulationBias >= 55 && tech >= 62 && priceVsMa50 > 2 && upDown >= 1.05 && row.summary.conviction >= 65;
-    case "accumulation":
-      return (tone === "bullish" || row.summary.phase.toLowerCase().includes("akumulasi")) && accumulationBias >= 48 && upDown >= 1 && vr >= 0.8;
-    case "breakout":
-      return tone !== "bearish" && breakoutReadiness >= 48 && breakoutDistance <= 5 && tech >= 50;
-    case "demand":
-      return accumulationBias >= 44 && upDown >= 1.15 && vr >= 1 && priceVsMa20 > 0;
-    case "defensive":
-      return tone !== "bearish" && accumulationBias >= 38 && tech >= 45 && priceVsMa50 > -3;
-    case "ideal":
+    case "sideways_accumulation":
+      return (
+        tone !== "bearish" &&
+        isCheap &&
+        stealthAccumulation >= 58 &&
+        accumulationBias >= 46 &&
+        priceVsMa20 >= -4 &&
+        priceVsMa20 <= 2 &&
+        (row.metrics.rsi ?? 0) >= 35 &&
+        (row.metrics.rsi ?? 100) <= 58 &&
+        vr >= 0.68 &&
+        vr <= 1.28 &&
+        upDown >= 0.96
+      );
+    case "early_markup":
+      return tone !== "bearish" && isCheap && breakoutReadiness >= 56 && breakoutDistance <= 8 && upDown >= 1.03 && tech >= 45;
+    case "demand_surge":
+      return tone !== "bearish" && isCheap && accumulationBias >= 44 && upDown >= 1.18 && vr >= 0.92 && priceVsMa20 > -1.5;
+    case "washout_reclaim":
+      return tone !== "bearish" && price <= 500 && supportDefense >= 42 && tech >= 42 && priceVsMa50 > -10 && priceVsMa20 > -2;
+    case "under300_focus":
+      return tone !== "bearish" && isCheap && accumulationBias >= 46 && supportDefense >= 40 && breakoutDistance <= 14;
+    case "markup_scout":
+      return tone !== "bearish" && isCheap && breakoutReadiness >= 52 && supportDefense >= 45 && breakoutDistance <= 10;
+    case "stealth_rotation":
+      return tone !== "bearish" && price <= 500 && stealthAccumulation >= 60 && accumulationBias >= 44 && vr >= 0.7 && vr <= 1.25;
     default:
-      return tone !== "bearish" && accumulationBias >= 40 && tech >= 50 && upDown >= 1 && breakoutDistance <= 8 && priceVsMa20 > -2;
+      return tone !== "bearish" && isCheap && accumulationBias >= 46 && supportDefense >= 40 && breakoutDistance <= 14;
   }
 }
 
@@ -258,51 +364,69 @@ function buildReasons(row: BandarmologyAnalysisResult) {
   const reasons: string[] = [];
   const accumulationBias = buildAccumulationBias(row);
   const breakoutReadiness = buildBreakoutReadiness(row);
+  const supportDefense = buildSupportDefenseScore(row);
+  const stealthAccumulation = buildStealthAccumulationScore(row);
+  const supportDistance = getSupportDistancePct(row);
 
-  if (row.summary.phase.toLowerCase().includes("akumulasi")) reasons.push("fase akumulasi mulai terbaca");
-  if (accumulationBias >= 55) reasons.push("jejak akumulasi relatif lebih rapi");
-  if (row.summary.tone === "bullish") reasons.push("bias operator cenderung konstruktif");
+  if (row.quote.price > 0 && row.quote.price <= 300) reasons.push("harga masih masuk radar saham murah cerita saham");
+  if (row.summary.phase === "Support dikunci bandar") reasons.push("support utama terlihat sedang dikunci");
+  if (row.summary.phase === "Sideways akumulasi senyap") reasons.push("sideways rapi dengan indikasi akumulasi diam-diam");
+  if (row.summary.phase === "Markup dini") reasons.push("struktur mulai masuk fase markup dini");
+  if (supportDefense >= 58) reasons.push("jarak ke support masih dekat sehingga risk-reward lebih terukur");
+  if (stealthAccumulation >= 60) reasons.push("volume belum berisik, tetapi jejak serap barang mulai terlihat");
+  if (accumulationBias >= 55) reasons.push("OBV/A-D dan rasio volume mendukung akumulasi");
   if ((row.metrics.upDownVolumeRatio ?? 0) > 1.1) reasons.push("volume naik lebih dominan dari volume turun");
-  if ((row.metrics.volumeRatio5v20 ?? 0) >= 1) reasons.push("aktivitas volume 5 hari masih sehat");
-  if (breakoutReadiness >= 55 || (row.metrics.breakoutDistancePct ?? 999) <= 5) reasons.push("harga cukup dekat ke area breakout");
-  if ((row.metrics.priceVsMa20 ?? -99) > 0) reasons.push("harga sudah bertahan di atas MA20");
-  if (reasons.length === 0) reasons.push("masuk kandidat observasi berdasarkan struktur harga-volume");
+  if (breakoutReadiness >= 55 || (row.metrics.breakoutDistancePct ?? 999) <= 6) reasons.push("resistance cukup dekat untuk skenario markup pendek");
+  if (supportDistance != null && supportDistance <= 3.5) reasons.push("harga belum jauh dari support penjaga");
+  if (reasons.length === 0) reasons.push("masuk kandidat observasi karena struktur harga-volume mulai berubah");
   return reasons.slice(0, 4);
 }
 
-function buildResearchReasons(preset: ScreenerPreset, row: BandarmologyAnalysisResult) {
+function buildPresetReasons(preset: ScreenerPreset, row: BandarmologyAnalysisResult) {
   const reasons: string[] = [];
-  const isLowPrice = row.quote.price < 200;
-  const accumulationBias = buildAccumulationBias(row);
+  const supportDefense = buildSupportDefenseScore(row);
+  const stealthAccumulation = buildStealthAccumulationScore(row);
   const breakoutReadiness = buildBreakoutReadiness(row);
+  const accumulationBias = buildAccumulationBias(row);
 
-  if (preset === "research_pullback") {
-    if (isLowPrice) {
-      if ((row.metrics.priceVsMa50 ?? -99) > -6) reasons.push("harga murah masih cukup dekat struktur MA50");
-      if ((row.metrics.priceVsMa20 ?? -99) >= -7 && (row.metrics.priceVsMa20 ?? 99) <= 1.5) reasons.push("pullback belum rusak meski volatilitas lebih tinggi");
-      if ((row.metrics.rsi ?? 0) >= 35 && (row.metrics.rsi ?? 100) <= 56) reasons.push("RSI masih masuk zona pullback sehat untuk saham murah");
-      if ((row.metrics.volumeRatio5v20 ?? 0) >= 0.75) reasons.push("aktivitas volume belum kering total");
-    } else {
-      if ((row.metrics.priceVsMa50 ?? -99) > 0) reasons.push("tren menengah masih di atas MA50");
-      if ((row.metrics.priceVsMa20 ?? -99) >= -3 && (row.metrics.priceVsMa20 ?? 99) <= 2) reasons.push("pullback masih dekat struktur MA20");
-      if ((row.metrics.rsi ?? 0) >= 38 && (row.metrics.rsi ?? 100) <= 58) reasons.push("RSI berada di zona pullback sehat");
-    }
-    if (accumulationBias >= 48) reasons.push("jejak akumulasi belum benar-benar hilang");
-    if ((row.metrics.upDownVolumeRatio ?? 0) >= 1) reasons.push("tekanan demand belum kalah dari supply");
-  }
-
-  if (preset === "research_breakout") {
-    if ((row.metrics.breakoutDistancePct ?? 999) <= 3.5) reasons.push("harga sudah dekat high 20 hari");
-    if (breakoutReadiness >= 58) reasons.push("readiness breakout relatif matang");
-    if ((row.metrics.volumeRatio5v20 ?? 0) >= 1.1) reasons.push("volume 5 hari cukup aktif untuk modal breakout");
-    if ((row.metrics.technicalScore ?? 0) >= 58) reasons.push("skor teknikal mendukung skenario lanjutan");
-  }
-
-  if (preset === "research_position") {
-    if ((row.metrics.priceVsMa50 ?? -99) > 0) reasons.push("harga menjaga tren di atas MA50");
-    if (accumulationBias >= 55) reasons.push("jejak akumulasi menengah masih sehat");
-    if (row.summary.conviction >= 65) reasons.push("conviction cukup kuat untuk hold lebih panjang");
-    if ((row.metrics.upDownVolumeRatio ?? 0) > 1.05) reasons.push("demand menengah lebih dominan");
+  switch (preset) {
+    case "support_lock":
+      if (supportDefense >= 55) reasons.push("support sedang dijaga rapi");
+      if ((row.metrics.upDownVolumeRatio ?? 0) >= 1) reasons.push("demand masih menahan supply");
+      if ((row.metrics.breakoutDistancePct ?? 999) <= 12) reasons.push("masih ada ruang markup ke resistance terdekat");
+      break;
+    case "sideways_accumulation":
+      if (stealthAccumulation >= 60) reasons.push("sideways belum ramai tetapi akumulasi mulai terbaca");
+      if ((row.metrics.volumeRatio5v20 ?? 0) >= 0.7 && (row.metrics.volumeRatio5v20 ?? 0) <= 1.2) reasons.push("volume relatif kalem, cocok untuk pola parkir bandar");
+      if ((row.metrics.obvSlope20 ?? 0) > 0 && (row.metrics.adSlope20 ?? 0) > 0) reasons.push("OBV dan A/D tetap naik saat harga mendatar");
+      break;
+    case "early_markup":
+      if (breakoutReadiness >= 56) reasons.push("dorongan markup mulai matang");
+      if ((row.metrics.breakoutDistancePct ?? 999) <= 8) reasons.push("resistance cukup dekat untuk diserang");
+      if ((row.metrics.upDownVolumeRatio ?? 0) >= 1.03) reasons.push("tenaga beli mulai mengungguli supply");
+      break;
+    case "demand_surge":
+      if ((row.metrics.upDownVolumeRatio ?? 0) >= 1.18) reasons.push("demand surge mulai terlihat jelas");
+      if ((row.metrics.volumeRatio5v20 ?? 0) >= 0.92) reasons.push("aktivitas volume cukup hidup");
+      break;
+    case "washout_reclaim":
+      if ((row.metrics.priceVsMa20 ?? -99) > -2) reasons.push("harga mulai direbut kembali setelah tekanan");
+      if (supportDefense >= 42) reasons.push("support bawah masih sanggup menahan");
+      break;
+    case "under300_focus":
+      reasons.push("fokus ke saham di bawah 300");
+      if (accumulationBias >= 46) reasons.push("masih ada jejak akumulasi yang layak dipantau");
+      break;
+    case "markup_scout":
+      if (breakoutReadiness >= 52) reasons.push("potensi serangan ke area markup mulai dekat");
+      if (supportDefense >= 45) reasons.push("risk-reward masih terbantu support");
+      break;
+    case "stealth_rotation":
+      if (stealthAccumulation >= 60) reasons.push("rotasi bandar masih senyap");
+      if (accumulationBias >= 44) reasons.push("supply belum tampak dibuang agresif");
+      break;
+    default:
+      break;
   }
 
   return reasons.length > 0 ? reasons.slice(0, 4) : buildReasons(row);
@@ -312,6 +436,8 @@ function passesPriceBucket(bucket: PriceBucket, price: number) {
   switch (bucket) {
     case "under200":
       return price < 200;
+    case "under300":
+      return price < 300;
     case "200to500":
       return price >= 200 && price <= 500;
     case "above500":
@@ -330,10 +456,10 @@ export async function getBandarmologyScreener(args?: {
   preferSnapshot?: boolean;
   persistSnapshot?: boolean;
 }) {
-  const preset = args?.preset || "ideal";
-  const priceBucket = args?.priceBucket || "all";
+  const preset = args?.preset || "under300_focus";
+  const priceBucket = args?.priceBucket || "under300";
   const limit = Math.min(args?.limit ?? 8, 24);
-  const candidateLimit = Math.min(args?.candidateLimit ?? (priceBucket === "under200" ? 180 : 140), 220);
+  const candidateLimit = Math.min(args?.candidateLimit ?? (priceBucket === "under200" || priceBucket === "under300" ? 200 : 150), 260);
   const snapshotDate = getSnapshotDate();
   const preferSnapshot = args?.preferSnapshot ?? true;
   const persistSnapshot = args?.persistSnapshot ?? true;
@@ -343,6 +469,7 @@ export async function getBandarmologyScreener(args?: {
       await connectDB();
       const snapshot = await BandarmologyScreenerSnapshot.findOne({
         snapshotDate,
+        snapshotVersion: SCREENER_SNAPSHOT_VERSION,
         preset,
         priceBucket,
       }).lean();
@@ -370,15 +497,14 @@ export async function getBandarmologyScreener(args?: {
     universe.stocks.map(async ({ ticker, name }) => {
       try {
         const analysis = await getAnalysisWithCache(ticker, name);
-        const isResearchPreset = preset.startsWith("research_");
-        const meta = buildResearchMeta(preset, analysis);
+        const meta = buildPresetMeta(preset, analysis);
         const accumulationBias = buildAccumulationBias(analysis);
         const breakoutReadiness = buildBreakoutReadiness(analysis);
 
         return {
           analysis,
-          fitScore: isResearchPreset ? buildResearchFitScore(preset, analysis) : buildFitScore(analysis),
-          reasons: isResearchPreset ? buildResearchReasons(preset, analysis) : buildReasons(analysis),
+          fitScore: buildPresetFitScore(preset, analysis),
+          reasons: buildPresetReasons(preset, analysis),
           strategyLabel: meta.strategyLabel,
           thesis: meta.thesis,
           accumulationBias,
@@ -446,10 +572,11 @@ export async function getBandarmologyScreener(args?: {
     try {
       await connectDB();
       await BandarmologyScreenerSnapshot.findOneAndUpdate(
-        { snapshotDate, preset, priceBucket },
+        { snapshotDate, snapshotVersion: SCREENER_SNAPSHOT_VERSION, preset, priceBucket },
         {
           $set: {
             snapshotDate,
+            snapshotVersion: SCREENER_SNAPSHOT_VERSION,
             preset,
             priceBucket,
             universeSize: result.universeSize,
