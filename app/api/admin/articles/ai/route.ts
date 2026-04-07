@@ -251,7 +251,7 @@ function extractMarketSections(text: string): MarketSections {
 
     if (!sections.intro) {
       sections.intro = paragraph;
-    } else if (!sections.closingNote && /16:15 WIB|otomatis|bot cerita saham/i.test(paragraph)) {
+    } else if (!sections.closingNote && /16:15 WIB|otomatis|bot anomalisaham/i.test(paragraph)) {
       sections.closingNote = paragraph;
     } else {
       sections.intro += `\n\n${paragraph}`;
@@ -387,7 +387,7 @@ async function generateOptimizedArticle(payload: OptimizeRequest, origin: string
   }
 
   const systemPrompt = [
-    "Anda adalah editor artikel pasar modal untuk admin Cerita Saham.",
+    "Anda adalah editor artikel pasar modal untuk admin anomalisaham.",
     "Tugas Anda adalah mengembangkan atau merapikan artikel berita berbahasa Indonesia agar terasa seperti naskah berita pasar modal yang rapi, jelas, dan relevan bagi investor retail.",
     "Gunakan hanya konteks yang diberikan. Jangan menambahkan fakta spesifik, angka, kutipan, atau klaim baru yang tidak ada di input admin atau konteks luar.",
     "Semua referensi berita harus relevan dengan Bursa Efek Indonesia, IDX, IHSG, atau emiten Indonesia.",

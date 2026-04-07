@@ -265,10 +265,10 @@ export default function DashboardPage() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-silver-100">
-            Dashboard <span className="text-orange-400">Overview</span>
+            anomalisaham <span className="text-orange-400">Radar</span>
           </h1>
           <p className="text-silver-500 text-sm mt-1">
-            Market composite index at a glance
+            Membaca pasar luas dulu sebelum mencari anomali akumulasi yang belum ramai
           </p>
         </div>
         {lastUpdated && (
@@ -539,7 +539,7 @@ export default function DashboardPage() {
                   <div className="min-w-0">
                     <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-silver-500">Monitor</p>
                     <h3 className="mt-2 text-lg font-bold text-silver-200 transition-colors group-hover:text-orange-400">Stock Watchlist</h3>
-                    <p className="mt-1 max-w-sm text-sm text-silver-500">Pantau saham pilihan, TP/SL, dan catatan bandarmology dalam satu workspace yang lebih rapi.</p>
+                    <p className="mt-1 max-w-sm text-sm text-silver-500">Pantau saham yang sudah masuk radar anomali, lengkap dengan TP/SL dan catatan bandarmology.</p>
                   </div>
                   <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl border border-green-500/20 bg-green-500/10 text-green-400">
                     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -581,7 +581,7 @@ export default function DashboardPage() {
                   <div className="min-w-0">
                     <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-silver-500">Member Access</p>
                     <h3 className="mt-2 text-lg font-bold text-silver-200">Buka fitur riset yang lebih lengkap</h3>
-                    <p className="mt-1 max-w-2xl text-sm text-silver-500">Masuk atau daftar untuk mengakses watchlist, sinyal teknikal, dan analisis saham lebih mendalam.</p>
+                    <p className="mt-1 max-w-2xl text-sm text-silver-500">Masuk atau daftar untuk mengakses watchlist, sinyal teknikal, dan radar akumulasi saham yang belum terlalu terlihat.</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">

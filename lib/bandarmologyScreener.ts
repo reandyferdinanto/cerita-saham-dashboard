@@ -53,6 +53,7 @@ type BandarmologyScreenerResult = {
   rows: BandarmologyScreenerRow[];
   snapshotDate: string;
   snapshotSource: "fresh" | "snapshot";
+  usedFallback?: boolean;
 };
 
 type CachedAnalysis = {
@@ -255,43 +256,43 @@ function buildPresetMeta(preset: ScreenerPreset, row: BandarmologyAnalysisResult
   switch (preset) {
     case "support_lock":
       return {
-        strategyLabel: "Support Lock",
-        thesis: "Fokus ke saham murah yang support-nya dijaga sambil supply diserap, lalu menunggu dorongan ke resistance terdekat.",
+        strategyLabel: "Support Dijaga",
+        thesis: "Fokus ke saham yang support-nya dijaga sambil barang diserap, lalu menunggu dorongan ke resistance terdekat.",
       };
     case "sideways_accumulation":
       return {
-        strategyLabel: "Sideways Senyap",
-        thesis: "Fokus ke sideways rapi dengan volume tidak meledak, tetapi OBV/A-D dan demand masih memberi jejak akumulasi diam-diam.",
+        strategyLabel: "Sideways Rapi",
+        thesis: "Fokus ke saham yang bergerak tenang dengan volume tidak meledak, tetapi OBV/A-D dan demand masih memberi jejak akumulasi diam-diam.",
       };
     case "early_markup":
       return {
-        strategyLabel: "Markup Dini",
-        thesis: "Fokus ke saham murah yang sudah dipelihara dan mulai siap didorong menuju resistance atau breakout pendek.",
+        strategyLabel: "Mulai Naik",
+        thesis: "Fokus ke saham yang sudah dipelihara dan mulai siap didorong menuju resistance atau breakout pendek.",
       };
     case "demand_surge":
       return {
-        strategyLabel: "Demand Surge",
-        thesis: "Fokus ke kandidat dengan tekanan beli yang mulai terlihat lebih agresif daripada supply, sering jadi tanda bandar mulai menampakkan tangan.",
+        strategyLabel: "Beli Menguat",
+        thesis: "Fokus ke kandidat dengan tekanan beli yang mulai terlihat lebih kuat daripada supply, sering jadi tanda bandar mulai menampakkan tangan.",
       };
     case "washout_reclaim":
       return {
-        strategyLabel: "Washout Reclaim",
+        strategyLabel: "Rebut Balik",
         thesis: "Fokus ke saham yang sempat ditekan, tetapi tidak lanjut dibuang dan mulai direbut kembali secara perlahan.",
       };
     case "under300_focus":
       return {
-        strategyLabel: "Under 300",
+        strategyLabel: "Harga Murah",
         thesis: "Fokus ke saham di bawah 300 yang masih punya jejak akumulasi dan ruang markup jangka dekat.",
       };
     case "markup_scout":
       return {
-        strategyLabel: "Scout Markup",
+        strategyLabel: "Siap Naik",
         thesis: "Mencari kandidat yang belum meledak, tetapi sudah punya kombinasi support defense, demand, dan jarak dekat ke area markup.",
       };
     case "stealth_rotation":
       return {
-        strategyLabel: "Rotasi Senyap",
-        thesis: "Mencari rotasi bandar yang belum ramai: sideways, volume tidak berisik, tetapi barang tampak belum dilepas.",
+        strategyLabel: "Perpindahan Senyap",
+        thesis: "Mencari perpindahan minat bandar yang belum ramai: sideways, volume tidak berisik, tetapi barang tampak belum dilepas.",
       };
     default:
       return {
@@ -368,7 +369,7 @@ function buildReasons(row: BandarmologyAnalysisResult) {
   const stealthAccumulation = buildStealthAccumulationScore(row);
   const supportDistance = getSupportDistancePct(row);
 
-  if (row.quote.price > 0 && row.quote.price <= 300) reasons.push("harga masih masuk radar saham murah cerita saham");
+  if (row.quote.price > 0 && row.quote.price <= 300) reasons.push("harga masih masuk radar anomali saham yang belum ramai");
   if (row.summary.phase === "Support dikunci bandar") reasons.push("support utama terlihat sedang dikunci");
   if (row.summary.phase === "Sideways akumulasi senyap") reasons.push("sideways rapi dengan indikasi akumulasi diam-diam");
   if (row.summary.phase === "Markup dini") reasons.push("struktur mulai masuk fase markup dini");
@@ -516,17 +517,25 @@ export async function getBandarmologyScreener(args?: {
     })
   );
 
-  const rows: BandarmologyScreenerRow[] = searchResults
+  const rankedRows = searchResults
     .filter((row): row is NonNullable<typeof row> => Boolean(row))
     .filter((row) => passesPriceBucket(priceBucket, row.analysis.quote.price))
-    .filter((row) => passesPreset(preset, row.analysis))
     .sort((a, b) => {
       const fitDiff = b.fitScore - a.fitScore;
       if (fitDiff !== 0) return fitDiff;
       const convictionDiff = b.analysis.summary.conviction - a.analysis.summary.conviction;
       if (convictionDiff !== 0) return convictionDiff;
       return b.breakoutReadiness - a.breakoutReadiness;
-    })
+    });
+
+  const presetRows = rankedRows.filter((row) => passesPreset(preset, row.analysis));
+  const fallbackRows =
+    presetRows.length > 0
+      ? presetRows
+      : rankedRows.filter((row) => row.analysis.summary.tone !== "bearish" && row.analysis.summary.conviction >= 40);
+  const usedFallback = presetRows.length === 0 && fallbackRows.length > 0;
+
+  const rows: BandarmologyScreenerRow[] = fallbackRows
     .slice(0, limit)
     .map((row) => ({
       ticker: row.analysis.ticker,
@@ -550,7 +559,9 @@ export async function getBandarmologyScreener(args?: {
       obvSlope20: row.analysis.metrics.obvSlope20,
       adSlope20: row.analysis.metrics.adSlope20,
       technicalScore: row.analysis.metrics.technicalScore,
-      reasons: row.reasons,
+      reasons: usedFallback
+        ? ["filter preset hari ini terlalu ketat, jadi ini kandidat terdekat yang masih layak dipantau", ...row.reasons].slice(0, 4)
+        : row.reasons,
       strategyLabel: row.strategyLabel,
       thesis: row.thesis,
       accumulationBias: row.accumulationBias,
@@ -566,6 +577,7 @@ export async function getBandarmologyScreener(args?: {
     rows,
     snapshotDate,
     snapshotSource: "fresh",
+    usedFallback,
   };
 
   if (persistSnapshot) {
@@ -583,6 +595,7 @@ export async function getBandarmologyScreener(args?: {
             bucketUniverseSize: result.bucketUniverseSize,
             analyzedUniverseSize: result.analyzedUniverseSize,
             rows: result.rows,
+            usedFallback: result.usedFallback,
           },
         },
         { upsert: true, new: true }

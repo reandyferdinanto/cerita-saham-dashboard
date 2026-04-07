@@ -3,9 +3,9 @@
 import { useState, FormEvent, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
 import { useAuth } from "@/components/ui/AuthProvider";
 import { Suspense } from "react";
+import BrandMark from "@/components/ui/BrandMark";
 
 function LoginForm() {
   const router = useRouter();
@@ -68,31 +68,7 @@ function LoginForm() {
       >
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <Image
-            src="/logo-CS.png"
-            alt="Cerita Saham"
-            width={64}
-            height={64}
-            className="rounded-full mb-3"
-            style={{ boxShadow: "0 4px 20px rgba(0,0,0,0.4)" }}
-          />
-          <h1
-            className="text-2xl font-bold"
-            style={{ fontFamily: "var(--font-playfair), Georgia, serif", color: "#e2e8f0" }}
-          >
-            Cerita{" "}
-            <span
-              style={{
-                background: "linear-gradient(135deg, #D4AF37 0%, #F5D876 50%, #B8860B 100%)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                backgroundClip: "text",
-                fontStyle: "italic",
-              }}
-            >
-              Saham
-            </span>
-          </h1>
+          <BrandMark size="lg" align="center" subtitle="masuk ke radar anomali pasar" />
           <p className="text-sm mt-1" style={{ color: "#64748b" }}>
             Masuk ke akun Anda
           </p>

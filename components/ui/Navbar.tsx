@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/components/ui/AuthProvider";
+import BrandMark from "@/components/ui/BrandMark";
 
 // Icon helpers
 const HomeIcon = () => (
@@ -383,48 +384,11 @@ export default function Navbar({ delayMinutes }: NavbarProps) {
 				<div className="max-w-7xl mx-auto flex items-center justify-between">
 					{/* Logo */}
 					<Link href="/" className="flex items-center gap-2.5">
-						{/* eslint-disable-next-line @next/next/no-img-element */}
-						<img
-							src="/logo-CS.png"
-							alt="Cerita Saham"
-							className="rounded-full object-cover flex-shrink-0"
-							style={{
-								width: 40,
-								height: 40,
-								boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
-							}}
+						<BrandMark
+							size="sm"
+							subtitle="radar anomali smart money"
+							showTagline={false}
 						/>
-						<div>
-							<h1
-								className="text-base sm:text-lg font-bold leading-none tracking-wide"
-								style={{
-									fontFamily: "var(--font-playfair), Georgia, serif",
-									color: "#e2e8f0",
-									letterSpacing: "0.01em",
-								}}
-							>
-								Cerita{" "}
-								<span
-									style={{
-										color: "#D4AF37",
-										fontStyle: "italic",
-										background:
-											"linear-gradient(135deg, #D4AF37 0%, #F5D876 50%, #B8860B 100%)",
-										WebkitBackgroundClip: "text",
-										WebkitTextFillColor: "transparent",
-										backgroundClip: "text",
-									}}
-								>
-									Saham
-								</span>
-							</h1>
-							<p
-								className="text-[10px] mt-0.5 hidden sm:block"
-								style={{ color: "#64748b" }}
-							>
-								Financial Dashboard
-							</p>
-						</div>
 					</Link>
 
 					{/* Nav links Ã¢â‚¬â€ desktop */}

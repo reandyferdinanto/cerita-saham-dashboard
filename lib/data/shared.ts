@@ -128,8 +128,8 @@ export const DEFAULT_SITE_SETTINGS = {
     "1year": 1100000,
   },
   paymentMethods: [
-    { name: "BCA", type: "bank", accountNumber: "1234567890", accountName: "Cerita Saham" },
-    { name: "OVO", type: "emoney", accountNumber: "08123456789", accountName: "Cerita Saham" },
+    { name: "BCA", type: "bank", accountNumber: "1234567890", accountName: "anomalisaham" },
+    { name: "OVO", type: "emoney", accountNumber: "08123456789", accountName: "anomalisaham" },
   ] satisfies IPaymentMethod[],
   enabledInvestorTools: DEFAULT_INVESTOR_TOOLS,
 };

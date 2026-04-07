@@ -55,7 +55,7 @@ async function requestGroq(prompt: string) {
         {
           role: "system",
           content:
-            "Anda adalah analis Cerita Saham untuk investor ritel Indonesia. Filosofi Anda bukan mengejar saham blue-chip yang sudah terlalu obvious, tetapi membaca apakah ada cerita gerak, akumulasi, support yang dijaga, ruang markup, atau justru harga sudah terlalu tinggi untuk dikejar. Tulis ringkasan singkat, jujur, mudah dicerna, dan fokus pada kualitas setup serta risk/reward entry. Jangan terdengar seperti promosi. Jika setup belum menarik, katakan dengan jelas.",
+            "Anda adalah analis anomalisaham untuk investor ritel Indonesia. Filosofi Anda bukan mengejar saham blue-chip yang sudah terlalu jelas dilihat banyak orang, tetapi membaca apakah ada anomali gerak, akumulasi, support yang dijaga, ruang markup, atau justru harga sudah terlalu tinggi untuk dikejar. Tulis ringkasan singkat, jujur, mudah dicerna, dan fokus pada kualitas setup serta risk/reward entry. Jangan terdengar seperti promosi. Jika setup belum menarik, katakan dengan jelas.",
         },
         { role: "user", content: prompt },
       ],
@@ -122,7 +122,7 @@ function buildFallbackBrief(args: { context: AiContext; news: NewsItem[] }) {
   return [
     `${args.context.ticker.replace(".JK", "")} (${args.context.name}) diperdagangkan di sekitar Rp ${args.context.price.toLocaleString("id-ID")} dengan perubahan ${args.context.changePercent.toFixed(2)}% pada sesi terakhir.`,
     `Kesimpulan teknikal saat ini: ${args.context.technicalConclusionTitle}. Skor teknikal berada di ${args.context.technicalScore}/100${args.context.rsi !== null ? ` dengan RSI ${args.context.rsi.toFixed(1)}` : ""}.`,
-    `Dalam kacamata Cerita Saham, fokusnya bukan sekadar apakah tren sedang hijau, tetapi apakah entry masih enak. Support terdekat: ${supportText}. Resistance terdekat: ${resistanceText}.`,
+    `Dalam kacamata anomalisaham, fokusnya bukan sekadar apakah tren sedang hijau, tetapi apakah entry masih enak. Support terdekat: ${supportText}. Resistance terdekat: ${resistanceText}.`,
     `Dari sisi berita, ${tone}. ${args.context.technicalConclusionBody}`,
     args.news.length > 0 ? ["Poin yang layak dipantau:", ...args.news.slice(0, 3).map((item) => `- ${item.title}`)].join("\n") : "Belum ada berita spesifik yang cukup kuat untuk mengubah narasi utama saham ini.",
   ].join("\n\n");
@@ -170,7 +170,7 @@ export async function POST(req: NextRequest) {
 
   const prompt = [
     `Buat stock brief untuk investor ritel Indonesia tentang ${context.ticker.replace(".JK", "")} (${context.name}).`,
-    "Pakai filosofi Cerita Saham: utamakan pembacaan kualitas setup, posisi harga, area entry, support yang dijaga, ruang ke resistance, potensi markup, atau tanda bahwa harga sudah terlalu panas untuk dikejar.",
+    "Pakai filosofi anomalisaham: utamakan pembacaan kualitas setup, posisi harga, area entry, support yang dijaga, ruang ke resistance, potensi markup, atau tanda bahwa harga sudah terlalu panas untuk dikejar.",
     `Harga saat ini Rp ${context.price.toLocaleString("id-ID")} dengan perubahan ${context.changePercent.toFixed(2)}%. Range hari terakhir sekitar ${context.dayRangePercent.toFixed(2)}%.`,
     `Posisi 90 hari: high Rp ${context.ninetyDayHigh.toLocaleString("id-ID")}, low Rp ${context.ninetyDayLow.toLocaleString("id-ID")}.`,
     `Sinyal teknikal inti: ${context.technicalLabel}, skor ${context.technicalScore}/100, action bias ${context.technicalAction}, kesimpulan ${context.technicalConclusionTitle}.`,

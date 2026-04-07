@@ -181,7 +181,7 @@ async function generateArticleDraft(
   externalContext?: { quoteSummary?: string; technicalSummary?: string; newsSummary?: string }
 ) {
   const systemPrompt = [
-    "Anda adalah asisten editorial untuk admin Cerita Saham.",
+    "Anda adalah asisten editorial untuk admin anomalisaham.",
     "Tulis draft artikel berbahasa Indonesia yang rapi, mudah dibaca, dan siap diedit admin.",
     "Gunakan paragraf pendek dan bullet list bila ada beberapa poin penting.",
     "Jika ada sentimen news, rangkum secara hati-hati tanpa melebih-lebihkan.",

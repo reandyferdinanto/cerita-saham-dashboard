@@ -464,7 +464,7 @@ export default function TradingSimulator() {
                   <h2 className="text-2xl font-black flex items-center gap-2 tracking-wide text-silver-100">
                     CRTA <span className="border border-white/20 text-[10px] bg-white/5 px-1.5 py-0.5 rounded text-silver-300 font-semibold tracking-normal">Virtual</span>
                   </h2>
-                  <p className="text-xs text-silver-400 mt-0.5">Cerita Saham Tbk.</p>
+                  <p className="text-xs text-silver-400 mt-0.5">anomalisaham Labs</p>
                </div>
                <div className="w-10 h-10 rounded-full bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
                  <IconLogo className="w-5 h-5" />

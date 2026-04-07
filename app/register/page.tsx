@@ -3,8 +3,8 @@
 import { useState, FormEvent, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
 import { useAuth } from "@/components/ui/AuthProvider";
+import BrandMark from "@/components/ui/BrandMark";
 
 interface Settings {
   membershipPrices: { "3months": number; "6months": number; "1year": number };
@@ -74,13 +74,7 @@ export default function RegisterPage() {
       <div className="w-full max-w-md space-y-6">
         {/* Logo */}
         <div className="flex flex-col items-center gap-3">
-          <Image src="/logo-CS.png" alt="Cerita Saham" width={52} height={52} className="rounded-full" />
-          <h1 className="text-xl font-bold" style={{ fontFamily: "var(--font-playfair)", color: "#e2e8f0" }}>
-            Daftar{" "}
-            <span style={{ background: "linear-gradient(135deg,#D4AF37,#F5D876,#B8860B)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", fontStyle: "italic" }}>
-              Member
-            </span>
-          </h1>
+          <BrandMark size="md" align="center" subtitle="daftar untuk membuka radar akumulasi" />
           <p className="text-sm text-center" style={{ color: "#64748b" }}>Pilih paket, daftar, dan transfer sesuai nominal</p>
         </div>
 

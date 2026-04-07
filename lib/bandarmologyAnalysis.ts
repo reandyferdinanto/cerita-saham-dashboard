@@ -539,7 +539,7 @@ export async function analyzeBandarmologyTicker(ticker: string, nameHint?: strin
     sections: {
       overview: `${normalizedTicker.replace(".JK", "")} sedang berada pada fase "${phaseInfo.phase}". Harga ${formatPct(priceVsMa20)} vs MA20 dan ${formatPct(priceVsMa50)} vs MA50, dengan skor teknikal ${technical.score}/100. Ini memberi konteks awal apakah pergerakan saham didorong demand sehat atau hanya pantulan jangka pendek.`,
       accumulationDistribution: phaseInfo.phase === "Support dikunci bandar"
-        ? `Harga sedang dekat support dan belum dijatuhkan, sementara rasio volume naik/turun ${upDownVolumeRatio?.toFixed(2) || "-"}x serta OBV 20 hari masih menanjak. Dalam filosofi Cerita Saham, ini lebih menarik karena menunjukkan saham murah yang kemungkinan sedang dipelihara, bukan sekadar menunggu breakout yang sudah telat.`
+        ? `Harga sedang dekat support dan belum dijatuhkan, sementara rasio volume naik/turun ${upDownVolumeRatio?.toFixed(2) || "-"}x serta OBV 20 hari masih menanjak. Dalam filosofi anomalisaham, kondisi seperti ini menarik karena menunjukkan ada barang yang kemungkinan sedang dipelihara, bukan sekadar menunggu breakout yang sudah telat.`
         : phaseInfo.phase === "Sideways akumulasi senyap"
           ? `Harga tampak sideways dan tidak heboh, tetapi OBV/A-D line belum ikut melemah. Ini cocok dengan pola akumulasi diam-diam: bandar belum perlu mengerek harga dulu, cukup serap supply sambil menjaga range tetap tenang.`
           : phaseInfo.tone === "bullish"
@@ -552,15 +552,15 @@ export async function analyzeBandarmologyTicker(ticker: string, nameHint?: strin
       operatorFootprint: phaseInfo.phase === "Support dikunci bandar"
         ? `Harga sedang relatif dekat area support ${primarySupport ? primarySupport.toLocaleString("id-ID") : "terdekat"} dan belum dijebol, sementara OBV/A-D line masih menanjak. Ini lebih cocok dibaca sebagai support yang sedang dikunci sambil supply diserap, jadi ada peluang markup ke resistance tanpa harus menunggu candle breakout dulu.`
         : phaseInfo.phase === "Sideways akumulasi senyap"
-          ? `Pergerakan harga masih kelihatan membosankan, tetapi justru itu yang sering dicari dalam gaya Cerita Saham. Selama volume tidak menunjukkan distribusi besar dan aliran akumulasi tetap bertahan, sideways seperti ini bisa menjadi area parkir bandar sebelum gerak berikutnya.`
+          ? `Pergerakan harga masih kelihatan membosankan, tetapi justru itu yang sering dicari dalam gaya anomalisaham. Selama volume tidak menunjukkan distribusi besar dan aliran akumulasi tetap bertahan, sideways seperti ini bisa menjadi area parkir bandar sebelum gerak berikutnya.`
         : pullbackLightVolume
-        ? `Pullback terakhir cenderung terjadi dengan volume lebih ringan dibanding hari-hari naik. Dalam kerangka Cerita Saham, ini sering dibaca sebagai koreksi sehat, karena tekanan jual tidak terlalu agresif dan barang tidak dibuang besar-besaran.`
+        ? `Pullback terakhir cenderung terjadi dengan volume lebih ringan dibanding hari-hari naik. Dalam kerangka anomalisaham, ini sering dibaca sebagai koreksi sehat, karena tekanan jual tidak terlalu agresif dan barang tidak dibuang besar-besaran.`
         : phaseInfo.phase === "Akumulasi di support"
           ? `Harga sedang relatif dekat area support ${primarySupport ? primarySupport.toLocaleString("id-ID") : "terdekat"} dan belum dijebol, sementara OBV/A-D line masih menanjak. Ini lebih cocok dibaca sebagai support yang sedang dikunci sambil supply diserap diam-diam, bukan sekadar sideways pasif.`
         : phaseInfo.phase === "False breakout risk"
           ? `Harga memang terlihat dekat atau sempat melewati area pecah, tetapi jejak operator belum rapi karena follow-through volume belum solid. Ini sering menjadi ciri false breakout: harga tampak kuat sebentar, lalu cepat kehilangan tenaga.`
           : `Pullback tidak cukup ringan, atau hari-hari turun masih membawa volume yang cukup besar. Itu berarti jejak bandar belum sepenuhnya bersih dari distribusi jangka pendek, sehingga entry agresif sebaiknya ditahan dulu.`,
-      ryanFilbertLens: `Lensa Cerita Saham menaruh perhatian lebih besar pada saham murah yang sedang dijaga di support, sideways rapi sambil akumulasi, atau mulai masuk markup dini. Fokusnya bukan mencari saham paling aman atau paling trend-following, tetapi mencari jejak supply-demand yang menunjukkan bandar belum selesai kumpul barang dan masih punya alasan mendorong harga dalam waktu dekat.`,
+      ryanFilbertLens: `Lensa anomalisaham menaruh perhatian lebih besar pada saham yang sedang dijaga di support, sideways rapi sambil akumulasi, atau mulai masuk markup dini. Fokusnya bukan mencari saham paling aman atau paling trend-following, tetapi mencari jejak supply-demand yang menunjukkan bandar belum selesai kumpul barang dan masih punya alasan mendorong harga dalam waktu dekat.`,
       executionPlan: phaseInfo.tone === "bullish"
         ? breakoutHasTriggered
           ? `Rencana eksekusi: karena harga sudah melewati area breakout ${Math.round(highest20).toLocaleString("id-ID")}, fokus berikutnya adalah menjaga area itu sebagai support baru. Entry tambahan lebih aman saat pullback tertahan di support ${supports[0] ? supports[0].toLocaleString("id-ID") : "terdekat"} atau saat harga melanjutkan gerak ke target resistance ${primaryResistance ? primaryResistance.toLocaleString("id-ID") : "berikutnya"} dengan volume tetap sehat.`
@@ -594,7 +594,7 @@ export async function analyzeBandarmologyTicker(ticker: string, nameHint?: strin
     assumptions: [
       "Analisa memakai data harga dan volume publik harian yang tersedia di aplikasi.",
       "Tidak memakai broker summary atau distribusi broker proprietary.",
-      "Kerangka dibangun sebagai adaptasi bandarmology yang diarahkan ke filosofi Cerita Saham: mencari saham murah yang sedang dijaga, diakumulasi diam-diam, atau siap masuk markup dini.",
+      "Kerangka dibangun sebagai adaptasi bandarmology yang diarahkan ke filosofi anomalisaham: mencari saham yang sedang dijaga, diakumulasi diam-diam, atau siap masuk markup dini.",
     ],
   };
 }

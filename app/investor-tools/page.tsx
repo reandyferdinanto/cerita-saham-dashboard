@@ -1,4 +1,4 @@
-﻿
+
 "use client";
 
 import Link from "next/link";
@@ -72,27 +72,14 @@ type StockSplitResult = {
   newValue: number;
   ratioText: string;
 };
-type InvestorScreenerRow = {
+type RadarWatchlistRow = {
   ticker: string;
   name: string;
+  tp: number | null;
+  sl: number | null;
+  bandarmology: string;
   price: number;
   changePercent: number;
-  score: number;
-  conviction: number;
-  technicalScore: number;
-  accumulationBias: number;
-  breakoutReadiness: number;
-  phase: string;
-  operatorBias: string;
-  actionBias: string;
-  reasons: string[];
-  support: number[];
-  resistance: number[];
-};
-type InvestorScreenerResponse = {
-  preset: string;
-  priceBucket: string;
-  rows: InvestorScreenerRow[];
 };
 type ToolKey =
   | "overview"
@@ -105,23 +92,16 @@ type ToolKey =
 const currency = (value: number) => `Rp ${value.toLocaleString("id-ID")}`;
 const shortTicker = (ticker: string) => ticker.replace(".JK", "");
 const INVESTOR_SCREENER_PRESETS = [
-  { value: "under300", label: "Under 300", note: "Radar utama untuk saham murah yang masih dijaga." },
-  { value: "support", label: "Support Lock", note: "Cari support yang dikunci sambil supply diserap." },
-  { value: "sideways", label: "Sideways Senyap", note: "Cari sideways rapi dengan akumulasi diam-diam." },
-  { value: "markup", label: "Markup Dini", note: "Cari kandidat yang mulai siap diangkat." },
+  { value: "under300", label: "Harga Murah", note: "Radar utama untuk saham murah yang masih dijaga." },
 ] as const;
 const PRICE_BUCKET_OPTIONS = [
-  { value: "under200", label: "<200" },
-  { value: "under300", label: "<300" },
-  { value: "200to500", label: "200-500" },
-  { value: "above500", label: ">500" },
   { value: "all", label: "Semua" },
 ] as const;
 const TOOL_LABELS: Record<ToolKey, string> = {
   overview: "Overview",
   aiBrief: "AI Brief",
   riskCalculator: "Risk Calculator",
-  investorScreener: "Radar Kandidat",
+  investorScreener: "Radar Watchlist",
   rightsIssueCalculator: "Right Issue",
   stockSplitCalculator: "Stock Split",
 };
@@ -148,11 +128,10 @@ export default function InvestorToolsPage() {
     "stockSplitCalculator",
     "investorScreener",
   ]);
-  const [screenerPreset, setScreenerPreset] = useState<(typeof INVESTOR_SCREENER_PRESETS)[number]["value"]>("under300");
-  const [screenerPriceBucket, setScreenerPriceBucket] = useState<"all" | "under200" | "under300" | "200to500" | "above500">("under300");
+
   const [screenerLoading, setScreenerLoading] = useState(false);
   const [screenerError, setScreenerError] = useState("");
-  const [screenerRows, setScreenerRows] = useState<InvestorScreenerRow[]>([]);
+  const [screenerRows, setScreenerRows] = useState<RadarWatchlistRow[]>([]);
 
   useEffect(() => {
     fetch("/api/admin/settings")
@@ -174,19 +153,26 @@ export default function InvestorToolsPage() {
       try {
         setScreenerLoading(true);
         setScreenerError("");
-        const res = await fetch(
-          `/api/investor/screener?preset=${encodeURIComponent(screenerPreset)}&priceBucket=${encodeURIComponent(screenerPriceBucket)}&limit=6`,
-          { cache: "no-store" }
+        const wlRes = await fetch("/api/watchlist");
+        const wlData = await wlRes.json();
+        
+        const rows = await Promise.all(
+          (Array.isArray(wlData) ? wlData : []).map(async (stock: any) => {
+            try {
+              const quoteRes = await fetch(`/api/stocks/quote/${encodeURIComponent(stock.ticker)}`);
+              const quote = await quoteRes.json();
+              return { ...stock, price: quote.price || 0, changePercent: quote.changePercent || 0 };
+            } catch {
+              return { ...stock, price: 0, changePercent: 0 };
+            }
+          })
         );
-        const data = (await res.json()) as InvestorScreenerResponse | { error?: string };
-        if (!res.ok || !("rows" in data)) {
-          throw new Error(("error" in data && data.error) || "Screener investor gagal dimuat");
-        }
-        if (!cancelled) setScreenerRows(Array.isArray(data.rows) ? data.rows : []);
+        
+        if (!cancelled) setScreenerRows(rows);
       } catch (error) {
         if (!cancelled) {
           setScreenerRows([]);
-          setScreenerError(error instanceof Error ? error.message : "Screener investor gagal dimuat");
+          setScreenerError(error instanceof Error ? error.message : "Radar watchlist gagal dimuat");
         }
       } finally {
         if (!cancelled) setScreenerLoading(false);
@@ -197,13 +183,13 @@ export default function InvestorToolsPage() {
     return () => {
       cancelled = true;
     };
-  }, [enabledTools, screenerPreset, screenerPriceBucket, user]);
+  }, [enabledTools, user]);
 
   const enabledToolCards = useMemo(() => {
     const cards: Array<{ key: ToolKey; eyebrow: string; title: string; desc: string; accent: string }> = [
-      { key: "aiBrief", eyebrow: "Baca cepat", title: "AI Brief Cerita Saham", desc: "Ringkasan yang tidak cuma bilang bullish atau bearish, tapi apakah setup-nya masih enak disentuh sekarang.", accent: "#fb923c" },
+      { key: "aiBrief", eyebrow: "Baca cepat", title: "AI Brief anomalisaham", desc: "Ringkasan yang tidak cuma bilang bullish atau bearish, tapi apakah setup-nya masih enak disentuh sekarang.", accent: "#fb923c" },
       { key: "riskCalculator", eyebrow: "Jaga risiko", title: "Risk Calculator", desc: "Masukkan lots, entry, TP, dan SL lalu lihat apakah skenarionya realistis terhadap support-resistance.", accent: "#c084fc" },
-      { key: "investorScreener", eyebrow: "Cari kandidat", title: "Radar Kandidat", desc: "Shortlist saham murah, support lock, sideways senyap, dan markup dini sesuai filosofi Cerita Saham.", accent: "#10b981" },
+      { key: "investorScreener", eyebrow: "Pantau kandidat", title: "Radar Watchlist", desc: "Shortlist dari watchlist aktif Anda, lengkap dengan akses cepat ke AI Brief dan kalkulasi skenario.", accent: "#10b981" },
       { key: "rightsIssueCalculator", eyebrow: "Corporate action", title: "Right Issue", desc: "Hitung saham tambahan, biaya tebus, dan average price baru tanpa ribet hitung manual.", accent: "#86efac" },
       { key: "stockSplitCalculator", eyebrow: "Corporate action", title: "Stock Split", desc: "Lihat dampak split ke jumlah saham dan harga teoritis supaya tidak salah baca value portofolio.", accent: "#93c5fd" },
     ];
@@ -211,7 +197,7 @@ export default function InvestorToolsPage() {
     return cards.filter((card) => enabledTools.includes(card.key));
   }, [enabledTools]);
 
-  const screenerPresetMeta = INVESTOR_SCREENER_PRESETS.find((item) => item.value === screenerPreset);
+
   const handleGenerateBrief = async (event: FormEvent) => {
     event.preventDefault();
     setAiBriefLoading(true);
@@ -238,6 +224,11 @@ export default function InvestorToolsPage() {
     event.preventDefault();
     setErrorMessage("");
     setActiveTool("riskCalculator");
+
+    if (Number(riskForm.entryPrice) > 0 && Number(riskForm.stopLoss) >= Number(riskForm.entryPrice)) {
+      setErrorMessage("Level Stop Loss tidak boleh sama atau lebih tinggi dari harga Entry.");
+      return;
+    }
 
     try {
       const res = await fetch("/api/investor/risk", {
@@ -357,7 +348,7 @@ export default function InvestorToolsPage() {
     return (
       <GlassCard hover={false}>
         <h1 className="text-2xl font-bold text-silver-100">Investor Tools</h1>
-        <p className="text-silver-400 mt-2">Masuk dulu untuk membuka workspace investor Cerita Saham.</p>
+        <p className="text-silver-400 mt-2">Masuk dulu untuk membuka workspace investor anomalisaham.</p>
         <Link href="/login" className="inline-block mt-4 px-4 py-2 rounded-xl text-sm font-semibold" style={{ background: "linear-gradient(135deg,#ea580c,#fb923c)", color: "#fff" }}>
           Masuk Sekarang
         </Link>
@@ -371,20 +362,20 @@ export default function InvestorToolsPage() {
         <div className="absolute inset-y-0 right-0 w-1/2 pointer-events-none" style={{ background: "radial-gradient(circle at center, rgba(16,185,129,0.12), transparent 55%)" }} />
         <div className="relative grid grid-cols-1 xl:grid-cols-[1.25fr_0.9fr] gap-6 items-start">
           <div>
-            <p className="text-[11px] uppercase tracking-[0.24em] text-orange-400">Cerita Saham Investor Workspace</p>
+            <p className="text-[11px] uppercase tracking-[0.24em] text-orange-400">anomalisaham Investor Workspace</p>
             <h1 className="text-3xl md:text-4xl font-bold text-silver-100 mt-2 leading-tight">Tools yang membantu membaca cerita gerak, bukan cuma menghitung angka.</h1>
-            <p className="text-sm text-silver-400 mt-3 max-w-2xl leading-7">Mulai dari radar kandidat, cek AI brief dengan konteks Cerita Saham, lalu kunci skenario entry lewat risk calculator. Semua dibuat lebih cepat dibaca dan lebih dekat ke workflow real investor ritel.</p>
+            <p className="text-sm text-silver-400 mt-3 max-w-2xl leading-7">Mulai dari radar kandidat, cek AI brief dengan konteks anomalisaham, lalu kunci skenario entry lewat risk calculator. Semua dibuat lebih cepat dibaca dan lebih dekat ke workflow real investor ritel.</p>
             <div className="flex flex-wrap gap-2 mt-5">
-              {["Overview", "AI lebih kontekstual", "Risk plan lebih cepat", "Radar kandidat member"].map((item) => (
+              {["Overview", "AI lebih kontekstual", "Risk plan lebih cepat", "Radar watchlist member"].map((item) => (
                 <span key={item} className="px-3 py-1.5 rounded-full text-xs font-semibold" style={{ background: "rgba(255,255,255,0.04)", color: "#cbd5e1", border: "1px solid rgba(226,232,240,0.08)" }}>{item}</span>
               ))}
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <HeroMetric title="Mulai dari" value="Radar Kandidat" helper="Buka shortlist dulu sebelum tenggelam di detail." accent="#10b981" />
+            <HeroMetric title="Mulai dari" value="Radar Watchlist" helper="Buka shortlist dulu sebelum tenggelam di detail." accent="#10b981" />
             <HeroMetric title="AI Brief" value="Lebih Smart" helper="Baca setup, bukan sekadar sentimen generik." accent="#fb923c" />
             <HeroMetric title="Risk Plan" value="1 Halaman" helper="Entry, TP, SL, dan level pembanding jadi lebih cepat." accent="#c084fc" />
-            <HeroMetric title="Filosofi" value="Cerita Saham" helper="Fokus ke kualitas area entry dan ruang gerak." accent="#93c5fd" />
+            <HeroMetric title="Filosofi" value="anomalisaham" helper="Fokus ke anomali akumulasi dan kualitas area entry." accent="#93c5fd" />
           </div>
         </div>
       </section>
@@ -414,9 +405,9 @@ export default function InvestorToolsPage() {
         </GlassCard>
 
         <GlassCard hover={false}>
-          <SectionTitle title="Cara Pakai Cepat" subtitle="Urutan yang paling aman untuk workflow harian investor Cerita Saham." />
+          <SectionTitle title="Cara Pakai Cepat" subtitle="Urutan yang paling aman untuk workflow harian investor anomalisaham." />
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <WorkflowCard step="1" title="Scan kandidat" body="Mulai dari Radar Kandidat untuk cari nama yang murah, dijaga, atau mulai ada cerita markup." accent="#10b981" />
+            <WorkflowCard step="1" title="Scan kandidat" body="Mulai dari Radar Watchlist untuk merangkum hasil kerja watchlist Anda secara cepat." accent="#10b981" />
             <WorkflowCard step="2" title="Baca konteks" body="Buka AI Brief untuk tahu apakah setup-nya masih enak, terlalu panas, atau justru masih layak pantau." accent="#fb923c" />
             <WorkflowCard step="3" title="Kunci skenario" body="Masuk ke Risk Calculator agar entry, TP, dan SL lebih realistis terhadap level teknikal." accent="#c084fc" />
           </div>
@@ -430,52 +421,12 @@ export default function InvestorToolsPage() {
       {enabledTools.includes("investorScreener") ? (
         <GlassCard hover={false}>
           <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 mb-5">
-            <SectionTitle title="Radar Kandidat Member" subtitle="Shortlist pembuka sebelum Anda masuk ke AI brief atau kalkulasi risiko. Semua preset ini mengikuti filosofi Cerita Saham." />
+            <SectionTitle title="Radar Watchlist Member" subtitle="Shortlist otomatis dari watchlist Anda sebelum masuk ke AI brief atau kalkulasi risiko." />
             <button type="button" onClick={() => setActiveTool("investorScreener")} className="px-4 py-2 rounded-xl text-sm font-semibold self-start" style={{ background: "rgba(16,185,129,0.12)", color: "#86efac", border: "1px solid rgba(16,185,129,0.22)" }}>
               Fokus ke Radar
             </button>
           </div>
-          <div className="flex flex-wrap gap-2 mb-3">
-            {INVESTOR_SCREENER_PRESETS.map((preset) => (
-              <button
-                key={preset.value}
-                type="button"
-                onClick={() => {
-                  setScreenerPreset(preset.value);
-                  setActiveTool("investorScreener");
-                }}
-                className="px-3 py-2 rounded-xl text-xs font-semibold transition-all"
-                style={{
-                  background: screenerPreset === preset.value ? "rgba(249,115,22,0.14)" : "rgba(255,255,255,0.03)",
-                  color: screenerPreset === preset.value ? "#fb923c" : "#94a3b8",
-                  border: `1px solid ${screenerPreset === preset.value ? "rgba(249,115,22,0.24)" : "rgba(226,232,240,0.06)"}`,
-                }}
-              >
-                {preset.label}
-              </button>
-            ))}
-          </div>
-          <div className="flex flex-wrap gap-2 mb-4">
-            {PRICE_BUCKET_OPTIONS.map((bucket) => (
-              <button
-                key={bucket.value}
-                type="button"
-                onClick={() => {
-                  setScreenerPriceBucket(bucket.value);
-                  setActiveTool("investorScreener");
-                }}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
-                style={{
-                  background: screenerPriceBucket === bucket.value ? "rgba(16,185,129,0.14)" : "rgba(255,255,255,0.02)",
-                  color: screenerPriceBucket === bucket.value ? "#86efac" : "#94a3b8",
-                  border: `1px solid ${screenerPriceBucket === bucket.value ? "rgba(16,185,129,0.24)" : "rgba(226,232,240,0.05)"}`,
-                }}
-              >
-                {bucket.label}
-              </button>
-            ))}
-          </div>
-          <p className="text-xs text-silver-500 mb-4">{screenerPresetMeta?.note}</p>
+          <p className="text-xs text-silver-500 mb-4">Radar utama untuk saham-saham pilihan yang sedang Anda pantau.</p>
           {screenerLoading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">{Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-36 rounded-2xl animate-pulse" style={{ background: "rgba(255,255,255,0.04)" }} />)}</div>
           ) : screenerError ? (
@@ -489,17 +440,29 @@ export default function InvestorToolsPage() {
                       <p className="text-sm font-bold text-silver-100">{row.ticker}</p>
                       <p className="text-xs text-silver-500 mt-1 line-clamp-2">{row.name}</p>
                     </div>
-                    <span className="text-[10px] px-2 py-1 rounded-lg font-semibold" style={{ background: "rgba(249,115,22,0.14)", color: "#fb923c" }}>{row.phase}</span>
+                    {row.changePercent !== undefined && (
+                      <span className="text-[10px] px-2 py-1 rounded-lg font-semibold" style={{ background: row.changePercent >= 0 ? "rgba(16,185,129,0.14)" : "rgba(248,113,113,0.14)", color: row.changePercent >= 0 ? "#86efac" : "#fca5a5" }}>
+                        {row.changePercent > 0 ? "+" : ""}{row.changePercent.toFixed(2)}%
+                      </span>
+                    )}
                   </div>
                   <div className="grid grid-cols-3 gap-2 mt-4">
-                    <MiniStat label="Harga" value={currency(row.price)} />
-                    <MiniStat label="Conviction" value={String(row.conviction)} accent="#10b981" />
-                    <MiniStat label="Teknikal" value={String(row.technicalScore)} accent="#93c5fd" />
+                    <MiniStat label="Harga" value={currency(row.price || 0)} />
+                    <MiniStat label="Target" value={row.tp ? currency(row.tp) : "-"} accent="#10b981" />
+                    <MiniStat label="Stop Loss" value={row.sl ? currency(row.sl) : "-"} accent="#fca5a5" />
                   </div>
-                  <p className="text-xs text-silver-400 mt-4 leading-6">{row.reasons[0] || "Kandidat ini lolos radar Cerita Saham."}</p>
+                  <p className="text-xs text-silver-400 mt-4 leading-6 line-clamp-2">{row.bandarmology || "Tidak ada catatan khusus."}</p>
                   <div className="flex flex-wrap gap-2 mt-4">
                     <button type="button" onClick={() => { setBriefTicker(row.ticker); setActiveTool("aiBrief"); }} className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: "rgba(249,115,22,0.14)", color: "#fb923c", border: "1px solid rgba(249,115,22,0.2)" }}>Brief-kan</button>
-                    <button type="button" onClick={() => { void handleRiskTickerChange(row.ticker); setActiveTool("riskCalculator"); }} className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: "rgba(168,85,247,0.14)", color: "#d8b4fe", border: "1px solid rgba(168,85,247,0.2)" }}>Buat Skenario</button>
+                    <button type="button" onClick={() => { 
+                      void handleRiskTickerChange(row.ticker); 
+                      setRiskForm(c => ({
+                        ...c, 
+                        targetPrice: row.tp ? String(row.tp) : "",
+                        stopLoss: row.sl ? String(row.sl) : ""
+                      }));
+                      setActiveTool("riskCalculator"); 
+                    }} className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: "rgba(168,85,247,0.14)", color: "#d8b4fe", border: "1px solid rgba(168,85,247,0.2)" }}>Buat Skenario</button>
                   </div>
                 </div>
               ))}
@@ -510,7 +473,7 @@ export default function InvestorToolsPage() {
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         {enabledTools.includes("aiBrief") ? (
           <GlassCard hover={false}>
-            <SectionTitle title="AI Stock Brief" subtitle="Brief ini sekarang dibangun dengan konteks teknikal, support-resistance, dan gaya baca Cerita Saham." />
+            <SectionTitle title="AI Stock Brief" subtitle="Brief ini sekarang dibangun dengan konteks teknikal, support-resistance, dan gaya baca anomalisaham." />
             <div className="flex flex-wrap gap-2 mb-4">
               {["LABS", "WIFI", "BRMS", "DOID"].map((ticker) => (
                 <button key={ticker} type="button" onClick={() => { setBriefTicker(ticker); setActiveTool("aiBrief"); }} className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: briefTicker === ticker ? "rgba(249,115,22,0.14)" : "rgba(255,255,255,0.03)", color: briefTicker === ticker ? "#fb923c" : "#94a3b8", border: `1px solid ${briefTicker === ticker ? "rgba(249,115,22,0.22)" : "rgba(226,232,240,0.06)"}` }}>
@@ -530,7 +493,7 @@ export default function InvestorToolsPage() {
                   <div className="flex flex-wrap items-center gap-3 mb-4">
                     <p className="text-sm font-bold text-silver-100">{shortTicker(aiBrief.ticker)} - {aiBrief.name}</p>
                     <span className="text-xs px-2 py-1 rounded-full" style={{ background: aiBrief.usedAI ? "rgba(16,185,129,0.14)" : "rgba(59,130,246,0.14)", color: aiBrief.usedAI ? "#86efac" : "#93c5fd" }}>
-                      {aiBrief.usedAI ? "Cerita Saham AI" : "Brief Otomatis"}
+                      {aiBrief.usedAI ? "anomalisaham AI" : "Brief Otomatis"}
                     </span>
                     <span className="text-xs text-silver-400">{currency(aiBrief.quote.price)} · {aiBrief.quote.changePercent.toFixed(2)}%</span>
                   </div>
@@ -586,8 +549,18 @@ export default function InvestorToolsPage() {
               </div>
               <Input type="number" value={riskForm.entryPrice} onChange={(value) => setRiskForm((current) => ({ ...current, entryPrice: value }))} placeholder="Harga entry" />
               <Input type="number" value={riskForm.targetPrice} onChange={(value) => setRiskForm((current) => ({ ...current, targetPrice: value }))} placeholder="Target TP" />
-              <Input type="number" value={riskForm.stopLoss} onChange={(value) => setRiskForm((current) => ({ ...current, stopLoss: value }))} placeholder="Level SL" />
-              <button type="submit" className="px-4 py-2 rounded-xl text-sm font-semibold" style={{ background: "rgba(168,85,247,0.16)", color: "#d8b4fe", border: "1px solid rgba(168,85,247,0.25)" }}>
+              <div className="flex flex-col gap-1">
+                <Input type="number" value={riskForm.stopLoss} onChange={(value) => setRiskForm((current) => ({ ...current, stopLoss: value }))} placeholder="Level SL" />
+                {Number(riskForm.stopLoss) > 0 && Number(riskForm.entryPrice) > 0 && Number(riskForm.stopLoss) >= Number(riskForm.entryPrice) && (
+                  <p className="text-[11px] text-red-400 pt-1">Error: Stop loss tidak boleh sama atau lebih tinggi dari entry</p>
+                )}
+              </div>
+              <button 
+                type="submit" 
+                disabled={Number(riskForm.stopLoss) > 0 && Number(riskForm.entryPrice) > 0 && Number(riskForm.stopLoss) >= Number(riskForm.entryPrice)}
+                className="px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed" 
+                style={{ background: "rgba(168,85,247,0.16)", color: "#d8b4fe", border: "1px solid rgba(168,85,247,0.25)" }}
+              >
                 Hitung Skenario
               </button>
             </form>
@@ -736,7 +709,7 @@ function BriefContent({ text }: { text: string }) {
             <div key={index} className="space-y-2">
               {lines.map((line, lineIndex) => (
                 <div key={lineIndex} className="flex items-start gap-2 text-sm text-silver-300 leading-7">
-                  <span style={{ color: "#fb923c" }}>•</span>
+                  <span style={{ color: "#fb923c" }}>&bull;</span>
                   <span>{line.replace(/^[-*]\s*/, "").replace(/^\d+\.\s*/, "")}</span>
                 </div>
               ))}

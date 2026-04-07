@@ -13,7 +13,15 @@ export async function GET(req: NextRequest) {
     const priceBucket = (req.nextUrl.searchParams.get("priceBucket") as PriceBucket) || "under300";
     const limit = Math.min(Number(req.nextUrl.searchParams.get("limit") || 8), 12);
     const candidateLimit = Math.min(Number(req.nextUrl.searchParams.get("candidateLimit") || (priceBucket === "under200" || priceBucket === "under300" ? 200 : 150)), 260);
-    const filtered = await getBandarmologyScreener({ preset, priceBucket, limit, candidateLimit });
+    const forceRefresh = req.nextUrl.searchParams.get("forceRefresh") === "1";
+    const filtered = await getBandarmologyScreener({
+      preset,
+      priceBucket,
+      limit,
+      candidateLimit,
+      preferSnapshot: !forceRefresh,
+      persistSnapshot: true,
+    });
 
     return NextResponse.json(
       filtered,

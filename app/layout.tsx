@@ -5,8 +5,17 @@ import { AuthProvider } from "@/components/ui/AuthProvider";
 import AdminAssistantPopup from "@/components/ui/AdminAssistantPopup";
 
 export const metadata: Metadata = {
-  title: "Cerita Saham - Financial Dashboard",
-  description: "Stock watchlist dashboard with bandarmology analysis",
+  title: "anomalisaham - Radar Akumulasi dan Bandarmology IDX",
+  description: "Radar saham IDX untuk membaca akumulasi senyap, support yang dijaga, dan bandarmology berbasis price-volume.",
+  icons: {
+    icon: [
+      { url: "/animali saham-logo-1.png", type: "image/png" },
+    ],
+    apple: [
+      { url: "/animali saham-logo-1.png", type: "image/png" },
+    ],
+    shortcut: "/animali saham-logo-1.png",
+  },
 };
 
 export default function RootLayout({

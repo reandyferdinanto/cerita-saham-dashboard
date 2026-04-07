@@ -8,8 +8,9 @@ import { AdminUsersPageContent } from "@/app/admin/users/page";
 import AdminWatchlistPanel from "@/app/admin/AdminWatchlistPanel";
 import AdminBandarmologyPanel from "@/app/admin/AdminBandarmologyPanel";
 import AdminStockSummaryPanel from "@/app/admin/AdminStockSummaryPanel";
+import AdminSmartMoneyPanel from "@/app/admin/AdminSmartMoneyPanel";
 
-type AdminTab = "watchlist" | "bandarmology" | "stock-summary" | "articles" | "members";
+type AdminTab = "watchlist" | "bandarmology" | "stock-summary" | "smart-money" | "articles" | "members";
 
 const TAB_CONFIG: Array<{
   id: AdminTab;
@@ -33,6 +34,11 @@ const TAB_CONFIG: Array<{
     description: "Upload summary IDX, baca akumulasi lokal dan foreign, lalu bandingkan dengan chart harga.",
   },
   {
+    id: "smart-money",
+    label: "Smart Money",
+    description: "Deteksi kebiasaan smart money: akumulasi awal, markup siap, distribusi — dari data harga dan volume historis.",
+  },
+  {
     id: "articles",
     label: "Artikel",
     description: "Tulis, edit, dan kembangkan artikel berita dengan AI.",
@@ -49,7 +55,7 @@ function resolveTab(pathname: string, tabParam: string | null): AdminTab {
   if (pathname === "/admin/articles") return "articles";
   if (pathname === "/admin/users") return "members";
   if (tabParam === "broker-summary") return "stock-summary";
-  if (tabParam === "articles" || tabParam === "members" || tabParam === "watchlist" || tabParam === "bandarmology" || tabParam === "stock-summary") return tabParam;
+  if (tabParam === "articles" || tabParam === "members" || tabParam === "watchlist" || tabParam === "bandarmology" || tabParam === "stock-summary" || tabParam === "smart-money") return tabParam as AdminTab;
   return "watchlist";
 }
 
@@ -84,6 +90,14 @@ function TabIcon({ tab }: { tab: AdminTab }) {
     return (
       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-6m3 6V7m3 10v-4m4 6H3a2 2 0 01-2-2V5a2 2 0 012-2h18a2 2 0 012 2v12a2 2 0 01-2 2z" />
+      </svg>
+    );
+  }
+
+  if (tab === "smart-money") {
+    return (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
       </svg>
     );
   }
@@ -229,6 +243,7 @@ export default function AdminControlCenter() {
       {activeTab === "watchlist" ? <AdminWatchlistPanel /> : null}
       {activeTab === "bandarmology" ? <AdminBandarmologyPanel /> : null}
       {activeTab === "stock-summary" ? <AdminStockSummaryPanel /> : null}
+      {activeTab === "smart-money" ? <AdminSmartMoneyPanel /> : null}
       {activeTab === "articles" ? <AdminArticlesPageContent embedded /> : null}
       {activeTab === "members" ? <AdminUsersPageContent embedded /> : null}
     </div>

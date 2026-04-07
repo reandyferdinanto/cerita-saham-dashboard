@@ -182,14 +182,15 @@ export default function GuidancePage() {
 
         <div className="relative z-10 max-w-4xl">
           <span className="inline-flex text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-4" style={{ background: "rgba(249,115,22,0.15)", color: "#fb923c", border: "1px solid rgba(249,115,22,0.25)" }}>
-            Panduan Pengguna Cerita Saham
+            Panduan Pengguna anomalisaham
           </span>
 
-          <h1 className="text-2xl sm:text-3xl font-bold text-silver-100 leading-tight">Panduan Lengkap untuk Pengguna Baru</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-silver-100 leading-tight">Panduan Membaca Anomali yang Belum Ramai</h1>
           <p className="text-sm sm:text-base text-silver-400 leading-relaxed mt-3 max-w-3xl">
-            Halaman ini menjelaskan cara memakai Cerita Saham dari awal, mulai dari login dan membership,
-            membaca dashboard, mencari saham, memahami watchlist, memakai investor tools, sampai membaca
-            sinyal teknikal dan catatan bandarmology dengan cara yang sederhana.
+            Halaman ini menjelaskan cara memakai anomalisaham dari awal, mulai dari login dan membership,
+            membaca dashboard, mencari kandidat, memahami watchlist, memakai investor tools, sampai membaca
+            sinyal teknikal dan catatan bandarmology dengan sudut pandang yang lebih tajam: mencari jejak
+            akumulasi smart money saat pasar belum terlalu ramai melihatnya.
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-6">
@@ -213,42 +214,43 @@ export default function GuidancePage() {
       </div>
 
       <div>
-        <HighlightTitle icon={<IconGuide className="w-5 h-5" />}>Filosofi Cerita Saham</HighlightTitle>
+        <HighlightTitle icon={<IconGuide className="w-5 h-5" />}>Filosofi anomalisaham</HighlightTitle>
         <GlassCard hover={false} className="!p-5 sm:!p-6">
           <div className="space-y-4">
             <p className="text-sm text-silver-300 leading-relaxed">
-              Cerita Saham dibangun dengan gagasan bahwa membaca saham bukan hanya melihat angka, tetapi
-              memahami <span className="text-orange-400 font-semibold">cerita di balik pergerakan harga</span>.
-              Harga bergerak karena ada kombinasi sentimen, kondisi pasar, perilaku pelaku pasar, berita,
-              ekspektasi, dan reaksi terhadap level teknikal. Karena itu aplikasi ini tidak dirancang untuk
-              memberi sinyal instan semata, tetapi untuk membantu Anda menyusun konteks sebelum mengambil keputusan.
+              anomalisaham dibangun dari gagasan bahwa peluang sering muncul saat pergerakan harga
+              terlihat <span className="text-orange-400 font-semibold">tidak menarik di permukaan, tetapi janggal di balik volume dan struktur harga</span>.
+              Yang dicari bukan saham yang sudah jelas dan telanjur ramai, melainkan fase ketika support terlihat dijaga,
+              range sideways tetap rapi, tekanan jual tidak terlalu dalam, tetapi jejak akumulasi justru mulai muncul.
+              Karena itu aplikasi ini tidak diarahkan untuk memberi sinyal instan, melainkan membantu Anda membaca
+              konteks sebelum pasar luas menyadari ada sesuatu yang sedang dibangun.
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FeatureCard icon={<IconChart className="w-5 h-5 text-orange-400" />} title="Harga adalah cerita, bukan angka tunggal">
-                <Bullet>Pergerakan harga dilihat bersama chart, support, resistance, dan perubahan momentum.</Bullet>
-                <Bullet>Tujuannya agar user tidak terpaku pada satu candle atau satu warna merah-hijau saja.</Bullet>
+              <FeatureCard icon={<IconChart className="w-5 h-5 text-orange-400" />} title="Anomali lahir dari ketidaksinkronan">
+                <Bullet>Kami mencari momen ketika harga terlihat sepi, tetapi support tetap dipelihara dan aliran volume tidak benar-benar lepas.</Bullet>
+                <Bullet>Ketidaksinkronan antara tampilan chart yang membosankan dan jejak akumulasi inilah yang disebut anomali.</Bullet>
               </FeatureCard>
 
-              <FeatureCard icon={<IconSearch className="w-5 h-5 text-orange-400" />} title="Analisis harus punya konteks">
-                <Bullet>Satu saham tidak dibaca sendirian. Kondisi IHSG, sentimen global, dan berita emiten ikut memengaruhi pembacaan.</Bullet>
-                <Bullet>Karena itu dashboard, berita, technical signal, dan detail saham saling melengkapi.</Bullet>
+              <FeatureCard icon={<IconSearch className="w-5 h-5 text-orange-400" />} title="Yang dicari adalah jejak smart money">
+                <Bullet>Sideways tidak selalu berarti lemah. Kadang itu area parkir barang sebelum markup ketika supply masih diserap perlahan.</Bullet>
+                <Bullet>Fokus utama ada pada support lock, sideways senyap, reclaim awal, dan markup dini yang belum tampak heboh.</Bullet>
               </FeatureCard>
 
-              <FeatureCard icon={<IconShield className="w-5 h-5 text-orange-400" />} title="Risiko datang sebelum profit">
-                <Bullet>Filosofi aplikasi ini menempatkan manajemen risiko sebagai langkah awal, bukan tambahan belakangan.</Bullet>
-                <Bullet>Sebelum memikirkan target profit, user didorong menentukan area salah, batas rugi, dan ukuran posisi.</Bullet>
+              <FeatureCard icon={<IconShield className="w-5 h-5 text-orange-400" />} title="Anomali tetap harus dibaca dengan disiplin">
+                <Bullet>Sinyal yang menarik bukan alasan masuk serampangan. Support, invalidasi, dan risk/reward tetap harus dihitung dulu.</Bullet>
+                <Bullet>Jika anomali belum cukup kuat atau harga sudah terlalu jauh dari area aman, keputusan terbaik tetap bisa menunggu.</Bullet>
               </FeatureCard>
 
-              <FeatureCard icon={<IconUser className="w-5 h-5 text-orange-400" />} title="Belajar berpikir, bukan sekadar ikut sinyal">
-                <Bullet>Watchlist, AI brief, dan technical signal adalah alat bantu membaca situasi, bukan pengganti keputusan pribadi.</Bullet>
-                <Bullet>Pemula diharapkan pelan-pelan membangun proses analisis sendiri dengan bantuan fitur yang ada.</Bullet>
+              <FeatureCard icon={<IconUser className="w-5 h-5 text-orange-400" />} title="Belajar melihat peluang sebelum ramai">
+                <Bullet>Watchlist, AI brief, dan radar kandidat dipakai untuk menyaring saham yang punya alasan gerak, bukan untuk mengejar nama yang sudah terlambat.</Bullet>
+                <Bullet>Pemula diarahkan membangun kebiasaan membaca fase, area, dan jejak operator sebelum mengambil keputusan sendiri.</Bullet>
               </FeatureCard>
             </div>
 
             <p className="text-xs text-silver-500 leading-relaxed">
-              Intinya, Cerita Saham ingin membantu Anda lebih disiplin membaca pasar: lihat gambaran besar dulu,
-              pahami cerita sahamnya, tentukan skenario, lalu ambil keputusan dengan sadar risiko.
+              Intinya, anomalisaham membantu Anda membaca pasar dengan urutan yang lebih sehat:
+              lihat konteks besar dulu, cari anomali struktur dan akumulasi, tentukan skenario, lalu ambil keputusan dengan sadar risiko.
             </p>
           </div>
         </GlassCard>
@@ -290,9 +292,9 @@ export default function GuidancePage() {
               <StepRow num={4} title="Masuk ke akun" desc="Login memakai email dan nomor telepon yang didaftarkan. Jika membership aktif, Anda akan bisa membuka halaman analisis member." />
             </div>
             <div className="space-y-4">
-              <StepRow num={5} title="Pakai Cari Saham untuk riset" desc="Cari saham berdasarkan kode atau nama emiten. Dari sini Anda bisa membaca chart, fundamental, berita emiten, dan sinyal teknikal." />
-              <StepRow num={6} title="Gunakan Watchlist untuk monitoring" desc="Watchlist dipakai untuk memantau saham yang sudah dipilih, lengkap dengan TP, SL, dan catatan bandarmology." />
-              <StepRow num={7} title="Gunakan Investor Tools untuk simulasi keputusan" desc="AI Brief, Risk Calculator, Right Issue Calculator, dan Stock Split Calculator membantu Anda memahami skenario sebelum mengambil keputusan." />
+              <StepRow num={5} title="Pakai Cari Saham untuk scan anomali" desc="Cari saham berdasarkan kode atau nama emiten. Dari sini Anda bisa membaca chart, fundamental, berita emiten, dan apakah ada struktur support-lock atau sideways akumulasi." />
+              <StepRow num={6} title="Gunakan Watchlist untuk monitoring" desc="Watchlist dipakai untuk memantau saham yang sudah masuk radar, lengkap dengan TP, SL, dan catatan bandarmology." />
+              <StepRow num={7} title="Gunakan Investor Tools untuk memvalidasi setup" desc="AI Brief, Risk Calculator, Right Issue Calculator, dan Stock Split Calculator membantu Anda menilai apakah anomali yang terlihat memang layak disentuh." />
               <StepRow num={8} title="Baca Panduan dan Simulasi" desc="Halaman Panduan menjelaskan cara memakai fitur. Halaman Simulasi membantu memahami average down, average up, pyramiding, dan money management." />
             </div>
           </div>
@@ -312,8 +314,8 @@ export default function GuidancePage() {
           <FeatureCard icon={<IconSearch className="w-5 h-5 text-orange-400" />} title="Cari Saham" subtitle="Pusat riset saham IDX">
             <Bullet>Ketik kode saham seperti <code>BBCA</code> atau nama perusahaan, lalu pilih hasil yang muncul.</Bullet>
             <Bullet>Setelah saham dipilih, Anda akan melihat harga live, chart, fundamental, berita terkait, dan technical signal.</Bullet>
-            <Bullet>Timeframe tersedia dari intraday sampai swing agar cocok untuk trader harian maupun swing trader.</Bullet>
-            <Bullet>Halaman ini juga menampilkan saham populer/top gainer yang bisa dijadikan ide riset awal.</Bullet>
+            <Bullet>Timeframe tersedia dari intraday sampai swing agar cocok untuk membaca area build-up maupun gerak lanjutan.</Bullet>
+            <Bullet>Halaman ini juga menampilkan kandidat populer yang bisa dijadikan ide riset awal sebelum masuk ke analisa lebih dalam.</Bullet>
           </FeatureCard>
 
           <FeatureCard icon={<IconWatchlist className="w-5 h-5 text-orange-400" />} title="Watchlist" subtitle="Halaman pemantauan saham pilihan">
@@ -330,7 +332,7 @@ export default function GuidancePage() {
           </FeatureCard>
 
           <FeatureCard icon={<IconTools className="w-5 h-5 text-orange-400" />} title="Investor Tools" subtitle="Alat bantu keputusan">
-            <Bullet><code>AI Stock Brief</code> membuat ringkasan cepat mengenai saham tertentu berdasarkan harga, konteks teknikal, dan berita.</Bullet>
+            <Bullet><code>AI Stock Brief</code> membuat ringkasan cepat mengenai saham tertentu berdasarkan harga, konteks teknikal, berita, dan kualitas setup.</Bullet>
             <Bullet><code>Risk Calculator</code> menghitung nilai posisi, profit potensial, loss maksimal, serta rasio risk/reward berdasarkan lots, entry, TP, dan SL.</Bullet>
             <Bullet><code>Right Issue Calculator</code> membantu menghitung dampak HMETD terhadap jumlah saham dan average price baru.</Bullet>
             <Bullet><code>Stock Split Calculator</code> membantu melihat jumlah saham baru dan harga teoritis setelah stock split.</Bullet>
@@ -371,7 +373,7 @@ export default function GuidancePage() {
             <div className="space-y-3">
               <h3 className="text-sm font-bold text-orange-400">4. Technical Signal</h3>
               <Bullet>Panel ini merangkum beberapa indikator seperti RSI, MACD, moving average, dan support/resistance.</Bullet>
-              <Bullet>Hasil seperti <code>BUY</code>, <code>SELL</code>, atau <code>WAIT</code> adalah rangkuman mesin analisis, bukan sinyal wajib diikuti mentah-mentah.</Bullet>
+              <Bullet>Hasil seperti <code>BUY</code>, <code>SELL</code>, atau <code>WAIT</code> adalah rangkuman mesin analisis, bukan sinyal wajib. Di anomalisaham, label itu tetap harus dibaca bersama fase dan area entry.</Bullet>
 
               <h3 className="text-sm font-bold text-orange-400 pt-2">5. Fundamental</h3>
               <Bullet>Bagian fundamental membantu memahami valuasi, profitabilitas, profil perusahaan, kepemilikan, dan rekomendasi analis jika data tersedia.</Bullet>
@@ -420,9 +422,9 @@ export default function GuidancePage() {
           <div className="space-y-4">
             <StepRow num={1} title="Lihat pasar dulu, jangan langsung entry" desc="Mulai dari Dashboard. Lihat apakah IHSG sedang menguat, melemah, atau sideway. Cek juga berita pasar dan sentimen global." />
             <StepRow num={2} title="Pilih saham yang ingin diamati" desc="Masuk ke Cari Saham, cari ticker yang Anda minati, lalu periksa harga, chart, fundamental, technical signal, dan berita emitennya." />
-            <StepRow num={3} title="Tentukan skenario sebelum transaksi" desc="Gunakan Investor Tools, terutama Risk Calculator, untuk mengetahui batas rugi, target, dan rasio risk/reward." />
-            <StepRow num={4} title="Pantau saham yang sudah masuk radar" desc="Gunakan Watchlist untuk memonitor saham yang sudah dipilih. Perhatikan apakah harga mendekati TP, SL, support, atau resistance." />
-            <StepRow num={5} title="Evaluasi, jangan hanya menghafal sinyal" desc="Cocokkan sinyal teknikal dengan volume, sentimen berita, dan konteks pasar secara umum. Tujuannya adalah membentuk proses berpikir, bukan bergantung ke satu indikator." />
+            <StepRow num={3} title="Cari anomali yang masuk akal" desc="Perhatikan apakah support dijaga, range masih tenang, volume turun tidak agresif, atau ada tanda akumulasi yang belum terlalu terlihat." />
+            <StepRow num={4} title="Tentukan skenario sebelum transaksi" desc="Gunakan Investor Tools, terutama Risk Calculator, untuk mengetahui batas rugi, target, dan rasio risk/reward." />
+            <StepRow num={5} title="Pantau saham yang sudah masuk radar" desc="Gunakan Watchlist untuk memonitor saham yang sudah dipilih. Perhatikan apakah harga mendekati TP, SL, support, atau resistance." />
           </div>
         </GlassCard>
       </div>
@@ -494,7 +496,7 @@ export default function GuidancePage() {
           <div>
             <p className="text-xs font-bold text-red-400 uppercase tracking-wider mb-1">Disclaimer</p>
             <p className="text-xs text-silver-400 leading-relaxed">
-              Cerita Saham adalah alat bantu analisis dan pembelajaran. Semua data, ringkasan, chart, sinyal teknikal,
+              anomalisaham adalah alat bantu analisis dan pembelajaran. Semua data, ringkasan, chart, sinyal teknikal,
               berita, watchlist, dan catatan bandarmology di aplikasi ini <strong className="text-silver-300">bukan
               rekomendasi beli atau jual</strong>. Gunakan aplikasi ini untuk membantu proses berpikir, lalu tetap
               lakukan riset mandiri sebelum mengambil keputusan investasi atau trading.

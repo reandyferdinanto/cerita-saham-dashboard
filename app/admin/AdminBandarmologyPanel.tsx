@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 type SearchResult = {
@@ -113,17 +113,17 @@ type ScreenerPreset =
   | "stealth_rotation";
 
 const CORE_PRESETS: Array<{ value: ScreenerPreset; label: string; description: string }> = [
-  { value: "under300_focus", label: "Under 300", description: "Radar utama untuk saham murah yang masih punya jejak akumulasi." },
-  { value: "support_lock", label: "Support Lock", description: "Support dijaga sambil supply diserap perlahan." },
-  { value: "sideways_accumulation", label: "Sideways Senyap", description: "Sideways rapi dengan akumulasi diam-diam." },
-  { value: "early_markup", label: "Markup Dini", description: "Mulai siap didorong ke resistance atau breakout pendek." },
-  { value: "demand_surge", label: "Demand Surge", description: "Tekanan beli mulai muncul lebih agresif." },
+  { value: "under300_focus", label: "Harga Murah", description: "Radar utama untuk saham murah yang masih punya jejak akumulasi." },
+  { value: "support_lock", label: "Support Dijaga", description: "Cari saham yang support-nya dijaga sambil barang diserap perlahan." },
+  { value: "sideways_accumulation", label: "Sideways Rapi", description: "Cari saham yang bergerak tenang, tetapi akumulasinya mulai terbaca." },
+  { value: "early_markup", label: "Mulai Naik", description: "Cari saham yang mulai siap didorong ke resistance terdekat." },
+  { value: "demand_surge", label: "Beli Menguat", description: "Tekanan beli mulai terlihat lebih kuat dari tekanan jual." },
 ];
 
 const RESEARCH_PRESETS: Array<{ value: ScreenerPreset; label: string; description: string }> = [
-  { value: "washout_reclaim", label: "Washout Reclaim", description: "Sempat ditekan, tetapi mulai direbut kembali tanpa distribusi berat." },
-  { value: "markup_scout", label: "Scout Markup", description: "Mencari kandidat yang belum meledak, tetapi sudah dekat fase angkat." },
-  { value: "stealth_rotation", label: "Rotasi Senyap", description: "Rotasi bandar yang belum ramai dan belum terlalu obvious." },
+  { value: "washout_reclaim", label: "Rebut Balik", description: "Sempat ditekan, tetapi mulai diangkat lagi tanpa tekanan jual besar." },
+  { value: "markup_scout", label: "Siap Naik", description: "Mencari kandidat yang belum jalan jauh, tetapi sudah dekat fase angkat." },
+  { value: "stealth_rotation", label: "Perpindahan Senyap", description: "Perpindahan minat bandar yang belum ramai dan belum banyak dilihat." },
 ];
 
 function getPresetMeta(preset: ScreenerPreset) {
@@ -164,6 +164,7 @@ export default function AdminBandarmologyPanel() {
   const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
   const [screenerPreset, setScreenerPreset] = useState<ScreenerPreset>("under300_focus");
   const [screenerLoading, setScreenerLoading] = useState(false);
+  const [screenerRefreshing, setScreenerRefreshing] = useState(false);
   const [screenerUniverseSize, setScreenerUniverseSize] = useState<number | null>(null);
   const [screenerBucketUniverseSize, setScreenerBucketUniverseSize] = useState<number | null>(null);
   const [screenerAnalyzedUniverseSize, setScreenerAnalyzedUniverseSize] = useState<number | null>(null);
@@ -202,6 +203,7 @@ export default function AdminBandarmologyPanel() {
   }>>([]);
   const [snapshotDate, setSnapshotDate] = useState<string | null>(null);
   const [snapshotSource, setSnapshotSource] = useState<"fresh" | "snapshot" | null>(null);
+  const [usedFallbackRows, setUsedFallbackRows] = useState(false);
   const [screenerError, setScreenerError] = useState("");
   const [backtest, setBacktest] = useState<BacktestResponse | null>(null);
   const [backtestLoading, setBacktestLoading] = useState(false);
@@ -273,50 +275,53 @@ export default function AdminBandarmologyPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestedTicker]);
 
-  useEffect(() => {
-    let cancelled = false;
+  const loadScreener = useCallback(async (options?: { forceRefresh?: boolean; silent?: boolean }) => {
+    const forceRefresh = options?.forceRefresh ?? false;
+    const silent = options?.silent ?? false;
 
-    async function loadScreener() {
-      try {
-        setScreenerLoading(true);
-        setScreenerError("");
-        const res = await fetch(`/api/watchlist/bandarmology/screener?preset=${encodeURIComponent(screenerPreset)}&priceBucket=${encodeURIComponent(priceBucket)}`, {
-          cache: "no-store",
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data.error || "Gagal memuat screener");
-        }
-        if (!cancelled) {
-          setScreenerUniverseSize(typeof data.universeSize === "number" ? data.universeSize : null);
-          setScreenerBucketUniverseSize(typeof data.bucketUniverseSize === "number" ? data.bucketUniverseSize : null);
-          setScreenerAnalyzedUniverseSize(typeof data.analyzedUniverseSize === "number" ? data.analyzedUniverseSize : null);
-          setScreenerRows(Array.isArray(data.rows) ? data.rows : []);
-          setSnapshotDate(typeof data.snapshotDate === "string" ? data.snapshotDate : null);
-          setSnapshotSource(data.snapshotSource === "snapshot" || data.snapshotSource === "fresh" ? data.snapshotSource : null);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setScreenerError(err instanceof Error ? err.message : "Gagal memuat screener");
-          setScreenerUniverseSize(null);
-          setScreenerBucketUniverseSize(null);
-          setScreenerAnalyzedUniverseSize(null);
-          setScreenerRows([]);
-          setSnapshotDate(null);
-          setSnapshotSource(null);
-        }
-      } finally {
-        if (!cancelled) {
-          setScreenerLoading(false);
-        }
+    try {
+      if (forceRefresh) setScreenerRefreshing(true);
+      if (!silent) setScreenerLoading(true);
+      setScreenerError("");
+      const query = new URLSearchParams({
+        preset: screenerPreset,
+        priceBucket,
+      });
+      if (forceRefresh) query.set("forceRefresh", "1");
+
+      const res = await fetch(`/api/watchlist/bandarmology/screener?${query.toString()}`, {
+        cache: "no-store",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Gagal memuat screener");
       }
-    }
 
-    loadScreener();
-    return () => {
-      cancelled = true;
-    };
-  }, [screenerPreset, priceBucket]);
+      setScreenerUniverseSize(typeof data.universeSize === "number" ? data.universeSize : null);
+      setScreenerBucketUniverseSize(typeof data.bucketUniverseSize === "number" ? data.bucketUniverseSize : null);
+      setScreenerAnalyzedUniverseSize(typeof data.analyzedUniverseSize === "number" ? data.analyzedUniverseSize : null);
+      setScreenerRows(Array.isArray(data.rows) ? data.rows : []);
+      setSnapshotDate(typeof data.snapshotDate === "string" ? data.snapshotDate : null);
+      setSnapshotSource(data.snapshotSource === "snapshot" || data.snapshotSource === "fresh" ? data.snapshotSource : null);
+      setUsedFallbackRows(Boolean(data.usedFallback));
+    } catch (err) {
+      setScreenerError(err instanceof Error ? err.message : "Gagal memuat screener");
+      setScreenerUniverseSize(null);
+      setScreenerBucketUniverseSize(null);
+      setScreenerAnalyzedUniverseSize(null);
+      setScreenerRows([]);
+      setSnapshotDate(null);
+      setSnapshotSource(null);
+      setUsedFallbackRows(false);
+    } finally {
+      if (forceRefresh) setScreenerRefreshing(false);
+      if (!silent) setScreenerLoading(false);
+    }
+  }, [priceBucket, screenerPreset]);
+
+  useEffect(() => {
+    void loadScreener();
+  }, [loadScreener]);
 
   useEffect(() => {
     let cancelled = false;
@@ -435,6 +440,7 @@ export default function AdminBandarmologyPanel() {
         setScreenerRows(Array.isArray(screenerData.rows) ? screenerData.rows : []);
         setSnapshotDate(typeof screenerData.snapshotDate === "string" ? screenerData.snapshotDate : null);
         setSnapshotSource(screenerData.snapshotSource === "snapshot" || screenerData.snapshotSource === "fresh" ? screenerData.snapshotSource : null);
+        setUsedFallbackRows(Boolean(screenerData.usedFallback));
       }
     } catch (err) {
       setStockMasterError(err instanceof Error ? err.message : "Gagal sync stock master");
@@ -483,7 +489,7 @@ export default function AdminBandarmologyPanel() {
           <div className="max-w-3xl">
             <h2 className="text-lg font-bold text-silver-100">Analisa Bandarmology</h2>
             <p className="text-sm text-silver-400 mt-2 leading-relaxed">
-              Tab ini membaca saham dengan filosofi Cerita Saham: fokus ke saham under 300 atau rotational yang sedang
+              Tab ini membaca saham dengan filosofi anomalisaham: fokus ke saham under 300 atau rotational yang sedang
               dijaga di support, sideways sambil akumulasi, atau mulai masuk markup dini. Analisa ini memakai data publik
               yang tersedia di aplikasi, jadi fungsinya sebagai kerangka baca detail untuk admin, bukan broker summary proprietary.
             </p>
@@ -543,7 +549,7 @@ export default function AdminBandarmologyPanel() {
           <div>
             <h3 className="text-lg font-bold text-silver-100">Screener Saham Ideal</h3>
             <p className="text-sm text-silver-400 mt-2 leading-relaxed">
-              Screener ini sengaja dibelokkan ke filosofi Cerita Saham: bukan mencari saham paling aman atau paling
+              Screener ini sengaja dibelokkan ke filosofi anomalisaham: bukan mencari saham paling aman atau paling
               blue-chip, tetapi mencari saham murah yang sedang ditahan, diakumulasi diam-diam, atau siap masuk markup.
             </p>
           </div>
@@ -602,16 +608,16 @@ export default function AdminBandarmologyPanel() {
           <PresetGroup
             title="Preset Inti"
             subtitle="Preset utama untuk mencari saham murah yang sedang ditahan, parkir, atau mulai diangkat."
-            badge="Cerita Saham Core"
+            badge="Anomali Core"
             badgeTone="blue"
             presets={CORE_PRESETS}
             activePreset={screenerPreset}
             onSelect={setScreenerPreset}
           />
           <PresetGroup
-            title="Preset Lanjutan"
-            subtitle="Preset lanjutan untuk pola washout reclaim, scout markup, dan rotasi bandar yang lebih senyap."
-            badge="Cerita Saham Advanced"
+            title="Preset Tambahan"
+            subtitle="Preset tambahan untuk pola rebut balik, siap naik, dan perpindahan bandar yang lebih senyap."
+            badge="Anomali Tambahan"
             badgeTone="orange"
             presets={RESEARCH_PRESETS}
             activePreset={screenerPreset}
@@ -659,13 +665,27 @@ export default function AdminBandarmologyPanel() {
             </div>
             <div className="px-3 py-2 rounded-xl text-[11px] font-semibold" style={{ background: snapshotSource === "snapshot" ? "rgba(16,185,129,0.12)" : "rgba(59,130,246,0.12)", color: snapshotSource === "snapshot" ? "#6ee7b7" : "#93c5fd", border: snapshotSource === "snapshot" ? "1px solid rgba(16,185,129,0.18)" : "1px solid rgba(59,130,246,0.18)" }}>
               {snapshotDate
-                ? `Snapshot ${snapshotDate} · ${snapshotSource === "snapshot" ? "dibaca dari cache harian" : "baru dihitung dan disimpan"}`
+                ? `Snapshot ${snapshotDate} · ${snapshotSource === "snapshot" ? "dibaca dari cache harian" : "baru dihitung dari data terbaru"}`
                 : "Snapshot harian akan dibuat otomatis setelah scan berhasil."}
             </div>
+            <button
+              type="button"
+              onClick={() => void loadScreener({ forceRefresh: true })}
+              disabled={screenerRefreshing || screenerLoading}
+              className="px-3 py-2 rounded-xl text-[11px] font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
+              style={{ background: "rgba(14,165,233,0.12)", color: "#7dd3fc", border: "1px solid rgba(14,165,233,0.18)" }}
+            >
+              {screenerRefreshing ? "Refresh sedang jalan..." : "Refresh Screener dari Yahoo"}
+            </button>
           </div>
         </div>
 
         {screenerError ? <p className="text-sm text-red-400">{screenerError}</p> : null}
+        {usedFallbackRows ? (
+          <div className="rounded-xl px-3 py-2 text-[11px] font-semibold" style={{ background: "rgba(245,158,11,0.10)", color: "#fcd34d", border: "1px solid rgba(245,158,11,0.18)" }}>
+            Filter preset hari ini terlalu ketat, jadi screener menampilkan kandidat terdekat yang masih layak dipantau.
+          </div>
+        ) : null}
 
         <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(226,232,240,0.06)" }}>
           <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
@@ -726,7 +746,7 @@ export default function AdminBandarmologyPanel() {
                   <div className="space-y-2 mt-3">
                     <p className="text-xs text-silver-300">Hit rate menunjukkan berapa persen kandidat sempat memberi ruang profit 5% dalam 5 hari setelah masuk shortlist.</p>
                     <p className="text-xs text-silver-300">Avg max gain membantu membandingkan preset mana yang paling layak untuk momentum scan.</p>
-                    <p className="text-xs text-silver-300">Avg max drawdown membantu melihat preset mana yang relatif lebih “tenang” untuk dipantau.</p>
+                    <p className="text-xs text-silver-300">Avg max drawdown membantu melihat preset mana yang relatif lebih &quot;tenang&quot; untuk dipantau.</p>
                   </div>
                 </div>
               </div>
@@ -742,7 +762,14 @@ export default function AdminBandarmologyPanel() {
           </div>
         ) : (
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-            {screenerRows.map((row) => {
+            {screenerRows.length === 0 ? (
+              <div className="xl:col-span-2 rounded-2xl p-5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(226,232,240,0.06)" }}>
+                <p className="text-sm font-semibold text-silver-100">Belum ada kandidat yang cocok</p>
+                <p className="text-sm text-silver-400 mt-2 leading-relaxed">
+                  Hari ini belum ada saham yang cukup dekat dengan kriteria preset ini. Coba ganti preset, ubah bucket harga, atau klik refresh untuk ambil data Yahoo terbaru.
+                </p>
+              </div>
+            ) : screenerRows.map((row) => {
               const style = toneStyles(row.tone);
               return (
                 <div key={row.ticker} className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(226,232,240,0.06)" }}>
@@ -794,7 +821,7 @@ export default function AdminBandarmologyPanel() {
                     <div className="mt-2 space-y-1.5">
                       {row.reasons.map((reason) => (
                         <div key={reason} className="flex items-start gap-2">
-                          <span className="text-orange-400 mt-0.5">•</span>
+                          <span className="text-orange-400 mt-0.5">&bull;</span>
                           <p className="text-xs text-silver-400">{reason}</p>
                         </div>
                       ))}
@@ -838,7 +865,7 @@ export default function AdminBandarmologyPanel() {
                         <p className="text-xs font-semibold text-silver-200">Analisis teknikal</p>
                         <p className="text-[11px] text-silver-500 mt-1">Buka detail MA, RSI, volume, OBV, A/D, support, dan resistance.</p>
                       </div>
-                      <span className="text-xs text-orange-300 group-open:rotate-180 transition-transform">▼</span>
+                      <span className="text-xs text-orange-300 group-open:rotate-180 transition-transform">▾</span>
                     </summary>
                     <div className="px-3 pb-3">
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
@@ -906,7 +933,7 @@ export default function AdminBandarmologyPanel() {
           <div className="rounded-2xl p-5" style={{ background: tone?.bg, border: `1px solid ${tone?.border}` }}>
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div>
-                <p className="text-xs uppercase tracking-[0.2em] font-bold" style={{ color: tone?.color }}>Lensa Cerita Saham</p>
+                <p className="text-xs uppercase tracking-[0.2em] font-bold" style={{ color: tone?.color }}>Lensa anomalisaham</p>
                 <h3 className="text-xl font-bold text-silver-100 mt-2">{analysis.ticker.replace(".JK", "")} · {analysis.name}</h3>
               </div>
               <span className="px-3 py-1 rounded-full text-xs font-bold" style={{ background: "rgba(255,255,255,0.08)", color: "#f8fafc" }}>
@@ -957,7 +984,7 @@ export default function AdminBandarmologyPanel() {
             <div className="mt-3 space-y-2">
               {analysis.assumptions.map((item) => (
                 <div key={item} className="flex items-start gap-2">
-                  <span className="text-orange-400 mt-0.5">•</span>
+                  <span className="text-orange-400 mt-0.5">&bull;</span>
                   <p className="text-sm text-silver-400">{item}</p>
                 </div>
               ))}

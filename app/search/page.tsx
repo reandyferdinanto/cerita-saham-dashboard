@@ -156,7 +156,7 @@ function SearchPageInner() {
   );
   const hasOnlyHiddenBankResults = results.length > 0 && visibleResults.length === 0;
 
-  // Debounced search — auto-add .JK
+  // Debounced search â€” auto-add .JK
   const handleSearch = useCallback((searchQuery: string) => {
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     const trimmed = searchQuery.trim();
@@ -289,7 +289,7 @@ function SearchPageInner() {
       }
 
       await fetchChart(ticker, activeTimeframe, livePrice);
-      // Fetch news + fundamental in parallel — don't await
+      // Fetch news + fundamental in parallel â€” don't await
       fetchStockNews(ticker, companyName);
       fetchFundamental(ticker);
     },
@@ -313,7 +313,7 @@ function SearchPageInner() {
     void selectStock(`${normalizedQuery}.JK`);
   }, [query, results, selectStock]);
 
-  // ── Auto-select from URL param ?q=BBCA ──────────────────────────────────────
+  // â”€â”€ Auto-select from URL param ?q=BBCA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     if (initializedRef.current) return;
     const q = searchParams.get("q");
@@ -330,7 +330,7 @@ function SearchPageInner() {
     fetchPopularStocks();
   }, [fetchPopularStocks]);
 
-  // Re-fetch when timeframe changes — pass current live price
+  // Re-fetch when timeframe changes â€” pass current live price
   useEffect(() => {
     if (selectedTicker && quote?.price) {
       fetchChart(selectedTicker, activeTimeframe, quote.price);
@@ -353,7 +353,7 @@ function SearchPageInner() {
           <span style={{ color: "#fb923c" }}>Saham</span>
         </h1>
         <p className="text-sm mt-1" style={{ color: "#64748b" }}>
-          Radar Cerita Saham untuk berburu kandidat yang lagi punya cerita gerak, bukan sekadar ticker besar yang itu-itu saja.
+          Radar anomalisaham untuk mencari kandidat yang support-nya dijaga, sideways-nya rapi, dan akumulasinya mulai terasa.
         </p>
       </div>
 
@@ -595,7 +595,7 @@ function SearchPageInner() {
                 </div>
               </div>
 
-              {/* Timeframe groups — scrollable on mobile */}
+              {/* Timeframe groups â€” scrollable on mobile */}
               <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
                 <div className="flex items-center gap-0.5 rounded-lg p-0.5 flex-shrink-0" style={{ background: "rgba(6,78,59,0.25)", border: "1px solid rgba(16,185,129,0.08)" }}>
                   <span className="text-[10px] px-1.5 font-medium flex-shrink-0" style={{ color: "#334155" }}>Intraday</span>
@@ -633,7 +633,7 @@ function SearchPageInner() {
                   <div className="text-center">
                     <p className="text-sm" style={{ color: "#64748b" }}>Memuat data chart...</p>
                     <p className="text-xs mt-0.5" style={{ color: "#334155" }}>
-                      {selectedTicker?.replace(".JK", "")} · {activeTimeframe.label}
+                      {selectedTicker?.replace(".JK", "")} Â· {activeTimeframe.label}
                     </p>
                   </div>
                 </div>
@@ -676,16 +676,16 @@ function SearchPageInner() {
             </GlassCard>
           )}
 
-          {/* ── Data Grid (Technical, News, Fundamental, Analyst) ── */}
+          {/* â”€â”€ Data Grid (Technical, News, Fundamental, Analyst) â”€â”€ */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
             {/* Left Column */}
             <div className="space-y-5 flex flex-col">
-              {/* ── Sinyal Teknikal ── */}
+              {/* â”€â”€ Sinyal Teknikal â”€â”€ */}
               {history.length >= 20 && (
             <TechnicalSignalPanel history={history} ticker={selectedTicker!} />
           )}
 
-          {/* ── Related News & Sentiment ── */}
+          {/* â”€â”€ Related News & Sentiment â”€â”€ */}
           <GlassCard hover={false}>
             {/* Header */}
             <div className="flex items-center justify-between mb-4">
@@ -701,10 +701,10 @@ function SearchPageInner() {
                     Berita terkait{" "}
                     <span style={{ color: "#fb923c" }}>{selectedTicker?.replace(".JK", "")}</span>
                   </h3>
-                  <p className="text-[10px]" style={{ color: "#475569" }}>Dari Detik Finance · analisis sentimen otomatis</p>
+                  <p className="text-[10px]" style={{ color: "#475569" }}>Dari Detik Finance Â· analisis sentimen otomatis</p>
                 </div>
               </div>
-              {/* Sentiment summary badges — shown when news loaded */}
+              {/* Sentiment summary badges â€” shown when news loaded */}
               {!loadingNews && stockNews.length > 0 && (() => {
                 const pos = stockNews.filter((n) => n.sentiment === "positive").length;
                 const neg = stockNews.filter((n) => n.sentiment === "negative").length;
@@ -714,19 +714,19 @@ function SearchPageInner() {
                     {pos > 0 && (
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
                         style={{ background: "rgba(16,185,129,0.12)", color: "#10b981", border: "1px solid rgba(16,185,129,0.2)" }}>
-                        ▲ {pos} positif
+                        â–² {pos} positif
                       </span>
                     )}
                     {neg > 0 && (
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
                         style={{ background: "rgba(239,68,68,0.12)", color: "#f87171", border: "1px solid rgba(239,68,68,0.2)" }}>
-                        ▼ {neg} negatif
+                        â–¼ {neg} negatif
                       </span>
                     )}
                     {neu > 0 && (
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
                         style={{ background: "rgba(100,116,139,0.12)", color: "#94a3b8", border: "1px solid rgba(100,116,139,0.2)" }}>
-                        ◆ {neu} netral
+                        â—† {neu} netral
                       </span>
                     )}
                   </div>
@@ -775,9 +775,9 @@ function SearchPageInner() {
                     : item.sentiment === "negative" ? "rgba(239,68,68,0.20)"
                     : "rgba(100,116,139,0.18)";
                   const sentIcon =
-                    item.sentiment === "positive" ? "▲"
-                    : item.sentiment === "negative" ? "▼"
-                    : "◆";
+                    item.sentiment === "positive" ? "â–²"
+                    : item.sentiment === "negative" ? "â–¼"
+                    : "â—†";
                   const sentLabel =
                     item.sentiment === "positive" ? "Positif"
                     : item.sentiment === "negative" ? "Negatif"
@@ -882,10 +882,10 @@ function SearchPageInner() {
 
             {/* Right Column */}
             <div className="space-y-5 flex flex-col">
-              {/* ── Fundamental & Metrik Valuasi ── */}
+              {/* â”€â”€ Fundamental & Metrik Valuasi â”€â”€ */}
               <FundamentalSection fundamental={fundamental} loading={loadingFundamental} />
 
-          {/* ── Major Holders & Institutional ── */}
+          {/* â”€â”€ Major Holders & Institutional â”€â”€ */}
           <GlassCard hover={false}>
             <div className="flex items-center gap-2 mb-4">
               <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
@@ -949,12 +949,12 @@ function SearchPageInner() {
                         <tbody>
                           {fundamental!.topInstitutions.map((inst, i) => (
                             <tr key={i} style={{ borderBottom: "1px solid rgba(226,232,240,0.04)" }}>
-                              <td className="py-2 pr-3 font-medium" style={{ color: "#94a3b8" }}>{inst.name || "—"}</td>
+                              <td className="py-2 pr-3 font-medium" style={{ color: "#94a3b8" }}>{inst.name || "â€”"}</td>
                               <td className="py-2 pr-3 tabular-nums" style={{ color: "#a855f7" }}>
-                                {inst.pctHeld > 0 ? `${(inst.pctHeld * 100).toFixed(2)}%` : "—"}
+                                {inst.pctHeld > 0 ? `${(inst.pctHeld * 100).toFixed(2)}%` : "â€”"}
                               </td>
                               <td className="py-2 tabular-nums" style={{ color: "#64748b" }}>
-                                {inst.shares > 0 ? inst.shares.toLocaleString() : "—"}
+                                {inst.shares > 0 ? inst.shares.toLocaleString() : "â€”"}
                               </td>
                             </tr>
                           ))}
@@ -980,10 +980,10 @@ function SearchPageInner() {
                         <tbody>
                           {fundamental!.topInsiders.map((ins, i) => (
                             <tr key={i} style={{ borderBottom: "1px solid rgba(226,232,240,0.04)" }}>
-                              <td className="py-2 pr-3 font-medium" style={{ color: "#94a3b8" }}>{ins.name || "—"}</td>
-                              <td className="py-2 pr-3 text-[10px]" style={{ color: "#64748b" }}>{ins.relation || "—"}</td>
+                              <td className="py-2 pr-3 font-medium" style={{ color: "#94a3b8" }}>{ins.name || "â€”"}</td>
+                              <td className="py-2 pr-3 text-[10px]" style={{ color: "#64748b" }}>{ins.relation || "â€”"}</td>
                               <td className="py-2 tabular-nums" style={{ color: "#f59e0b" }}>
-                                {ins.shares > 0 ? ins.shares.toLocaleString() : "—"}
+                                {ins.shares > 0 ? ins.shares.toLocaleString() : "â€”"}
                               </td>
                             </tr>
                           ))}
@@ -996,7 +996,7 @@ function SearchPageInner() {
             )}
           </GlassCard>
 
-          {/* ── Analyst Recommendations ── */}
+          {/* â”€â”€ Analyst Recommendations â”€â”€ */}
           <GlassCard hover={false}>
             <div className="flex items-center gap-2 mb-4">
               <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
@@ -1015,11 +1015,11 @@ function SearchPageInner() {
             ) : (fundamental?.recommendationTrend?.length ?? 0) === 0 && (fundamental?.upgradeHistory?.length ?? 0) === 0 ? (
               <div className="text-center py-6">
                 <p className="text-xs" style={{ color: "#334155" }}>Data rekomendasi tidak tersedia</p>
-                <p className="text-[10px] mt-1" style={{ color: "#1e293b" }}>Data ini lebih lengkap untuk saham US. Saham IDX lapis 2–3 umumnya tidak ter-cover analis asing.</p>
+                <p className="text-[10px] mt-1" style={{ color: "#1e293b" }}>Data ini lebih lengkap untuk saham US. Saham IDX lapis 2â€“3 umumnya tidak ter-cover analis asing.</p>
               </div>
             ) : (
               <div className="space-y-4">
-                {/* Recommendation trend — stacked bar per period */}
+                {/* Recommendation trend â€” stacked bar per period */}
                 {(fundamental?.recommendationTrend?.length ?? 0) > 0 && (
                   <div>
                     <p className="text-[10px] uppercase tracking-wider font-semibold mb-3" style={{ color: "#475569" }}>Konsensus Analis (per periode)</p>
@@ -1079,13 +1079,13 @@ function SearchPageInner() {
                             const isUp = h.action === "up";
                             const isDown = h.action === "down";
                             const actionColor = isUp ? "#10b981" : isDown ? "#ef4444" : "#94a3b8";
-                            const actionLabel = isUp ? "▲ Upgrade" : isDown ? "▼ Downgrade" : "→ Reiterate";
+                            const actionLabel = isUp ? "â–² Upgrade" : isDown ? "â–¼ Downgrade" : "â†’ Reiterate";
                             return (
                               <tr key={i} style={{ borderBottom: "1px solid rgba(226,232,240,0.04)" }}>
                                 <td className="py-2 pr-3 tabular-nums text-[10px]" style={{ color: "#64748b" }}>{h.date}</td>
                                 <td className="py-2 pr-3 font-medium" style={{ color: "#94a3b8" }}>{h.firm}</td>
-                                <td className="py-2 pr-3 text-[10px]" style={{ color: "#475569" }}>{h.fromGrade || "—"}</td>
-                                <td className="py-2 pr-3 text-[10px] font-semibold" style={{ color: actionColor }}>{h.toGrade || "—"}</td>
+                                <td className="py-2 pr-3 text-[10px]" style={{ color: "#475569" }}>{h.fromGrade || "â€”"}</td>
+                                <td className="py-2 pr-3 text-[10px] font-semibold" style={{ color: actionColor }}>{h.toGrade || "â€”"}</td>
                                 <td className="py-2">
                                   <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
                                     style={{ background: `${actionColor}15`, color: actionColor, border: `1px solid ${actionColor}25` }}>
@@ -1154,7 +1154,7 @@ function SearchPageInner() {
                     <circle cx="4" cy="4" r="3" />
                   </svg>
                   <span>
-                    {item.tip} —{" "}
+                    {item.tip} â€”{" "}
                     <span style={{ color: "#94a3b8", fontFamily: "monospace" }}>{item.example}</span>
                   </span>
                 </li>
@@ -1168,10 +1168,10 @@ function SearchPageInner() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 16.121A3 3 0 1012.015 11L11 14H9c0 .768.293 1.536.879 2.121z" />
               </svg>
-              <h3 className="text-sm font-bold" style={{ color: "#cbd5e1" }}>Top Gainer Hari Ini</h3>
+              <h3 className="text-sm font-bold" style={{ color: "#cbd5e1" }}>Kandidat Panas Hari Ini</h3>
             </div>
             <p className="text-[11px] mb-3" style={{ color: "#64748b" }}>
-              Sepuluh penguat terbesar hari ini yang tampil di radar visual Cerita Saham.
+              Nama-nama yang sedang paling menonjol di radar visual anomalisaham untuk ide scan cepat.
             </p>
             <div className="flex flex-wrap gap-2">
               {(loadingPopularStocks
@@ -1251,7 +1251,7 @@ function SearchPageInner() {
             ) : null}
             {!loadingPopularStocks && visiblePopularStocks.length === 0 ? (
               <div className="mt-3 rounded-xl p-4 text-xs text-center" style={{ background: "rgba(255,255,255,0.03)", color: "#64748b" }}>
-                Belum ada kandidat top gainer non-bank yang layak ditampilkan hari ini.
+                Belum ada kandidat non-bank yang cukup menarik untuk radar cepat hari ini.
               </div>
             ) : null}
           </GlassCard>

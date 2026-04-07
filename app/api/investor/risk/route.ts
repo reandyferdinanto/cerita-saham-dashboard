@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireUserSession } from "@/lib/userSession";
 import { getHistory, searchStocks } from "@/lib/yahooFinance";
 import { calcTechnicalSignals } from "@/lib/technicalSignals";
@@ -38,8 +38,14 @@ export async function POST(req: NextRequest) {
   const targetPrice = Number(body.targetPrice || 0);
   const lots = Number(body.lots || 0);
 
-  if (entryPrice <= 0 || stopLoss <= 0 || targetPrice <= 0 || lots <= 0 || entryPrice <= stopLoss || targetPrice <= entryPrice) {
-    return NextResponse.json({ error: "Input risk calculator tidak valid" }, { status: 400 });
+  if (entryPrice <= 0 || stopLoss <= 0 || targetPrice <= 0 || lots <= 0) {
+    return NextResponse.json({ error: "Pastikan Entry, TP, SL, dan Lots sudah diisi dengan benar (>0)." }, { status: 400 });
+  }
+  if (stopLoss >= entryPrice) {
+    return NextResponse.json({ error: "Level Stop Loss harus lebih rendah dari harga Entry." }, { status: 400 });
+  }
+  if (targetPrice <= entryPrice) {
+    return NextResponse.json({ error: "Target Price (TP) harus lebih tinggi dari harga Entry." }, { status: 400 });
   }
 
   const shares = lots * 100;

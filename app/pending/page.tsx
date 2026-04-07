@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/ui/AuthProvider";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import Link from "next/link";
+import BrandMark from "@/components/ui/BrandMark";
 
 const STATUS_CONFIG = {
   pending: {
@@ -118,11 +118,8 @@ export default function PendingPage() {
   return (
     <div className="min-h-[80vh] flex flex-col items-center justify-center px-4 py-10 space-y-6 max-w-lg mx-auto">
       {/* Logo */}
-      <div className="flex items-center gap-2.5 mb-2">
-        <Image src="/logo-CS.png" alt="Cerita Saham" width={44} height={44} className="rounded-full" />
-        <span className="text-lg font-bold" style={{ fontFamily: "var(--font-playfair), Georgia, serif", color: "#e2e8f0" }}>
-          Cerita <span style={{ background: "linear-gradient(135deg,#D4AF37,#F5D876,#B8860B)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", fontStyle: "italic" }}>Saham</span>
-        </span>
+      <div className="mb-2">
+        <BrandMark size="sm" subtitle="status aktivasi membership" />
       </div>
 
       {/* Status Card */}

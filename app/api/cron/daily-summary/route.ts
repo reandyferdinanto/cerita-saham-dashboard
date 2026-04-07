@@ -131,7 +131,7 @@ export async function GET(req: NextRequest) {
       content += `Sentimen pasar hari ini banyak dipengaruhi oleh pergerakan bursa global dan dinamika aktivitas transaksi investor ritel domestik maupun asing.\n\n`;
     }
 
-    content += `Catatan: Laporan harian ini di-generate secara otomatis oleh Sistem Bot Cerita Saham pada jam 16:15 WIB.`;
+    content += `Catatan: Laporan harian ini di-generate secara otomatis oleh Sistem Bot anomalisaham pada jam 16:15 WIB.`;
 
     await connectDB();
     const mongoose = require("mongoose");

@@ -1,4 +1,4 @@
-# Cerita Saham Memory
+# anomalisaham Memory
 
 Last updated: 2026-04-05
 
@@ -61,14 +61,15 @@ Last updated: 2026-04-05
 - `/search`: IDX stock search, quote, chart, fundamentals, news, technical panel
 - `/watchlist`: tracked stocks with quotes, sorting, TP/SL display
 - `/stock/[ticker]`: dedicated stock detail page with chart + watchlist note overlay
-- `/investor-tools`: member workspace with guided workflow, AI brief, investor screener radar, risk calculator, right issue calculator, and stock split calculator
-- `/guidance`: detailed beginner onboarding page aligned with actual app flows, access levels, Cerita Saham philosophy, market-reading basics, tool usage, and practical daily workflow
+- `/investor-tools`: member workspace with guided workflow, AI brief, investor radar watchlist, risk calculator, right issue calculator, and stock split calculator
+- `/guidance`: detailed beginner onboarding page aligned with actual app flows, access levels, anomalisaham philosophy, market-reading basics, tool usage, and practical daily workflow
 - `/simulation`: interactive trading simulator and money management education
 
 ### Admin pages
 - `/admin`: unified admin control center with tabs for watchlist, articles, and member/settings management
 - `/admin?tab=bandarmology`: admin-only ticker search + detailed bandarmology analysis panel using public price/volume data and a Ryan Filbert-inspired lens
 - `/api/watchlist/bandarmology/screener`: admin-only screener shortlist for ideal IDX candidates under Ryan Filbert-inspired bandarmology presets
+- `/admin?tab=smart-money`: admin Smart Money Behavior Engine — analyze any IDX ticker for smart money phase (akumulasi awal/aktif, markup siap/berlangsung, distribusi, markdown), habit fingerprinting, cycle detection, and event timeline from price/volume history; Stock Summary data integration is optional/supportive
 - `/admin/articles`: article management route still exists, but main admin navigation now centers on `/admin?tab=articles`
 - `/admin/users`: member management route still exists, but main admin navigation now centers on `/admin?tab=members`
 
@@ -187,6 +188,8 @@ Last updated: 2026-04-05
 - `/api/investor/corporate-actions`
 - `/api/investor/corporate-actions/[id]`
 
+- `/api/admin/smart-money`: admin-only GET endpoint, accepts `ticker` param, returns SmartMoneyResult (phase, events, cycles, habits, metrics, recommendation)
+
 ### Admin and ops
 - `/api/admin/membership`
 - `/api/admin/users`
@@ -221,8 +224,8 @@ Last updated: 2026-04-05
 - Yahoo quote/history endpoints are central to charts and stock pages
 - Settings are stored in DB and used by register, pending, and admin pages
 - Investor tools visibility is configurable from admin settings
-- Investor tools page now acts as a guided workspace: radar shortlist first, then AI brief, then risk planning; AI brief output is formatted around Cerita Saham setup quality instead of generic bullish/bearish summaries
-- `/api/investor/ai-brief` now builds richer Cerita Saham context from technical conclusion, support/resistance, recent range, and news tone before prompting AI, so the brief can explicitly say when a setup is too hot to chase
+- Investor tools page now acts as a guided workspace: radar shortlist first, then AI brief, then risk planning; AI brief output is formatted around anomalisaham setup quality instead of generic bullish/bearish summaries
+- `/api/investor/ai-brief` now builds richer anomalisaham context from technical conclusion, support/resistance, recent range, and news tone before prompting AI, so the brief can explicitly say when a setup is too hot to chase
 - Articles can be public or private
 - VPS-oriented Postgres support now covers auth users, site settings, watchlist, articles, investor portfolio, investor journal, investor alerts, and manual corporate actions through `lib/data/*`
 - Mongo should still stay configured when using `postgres-prefer`, because stock summary, broker summary, Indonesia stock master, and bandarmology snapshot/backtest flows still read Mongo-first models
@@ -231,8 +234,10 @@ Last updated: 2026-04-05
 - Admin bandarmology screener UI is split into two preset groups (`Preset Cepat` and `Preset Riset`) plus an active-preset summary card to reduce overlap and make scan mode easier to read
 - Admin bandarmology screener now scans a broader curated IDX universe (not just the initial big-cap list), and the UI explicitly shows the current curated universe size so users do not mistake it for a full IDX screener
 - Admin bandarmology screener supports explicit price buckets (`all`, `<200`, `200-500`, `>500`) and the research presets were tightened to reduce overlap with the core Ryan Filbert-style presets
+- Admin bandarmology screener still uses daily snapshots by default for speed, but the admin panel now provides a manual `Refresh Screener` action that forces a fresh Yahoo-backed recalculation and rewrites the same-day snapshot
+- If no stock passes a preset's strict filter on a given day, the admin bandarmology screener now falls back to the nearest non-bearish candidates and labels that state in the UI instead of showing a blank preset area
 - Member screener (`/api/investor/screener`) now reuses the same shared bandarmology shortlist engine as admin, with mapped presets plus shared accumulation/breakout bias fields instead of the old small hardcoded universe
-- `/search` UI now hides bank stocks from the visual search-result list and default top-gainer module to stay aligned with Cerita Saham positioning, but direct ticker search/open flow still works as usual (for example via Enter/direct selection)
+- `/search` UI now hides bank stocks from the visual search-result list and default top-gainer module to stay aligned with anomalisaham positioning, but direct ticker search/open flow still works as usual (for example via Enter/direct selection)
 - `/search` chart timeframes now follow candle-interval semantics: intraday buttons are `5m`, `15m`, `1h`, `4h`, while higher-timeframe buttons are `1D`, `1W`, `1M`; each button uses a matching history window so the chart stays readable without changing what one candle represents
 - `/api/stocks/history/[ticker]` now widens the fetch window automatically for empty `5m` intraday responses (`1d` -> fallback `5d`) so the `/search` chart does not appear broken when Yahoo returns no same-day IDX intraday candles
 - `/api/stocks/top-gainers` now pulls from the broader Indonesia stock master universe and returns a wider sorted set so the `/search` page can show today's strongest non-bank movers in the UI instead of the old small liquid-only list
@@ -242,7 +247,7 @@ Last updated: 2026-04-05
 - Admin bandarmology panel now shows stock master status (`activeCount`, `last sync`, source link) and provides a `Sync Ulang Stock Master` action that refreshes the screener after sync
 - Bandarmology phase detection now distinguishes more early-stage structures such as `Trend pullback sehat`, `Base building`, `Reclaim awal`, and `False breakout risk` so analysis is not limited to pure markup/markdown states
 - Bandarmology analysis and screener now also recognize `Akumulasi di support`: when support is defended while OBV/A-D and demand stay constructive, the app can frame it as staged-entry territory toward nearby resistance, with breakout treated as add-on confirmation instead of the only trigger
-- Cerita Saham bandarmology is now explicitly biased toward low-priced / rotational IDX names instead of blue-chip trend names: the analysis engine now elevates phases like `Support dikunci bandar`, `Sideways akumulasi senyap`, and `Markup dini` for under-300 stocks that look defended and potentially ready for markup
+- anomalisaham bandarmology is now explicitly biased toward low-priced / rotational IDX names instead of blue-chip trend names: the analysis engine now elevates phases like `Support dikunci bandar`, `Sideways akumulasi senyap`, and `Markup dini` for under-300 stocks that look defended and potentially ready for markup
 - Bandarmology screener presets were rebuilt around that philosophy (`Under 300`, `Support Lock`, `Sideways Senyap`, `Markup Dini`, `Demand Surge`, plus advanced presets) and the default admin/member scan bucket now starts at `<300` rather than broad-market `all`
 - Admin control center now exposes `Stock Summary` instead of `Broker Summary`; the stock summary panel handles IDX `.xlsx` upload, accumulation shortlist, and price-vs-flow visualization
 - `Stock Summary` parser now accepts both English and Indonesian IDX headers, including variants like `Stock Code`/`Kode Saham`, `Company Name`/`Nama Perusahaan`, `Open Price`/`Harga Pembukaan`, `Close`/`Harga Penutupan`, `Value`/`Nilai`, and `Foreign Buy/Sell`/`Asing Beli/Jual`
