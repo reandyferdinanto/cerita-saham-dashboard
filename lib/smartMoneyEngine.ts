@@ -647,8 +647,9 @@ export async function analyzeSmartMoney(
   const phaseData = classifyPhase({ bars, obv, ad, technical, preMarkupScore });
 
   // Build chart data — last 120 bars with OBV
-  const chartBars = bars.slice(-120).map((b, idx) => {
-    const globalIdx = bars.length - 120 + idx;
+  const slicedBars = bars.slice(-120);
+  const chartBars = slicedBars.map((b, idx) => {
+    const globalIdx = bars.length - slicedBars.length + idx;
     return {
       time: toDate(b),
       open: Math.round(b.open),
@@ -656,7 +657,7 @@ export async function analyzeSmartMoney(
       low: Math.round(b.low),
       close: Math.round(b.close),
       volume: b.volume,
-      obv: Math.round(obv[Math.max(globalIdx, 0)] ?? 0),
+      obv: Math.round(obv[globalIdx] ?? 0),
     };
   });
 

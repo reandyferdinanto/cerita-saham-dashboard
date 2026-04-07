@@ -9,12 +9,12 @@ export const metadata: Metadata = {
   description: "Radar saham IDX untuk membaca akumulasi senyap, support yang dijaga, dan bandarmology berbasis price-volume.",
   icons: {
     icon: [
-      { url: "/animali saham-logo-1.png", type: "image/png" },
+      { url: "/anomali-saham-logo.png", type: "image/png" },
     ],
     apple: [
-      { url: "/animali saham-logo-1.png", type: "image/png" },
+      { url: "/anomali-saham-logo.png", type: "image/png" },
     ],
-    shortcut: "/animali saham-logo-1.png",
+    shortcut: "/anomali-saham-logo.png",
   },
 };
 

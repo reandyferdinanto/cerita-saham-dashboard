@@ -42,7 +42,7 @@ export default function BrandMark({
       <div className={`relative flex flex-shrink-0 items-center justify-center`}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/animali saham-logo-1.png"
+          src="/anomali-saham-logo.png"
           alt="Anomali Saham Logo"
           className={`${styles.orb} object-contain mix-blend-screen drop-shadow-md`}
         />
