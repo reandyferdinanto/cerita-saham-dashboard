@@ -9,8 +9,9 @@ import AdminWatchlistPanel from "@/app/admin/AdminWatchlistPanel";
 import AdminBandarmologyPanel from "@/app/admin/AdminBandarmologyPanel";
 import AdminStockSummaryPanel from "@/app/admin/AdminStockSummaryPanel";
 import AdminSmartMoneyPanel from "@/app/admin/AdminSmartMoneyPanel";
+import AdminTelegramPanel from "@/app/admin/AdminTelegramPanel";
 
-type AdminTab = "watchlist" | "bandarmology" | "stock-summary" | "smart-money" | "articles" | "members";
+type AdminTab = "watchlist" | "bandarmology" | "stock-summary" | "smart-money" | "articles" | "members" | "telegram";
 
 const TAB_CONFIG: Array<{
   id: AdminTab;
@@ -49,17 +50,29 @@ const TAB_CONFIG: Array<{
     description: "Aktivasi member, atur status membership, harga, dan pembayaran.",
     highlight: true,
   },
+  {
+    id: "telegram",
+    label: "Telegram Bot",
+    description: "Konfigurasi Bot Telegram untuk cek saham, gainer, dan loser otomatis.",
+  },
 ];
 
 function resolveTab(pathname: string, tabParam: string | null): AdminTab {
   if (pathname === "/admin/articles") return "articles";
   if (pathname === "/admin/users") return "members";
   if (tabParam === "broker-summary") return "stock-summary";
-  if (tabParam === "articles" || tabParam === "members" || tabParam === "watchlist" || tabParam === "bandarmology" || tabParam === "stock-summary" || tabParam === "smart-money") return tabParam as AdminTab;
+  if (tabParam === "articles" || tabParam === "members" || tabParam === "watchlist" || tabParam === "bandarmology" || tabParam === "stock-summary" || tabParam === "smart-money" || tabParam === "telegram") return tabParam as AdminTab;
   return "watchlist";
 }
 
 function TabIcon({ tab }: { tab: AdminTab }) {
+  if (tab === "telegram") {
+    return (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+      </svg>
+    );
+  }
   if (tab === "watchlist") {
     return (
       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -244,6 +257,7 @@ export default function AdminControlCenter() {
       {activeTab === "bandarmology" ? <AdminBandarmologyPanel /> : null}
       {activeTab === "stock-summary" ? <AdminStockSummaryPanel /> : null}
       {activeTab === "smart-money" ? <AdminSmartMoneyPanel /> : null}
+      {activeTab === "telegram" ? <AdminTelegramPanel /> : null}
       {activeTab === "articles" ? <AdminArticlesPageContent embedded /> : null}
       {activeTab === "members" ? <AdminUsersPageContent embedded /> : null}
     </div>

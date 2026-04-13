@@ -16,6 +16,8 @@ export interface ISiteSettings extends Document {
   };
   paymentMethods: IPaymentMethod[];
   enabledInvestorTools: string[];
+  telegramBotToken?: string;
+  telegramWebhookUrl?: string;
   updatedAt: Date;
 }
 
@@ -39,6 +41,8 @@ const SiteSettingsSchema = new Schema<ISiteSettings>(
       type: [String],
       default: ["aiBrief", "riskCalculator", "rightsIssueCalculator", "stockSplitCalculator", "investorScreener"],
     },
+    telegramBotToken: { type: String, default: "" },
+    telegramWebhookUrl: { type: String, default: "" },
   },
   { timestamps: true }
 );

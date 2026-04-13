@@ -118,6 +118,57 @@ function calcMACD(
   };
 }
 
+export function calcMACDSeries(
+  closes: number[],
+  fast = 12,
+  slow = 26,
+  signal = 9
+): { macd: (number | null)[]; signal: (number | null)[]; hist: (number | null)[] } {
+  if (closes.length < slow) {
+    return { 
+      macd: new Array(closes.length).fill(null), 
+      signal: new Array(closes.length).fill(null), 
+      hist: new Array(closes.length).fill(null) 
+    };
+  }
+
+  const emaFast = ema(closes, fast);
+  const emaSlow = ema(closes, slow);
+  
+  // MACD Line = EMA(fast) - EMA(slow)
+  const macdLine: (number | null)[] = emaFast.map((v, i) => (
+    Number.isNaN(v) || Number.isNaN(emaSlow[i]) ? null : v - emaSlow[i]
+  ));
+
+  // Signal Line = EMA(MACD Line, signal)
+  // To avoid shift, we extract valid numbers, compute EMA, then place back at correct indices.
+  const firstValidIdx = macdLine.findIndex(v => v !== null);
+  if (firstValidIdx === -1 || macdLine.length - firstValidIdx < signal) {
+    return { 
+      macd: macdLine, 
+      signal: new Array(closes.length).fill(null), 
+      hist: new Array(closes.length).fill(null) 
+    };
+  }
+
+  const validMacdValues = macdLine.slice(firstValidIdx) as number[];
+  const validSignalValues = ema(validMacdValues, signal);
+
+  const signalLine: (number | null)[] = new Array(closes.length).fill(null);
+  for (let i = 0; i < validSignalValues.length; i++) {
+    const val = validSignalValues[i];
+    signalLine[i + firstValidIdx] = Number.isNaN(val) ? null : val;
+  }
+
+  const hist = macdLine.map((v, i) => {
+    const s = signalLine[i];
+    if (v === null || s === null) return null;
+    return v - s;
+  });
+
+  return { macd: macdLine, signal: signalLine, hist };
+}
+
 function calcSR(bars: OHLCVBar[]): { type: "R" | "S"; price: number; strength: number }[] {
   if (bars.length < 10) return [];
 

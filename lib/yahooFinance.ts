@@ -6,39 +6,65 @@ const yahooFinance = new YahooFinance({
 });
 
 export async function getQuote(ticker: string) {
+  const quotes = await getQuotes([ticker]);
+  return quotes[0] || null;
+}
+
+export async function getQuotes(tickers: string[]) {
+  if (tickers.length === 0) return [];
+  
   try {
-    const result: any = await yahooFinance.quote(ticker);
-    const price: number = result.regularMarketPrice || 0;
-    const previousClose: number = result.regularMarketPreviousClose || 0;
-    const change: number = result.regularMarketChange || (price - previousClose);
+    // Split tickers into chunks of 100 to avoid long query strings
+    const chunkSize = 100;
+    const chunks = [];
+    for (let i = 0; i < tickers.length; i += chunkSize) {
+      chunks.push(tickers.slice(i, i + chunkSize));
+    }
 
-    // Always compute % from prevClose manually — don't trust regularMarketChangePercent
-    // which can be returned as a fraction (0.0741) or percentage (7.41) depending on the feed
-    const changePercent: number = previousClose > 0
-      ? ((price - previousClose) / previousClose) * 100
-      : 0;
+    const allResults = await Promise.all(
+      chunks.map(async (chunk) => {
+        try {
+          // yahooFinance.quote doesn't support validateResult in the options object like search does.
+          // It's a global or per-module setting if needed, but usually not necessary for quote.
+          const results: any[] = await yahooFinance.quote(chunk);
+          return results.map(result => {
+            const price: number = result.regularMarketPrice || 0;
+            const previousClose: number = result.regularMarketPreviousClose || 0;
+            const change: number = result.regularMarketChange || (price - previousClose);
+            const changePercent: number = previousClose > 0
+              ? ((price - previousClose) / previousClose) * 100
+              : 0;
 
-    return {
-      ticker: result.symbol,
-      name: result.shortName || result.longName || ticker,
-      price,
-      change,
-      changePercent,
-      volume: result.regularMarketVolume || 0,
-      high: result.regularMarketDayHigh || 0,
-      low: result.regularMarketDayLow || 0,
-      open: result.regularMarketOpen || 0,
-      previousClose,
-      marketCap: result.marketCap || undefined,
-      delayMinutes: result.exchangeDataDelayedBy ?? null,
-    };
+            return {
+              ticker: result.symbol,
+              name: result.shortName || result.longName || result.symbol,
+              price,
+              change,
+              changePercent,
+              volume: result.regularMarketVolume || 0,
+              high: result.regularMarketDayHigh || 0,
+              low: result.regularMarketDayLow || 0,
+              open: result.regularMarketOpen || 0,
+              previousClose,
+              marketCap: result.marketCap || undefined,
+              delayMinutes: result.exchangeDataDelayedBy ?? null,
+            };
+          });
+        } catch (e) {
+          console.error(`Error in chunk fetch:`, e);
+          return [];
+        }
+      })
+    );
+
+    return allResults.flat();
   } catch (error) {
-    console.error(`Error fetching quote for ${ticker}:`, error);
-    return null;
+    console.error(`Error fetching bulk quotes:`, error);
+    return [];
   }
 }
 
-export type HistoryInterval = "5m" | "15m" | "1h" | "4h" | "1d" | "1wk" | "1mo";
+export type HistoryInterval = "1m" | "5m" | "15m" | "1h" | "4h" | "1d" | "1wk" | "1mo";
 
 export async function getHistory(
   ticker: string,
@@ -50,14 +76,26 @@ export async function getHistory(
     const endDate = period2 || new Date().toISOString().split("T")[0];
 
     // Map 4h to 1h since Yahoo Finance doesn't support 4h natively
-    // We'll return 1h data for 4h timeframe and let client aggregate
     const yfInterval = interval === "4h" ? "1h" : interval;
 
-    const result: any = await yahooFinance.chart(ticker, {
+    let result: any = await yahooFinance.chart(ticker, {
       period1,
       period2: endDate,
       interval: yfInterval,
     });
+
+    // Fallback logic for empty intraday results (common on weekends/holidays)
+    if ((!result.quotes || result.quotes.length === 0) && interval !== "1d" && interval !== "1wk" && interval !== "1mo") {
+      console.log(`No ${interval} data for ${ticker} in provided range. Retrying with wider window...`);
+      const fallbackStart = new Date();
+      fallbackStart.setDate(fallbackStart.getDate() - 7);
+      
+      result = await yahooFinance.chart(ticker, {
+        period1: fallbackStart.toISOString().split("T")[0],
+        period2: endDate,
+        interval: yfInterval,
+      });
+    }
 
     return (result.quotes || [])
       .filter((item: any) => item.open != null && item.close != null)
@@ -72,7 +110,7 @@ export async function getHistory(
         volume: item.volume,
       }));
   } catch (error) {
-    console.error(`Error fetching history for ${ticker}:`, error);
+    console.error(`Error fetching history for ${ticker} (${interval}):`, error);
     return [];
   }
 }
