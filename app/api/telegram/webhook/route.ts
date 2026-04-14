@@ -72,20 +72,41 @@ function formatStockTable(stocks: any[]): string {
   return table;
 }
 
-function formatDetailTable(q: any, highTime?: string, lowTime?: string): string {
+function formatDetailTable(q: any, highRecords: any[] = [], lowRecords: any[] = []): string {
   let table = "```\n";
   table += `Stock: ${q.ticker.replace(".JK", "")}\n`;
   table += `Name : ${q.name.substring(0, 15)}\n`;
+  if (q.updatedAt) {
+    const d = new Date(q.updatedAt);
+    const timeStr = d.toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit", hour12: false }).replace(":", ".");
+    const dateStr = d.toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta", day: "2-digit", month: "short" });
+    table += `Time : ${dateStr} ${timeStr}\n`;
+  }
   table += "----------------------\n";
   table += `Open : ${q.open.toString().padEnd(10)}\n`;
   table += `High : ${q.high.toString().padEnd(10)}\n`;
-  if (highTime) table += `       at ${highTime}\n`;
   table += `Low  : ${q.low.toString().padEnd(10)}\n`;
-  if (lowTime)  table += `       at ${lowTime}\n`;
   table += `Prev : ${q.previousClose.toString().padEnd(10)}\n`;
   table += `Now  : ${q.price.toString().padEnd(10)}\n`;
   table += `Chg% : ${(q.changePercent > 0 ? "+" : "") + q.changePercent.toFixed(2)}%\n`;
   table += "----------------------\n";
+  
+  if (highRecords.length > 0) {
+    table += "High Records (WIB):\n";
+    highRecords.forEach(r => {
+      table += `- ${r.price} at ${r.time}\n`;
+    });
+    table += "----------------------\n";
+  }
+  
+  if (lowRecords.length > 0) {
+    table += "Low Records (WIB):\n";
+    lowRecords.forEach(r => {
+      table += `- ${r.price} at ${r.time}\n`;
+    });
+    table += "----------------------\n";
+  }
+  
   table += "```";
   return table;
 }
@@ -204,35 +225,47 @@ Perintah tersedia:
 
         let history = await getHistory(ticker, start.toISOString().split("T")[0], undefined, interval);
         
-        let highTime = "";
-        let lowTime = "";
+        let highRecords: any[] = [];
+        let lowRecords: any[] = [];
 
-        // NEW: Fetch intraday 1m to find high/low time for Daily timeframe
+        // NEW: Fetch intraday 1m to find high/low records for Daily timeframe
         if (interval === "1d") {
-          const todayStr = now.toISOString().split("T")[0];
-          const intradayStart = new Date();
-          intradayStart.setHours(0,0,0,0);
+          // Get today's date in Jakarta timezone for query
+          const todayJakarta = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
+          const todayStr = todayJakarta;
           
-          const intraday = await getHistory(ticker, intradayStart.toISOString().split("T")[0], undefined, "1m");
+          console.log(`Fetching intraday 1m for ${ticker} on ${todayStr}`);
+          const intraday = await getHistory(ticker, todayStr, undefined, "1m");
+          console.log(`Intraday bars fetched: ${intraday.length}`);
           if (intraday.length > 0) {
             let sessionHigh = -1;
             let sessionLow = Infinity;
             
-            intraday.forEach((bar: any) => {
-              if (bar.high > sessionHigh) {
-                sessionHigh = bar.high;
-                // Yahoo timestamps are UTC, convert to WIB (UTC+7)
-                const d = new Date(typeof bar.time === "number" ? bar.time * 1000 : bar.time);
-                d.setHours(d.getHours() + 7);
-                highTime = d.getUTCHours().toString().padStart(2, "0") + "." + d.getUTCMinutes().toString().padStart(2, "0");
-              }
-              if (bar.low < sessionLow) {
-                sessionLow = bar.low;
-                const d = new Date(typeof bar.time === "number" ? bar.time * 1000 : bar.time);
-                d.setHours(d.getHours() + 7);
-                lowTime = d.getUTCHours().toString().padStart(2, "0") + "." + d.getUTCMinutes().toString().padStart(2, "0");
+            intraday.forEach((bar: any, idx: number) => {
+              const d = new Date(typeof bar.time === "number" ? bar.time * 1000 : bar.time);
+              
+              // Ensure we only process bars from TODAY in Jakarta time
+              const barDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(d);
+              if (barDateStr !== todayStr) return;
+
+              // Get hour/min in Jakarta time
+              const hourStr = d.toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", hour12: false });
+              const hour = parseInt(hourStr);
+              const timeStr = d.toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit", hour12: false }).replace(":", ".");
+              
+              // Only record between 09:00 and 16:00 WIB
+              if (hour >= 9 && hour < 16) {
+                if (bar.high > sessionHigh) {
+                  sessionHigh = bar.high;
+                  highRecords.push({ price: bar.high, time: timeStr });
+                }
+                if (bar.low < sessionLow) {
+                  sessionLow = bar.low;
+                  lowRecords.push({ price: bar.low, time: timeStr });
+                }
               }
             });
+            console.log(`High Records: ${highRecords.length}, Low Records: ${lowRecords.length}`);
           }
 
           const lastHistoryBar = history[history.length - 1];
@@ -258,7 +291,7 @@ Perintah tersedia:
         }
 
         const intervalLabel = interval === "1d" ? "Daily" : interval.toUpperCase();
-        const caption = `*Detail Saham ${escapeMarkdown(quote.ticker.replace(".JK", ""))} \\(${intervalLabel}\\):*\n` + formatDetailTable(quote, highTime, lowTime);
+        const caption = `*Detail Saham ${escapeMarkdown(quote.ticker.replace(".JK", ""))} \\(${intervalLabel}\\):*\n` + formatDetailTable(quote, highRecords, lowRecords);
         
         if (chartUrl) {
           await sendTelegramPhoto(chatId, chartUrl, caption, token);

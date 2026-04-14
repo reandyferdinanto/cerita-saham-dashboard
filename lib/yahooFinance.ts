@@ -48,6 +48,7 @@ export async function getQuotes(tickers: string[]) {
               previousClose,
               marketCap: result.marketCap || undefined,
               delayMinutes: result.exchangeDataDelayedBy ?? null,
+              updatedAt: result.regularMarketTime || null,
             };
           });
         } catch (e) {
@@ -73,14 +74,30 @@ export async function getHistory(
   interval: HistoryInterval = "1d"
 ) {
   try {
-    const endDate = period2 || new Date().toISOString().split("T")[0];
+    let effectivePeriod1 = period1;
+    let effectivePeriod2 = period2 || new Date().toISOString().split("T")[0];
+
+    // If fetching for today, make period2 tomorrow to be inclusive of today's session
+    if (!period2) {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      effectivePeriod2 = tomorrow.toISOString().split("T")[0];
+    }
 
     // Map 4h to 1h since Yahoo Finance doesn't support 4h natively
     const yfInterval = interval === "4h" ? "1h" : interval;
 
+    // Yahoo Finance chart options period1 and period2 cannot share the same value for some intervals
+    if (effectivePeriod1 === effectivePeriod2) {
+      const d = new Date(effectivePeriod1);
+      d.setDate(d.getDate() - 1);
+      effectivePeriod1 = d.toISOString().split("T")[0];
+    }
+
+    console.log(`Calling chart for ${ticker} with period1: ${effectivePeriod1}, period2: ${effectivePeriod2}, interval: ${yfInterval}`);
     let result: any = await yahooFinance.chart(ticker, {
-      period1,
-      period2: endDate,
+      period1: effectivePeriod1,
+      period2: effectivePeriod2,
       interval: yfInterval,
     });
 
@@ -92,7 +109,7 @@ export async function getHistory(
       
       result = await yahooFinance.chart(ticker, {
         period1: fallbackStart.toISOString().split("T")[0],
-        period2: endDate,
+        period2: effectivePeriod2,
         interval: yfInterval,
       });
     }
