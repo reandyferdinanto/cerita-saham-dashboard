@@ -76,6 +76,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export default function AdminSmartMoneyPanel() {
   const [ticker, setTicker] = useState("");
+  const [interval, setInterval] = useState<"15m" | "1h" | "4h" | "1d">("1d");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<SmartMoneyResult | null>(null);
@@ -85,7 +86,7 @@ export default function AdminSmartMoneyPanel() {
     if (!ticker.trim()) return;
     setLoading(true); setError(""); setResult(null);
     try {
-      const res = await fetch(`/api/admin/smart-money?ticker=${encodeURIComponent(ticker.trim())}`);
+      const res = await fetch(`/api/admin/smart-money?ticker=${encodeURIComponent(ticker.trim())}&interval=${interval}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Analisa gagal");
       setResult(data);
@@ -112,17 +113,28 @@ export default function AdminSmartMoneyPanel() {
             </p>
           </div>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-col md:flex-row gap-3">
           <input type="text" value={ticker} onChange={e => setTicker(e.target.value.toUpperCase())}
             onKeyDown={e => e.key === "Enter" && handleAnalyze()}
-            placeholder="Ticker, contoh: LABS atau BBRI"
+            placeholder="Ticker, contoh: BBCA atau GOTO"
             className="flex-1 rounded-xl px-4 py-3 text-sm font-medium outline-none"
             style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(226,232,240,0.12)", color: "#e2e8f0" }}
           />
+          <select 
+            value={interval} 
+            onChange={e => setInterval(e.target.value as any)}
+            className="rounded-xl px-4 py-3 text-sm font-bold outline-none cursor-pointer"
+            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(226,232,240,0.12)", color: "#e2e8f0" }}
+          >
+            <option value="15m" className="bg-slate-900">15 Menit</option>
+            <option value="1h" className="bg-slate-900">1 Jam</option>
+            <option value="4h" className="bg-slate-900">4 Jam</option>
+            <option value="1d" className="bg-slate-900">Daily</option>
+          </select>
           <button onClick={handleAnalyze} disabled={loading || !ticker.trim()}
-            className="px-5 py-3 rounded-xl text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-5 py-3 rounded-xl text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
             style={{ background: "rgba(168,85,247,0.20)", color: "#e879f9", border: "1px solid rgba(168,85,247,0.35)" }}>
-            {loading ? "Membaca..." : "Analisa"}
+            {loading ? "Membaca..." : "Analisa Sekarang"}
           </button>
         </div>
         {error && <p className="text-sm text-red-400 mt-3">{error}</p>}

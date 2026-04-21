@@ -123,6 +123,9 @@ Last updated: 2026-04-05
 - Technical analysis:
   - `lib/technicalSignals.ts`
   - computes RSI, MACD, MA(5/20/50/200), support/resistance, weighted BUY/SELL/WAIT score, and entry-quality context so overheated trends can resolve to wait/pullback instead of blind BUY
+- Machine Learning (Eksperimental):
+  - `scripts/ml/train_simple_model.py`
+  - script Python standalone berbasis scikit-learn & yfinance untuk memprediksi arah pergerakan harga saham IDX H+1 menggunakan Random Forest Classifier.
 - AI/article context:
   - `lib/adminArticleContext.ts`
   - builds stock/topic context from quote, technicals, and relevant news

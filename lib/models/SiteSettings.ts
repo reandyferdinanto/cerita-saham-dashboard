@@ -18,31 +18,20 @@ export interface ISiteSettings extends Document {
   enabledInvestorTools: string[];
   telegramBotToken?: string;
   telegramWebhookUrl?: string;
+  telegramAdminChatId?: string;
+  mlScreenerBotToken?: string;
+  mlScreenerChatId?: string;
   updatedAt: Date;
 }
 
 const SiteSettingsSchema = new Schema<ISiteSettings>(
   {
-    membershipPrices: {
-      "3months": { type: Number, default: 300000 },
-      "6months": { type: Number, default: 550000 },
-      "1year":   { type: Number, default: 1100000 },
-    },
-    paymentMethods: [
-      {
-        name:          { type: String, required: true },
-        type:          { type: String, enum: ["bank", "emoney"], default: "bank" },
-        accountNumber: { type: String, required: true },
-        accountName:   { type: String, required: true },
-        logoUrl:       { type: String, default: "" },
-      },
-    ],
-    enabledInvestorTools: {
-      type: [String],
-      default: ["aiBrief", "riskCalculator", "rightsIssueCalculator", "stockSplitCalculator", "investorScreener"],
-    },
+    // ...
     telegramBotToken: { type: String, default: "" },
     telegramWebhookUrl: { type: String, default: "" },
+    telegramAdminChatId: { type: String, default: "" },
+    mlScreenerBotToken: { type: String, default: "" },
+    mlScreenerChatId: { type: String, default: "" },
   },
   { timestamps: true }
 );

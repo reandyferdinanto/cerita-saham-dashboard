@@ -46,7 +46,7 @@ export default function LineChart({
   areaTopColor = "rgba(249, 115, 22, 0.3)",
   areaBottomColor = "rgba(249, 115, 22, 0.0)",
   locale = "id-ID",
-  timeZone,
+  timeZone = "Asia/Jakarta",
   title,
 }: LineChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
@@ -61,10 +61,12 @@ export default function LineChart({
     }));
 
     const isIntraday = typeof data[0]?.time === "number";
-    const dateTimeOptions = timeZone ? { timeZone } : undefined;
+    const dateTimeOptions = { timeZone };
+    
     const intradayFormatter = new Intl.DateTimeFormat(locale, {
       hour: "2-digit",
       minute: "2-digit",
+      hour12: false,
       ...dateTimeOptions,
     });
     const dateFormatter = new Intl.DateTimeFormat(locale, {
@@ -141,16 +143,12 @@ export default function LineChart({
     };
 
     window.addEventListener("resize", handleResize);
+
     return () => {
       window.removeEventListener("resize", handleResize);
       chart.remove();
     };
-  }, [areaBottomColor, areaTopColor, data, height, lineColor, locale, timeZone]);
+  }, [data, height, lineColor, areaTopColor, areaBottomColor, locale, timeZone]);
 
-  return (
-    <div>
-      {title && <h3 className="text-sm font-medium text-silver-400 mb-2">{title}</h3>}
-      <div ref={chartContainerRef} className="w-full" />
-    </div>
-  );
+  return <div ref={chartContainerRef} className="w-full h-full" />;
 }

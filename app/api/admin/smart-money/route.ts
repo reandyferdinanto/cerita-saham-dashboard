@@ -7,12 +7,14 @@ export async function GET(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const ticker = req.nextUrl.searchParams.get("ticker") || "";
+  const interval = (req.nextUrl.searchParams.get("interval") || "1d") as any;
+
   if (!ticker.trim()) {
     return NextResponse.json({ error: "Ticker wajib diisi" }, { status: 400 });
   }
 
   try {
-    const result = await analyzeSmartMoney(ticker.trim());
+    const result = await analyzeSmartMoney(ticker.trim(), interval);
     return NextResponse.json(result, {
       headers: {
         "Cache-Control": "no-store, no-cache, must-revalidate",

@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { connectDB } from "@/lib/db";
+import IndonesiaStock from "@/lib/models/IndonesiaStock";
 
 // yahoo-finance2 v3
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -183,6 +185,37 @@ export async function GET(
 
     } catch {
       // quoteSummary optional
+    }
+
+    // ── Enrich with BEI Data from Local DB ────────────────────────────────────
+    try {
+      await connectDB();
+      const symbol = ticker.replace(".JK", "").toUpperCase();
+      const localStock: any = await IndonesiaStock.findOne({ symbol }).lean();
+      
+      if (localStock) {
+        if (!profile) {
+          profile = {
+            longName: localStock.name,
+            sector: localStock.sector,
+            industry: localStock.industry,
+            website: localStock.website,
+            longBusinessSummary: localStock.description,
+            country: "Indonesia",
+            city: null,
+            fullTimeEmployees: null
+          };
+        } else {
+          // Prioritize local BEI data for these fields
+          profile.sector = localStock.sector || profile.sector;
+          profile.industry = localStock.industry || profile.industry;
+          profile.website = localStock.website || profile.website;
+          profile.longBusinessSummary = localStock.description || profile.longBusinessSummary;
+          if (!profile.longName) profile.longName = localStock.name;
+        }
+      }
+    } catch (dbErr) {
+      console.error("Failed to enrich with local BEI data:", dbErr);
     }
 
     return NextResponse.json({

@@ -17,7 +17,7 @@ type StockMasterStatus = {
 
 type BacktestResponse = {
   preset: ScreenerPreset;
-  priceBucket: "all" | "under200" | "under300" | "200to500" | "above500";
+  priceBucket: PriceBucket;
   lookbackDays: number;
   holdingDays: number;
   takeProfitPct: number;
@@ -33,6 +33,15 @@ type BacktestResponse = {
     maxGainPct: number | null;
     maxDrawdownPct: number | null;
     hitTp: boolean;
+    isCompleted: boolean;
+  }>;
+  dailyStats: Array<{
+    snapshotDate: string;
+    tradeCount: number;
+    hitCount: number;
+    isCompleted: boolean;
+    avgMaxGainPct: number;
+    pendingCount: number;
   }>;
 };
 
@@ -110,7 +119,10 @@ type ScreenerPreset =
   | "washout_reclaim"
   | "under300_focus"
   | "markup_scout"
-  | "stealth_rotation";
+  | "stealth_rotation"
+  | "high_volatility_swing";
+
+type PriceBucket = "all" | "under200" | "under300" | "200to500" | "above500";
 
 const CORE_PRESETS: Array<{ value: ScreenerPreset; label: string; description: string }> = [
   { value: "under300_focus", label: "Harga Murah", description: "Radar utama untuk saham murah yang masih punya jejak akumulasi." },
@@ -121,6 +133,7 @@ const CORE_PRESETS: Array<{ value: ScreenerPreset; label: string; description: s
 ];
 
 const RESEARCH_PRESETS: Array<{ value: ScreenerPreset; label: string; description: string }> = [
+  { value: "high_volatility_swing", label: "Swing Volatilitas", description: "Saham < 300 dengan lonjakan volume & akumulasi siap jalan." },
   { value: "washout_reclaim", label: "Rebut Balik", description: "Sempat ditekan, tetapi mulai diangkat lagi tanpa tekanan jual besar." },
   { value: "markup_scout", label: "Siap Naik", description: "Mencari kandidat yang belum jalan jauh, tetapi sudah dekat fase angkat." },
   { value: "stealth_rotation", label: "Perpindahan Senyap", description: "Perpindahan minat bandar yang belum ramai dan belum banyak dilihat." },
@@ -172,6 +185,7 @@ export default function AdminBandarmologyPanel() {
   const [stockMasterStatus, setStockMasterStatus] = useState<StockMasterStatus | null>(null);
   const [stockMasterLoading, setStockMasterLoading] = useState(false);
   const [stockMasterSyncing, setStockMasterSyncing] = useState(false);
+  const [idxProfileSyncing, setIdxProfileSyncing] = useState(false);
   const [stockMasterError, setStockMasterError] = useState("");
   const [screenerRows, setScreenerRows] = useState<Array<{
     ticker: string;
@@ -331,9 +345,18 @@ export default function AdminBandarmologyPanel() {
         setBacktestLoading(true);
         setBacktestError("");
         const res = await fetch(
-          `/api/watchlist/bandarmology/backtest?preset=${encodeURIComponent(screenerPreset)}&priceBucket=${encodeURIComponent(priceBucket)}&lookbackDays=20&holdingDays=5&takeProfitPct=5`,
+          `/api/watchlist/bandarmology/backtest?preset=${encodeURIComponent(screenerPreset)}&priceBucket=${encodeURIComponent(priceBucket)}&lookbackDays=30&holdingDays=5&takeProfitPct=5`,
           { cache: "no-store" }
         );
+        
+        const contentType = res.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+          // If response is HTML (e.g. 504 Gateway Timeout or 404)
+          const text = await res.text();
+          console.error("Backtest error (not JSON):", text.substring(0, 500));
+          throw new Error("Server error: Gagal memuat data JSON (kemungkinan server timeout atau crash).");
+        }
+
         const data = await res.json();
         if (!res.ok) {
           throw new Error(data.error || "Gagal memuat backtest");
@@ -449,38 +472,56 @@ export default function AdminBandarmologyPanel() {
     }
   };
 
+  const syncIdxProfiles = async () => {
+    try {
+      setIdxProfileSyncing(true);
+      setStockMasterError("");
+      const res = await fetch("/api/admin/stocks/idx-profile-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Gagal sync profil BEI");
+      }
+      alert(`Berhasil sinkronisasi ${data.count} profil saham dari BEI.`);
+    } catch (err) {
+      setStockMasterError(err instanceof Error ? err.message : "Gagal sync profil BEI");
+    } finally {
+      setIdxProfileSyncing(false);
+    }
+  };
+
   const tone = analysis ? toneStyles(analysis.summary.tone) : null;
   const activePreset = getPresetMeta(screenerPreset);
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl p-3" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(226,232,240,0.06)" }}>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={() => setMode("screener")}
-            className="text-left rounded-2xl px-4 py-4 transition-all"
-            style={{
-              background: mode === "screener" ? "rgba(59,130,246,0.14)" : "rgba(255,255,255,0.03)",
-              border: mode === "screener" ? "1px solid rgba(59,130,246,0.28)" : "1px solid rgba(226,232,240,0.06)",
-            }}
-          >
-            <p className="text-sm font-bold" style={{ color: mode === "screener" ? "#93c5fd" : "#e2e8f0" }}>Screener</p>
-            <p className="text-xs mt-1 text-silver-500">Shortlist saham murah yang sedang dijaga, diakumulasi, atau siap markup dini.</p>
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode("analysis")}
-            className="text-left rounded-2xl px-4 py-4 transition-all"
-            style={{
-              background: mode === "analysis" ? "rgba(251,146,60,0.14)" : "rgba(255,255,255,0.03)",
-              border: mode === "analysis" ? "1px solid rgba(251,146,60,0.28)" : "1px solid rgba(226,232,240,0.06)",
-            }}
-          >
-            <p className="text-sm font-bold" style={{ color: mode === "analysis" ? "#fdba74" : "#e2e8f0" }}>Analisa Bandarmology</p>
-            <p className="text-xs mt-1 text-silver-500">Bedah detail satu ticker dengan fase, jejak operator, dan rencana eksekusi.</p>
-          </button>
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <button
+          type="button"
+          onClick={() => setMode("screener")}
+          className={`relative p-6 rounded-3xl transition-all border ${
+            mode === "screener" 
+              ? "bg-blue-950/20 border-blue-500/40" 
+              : "bg-white/[0.03] border-white/[0.08]"
+          }`}
+        >
+          <p className="text-sm font-bold" style={{ color: mode === "screener" ? "#93c5fd" : "#e2e8f0" }}>Screener</p>
+          <p className="text-xs mt-1 text-silver-500">Shortlist saham murah yang sedang dijaga, diakumulasi, atau siap markup dini.</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode("analysis")}
+          className={`relative p-6 rounded-3xl transition-all border ${
+            mode === "analysis" 
+              ? "bg-orange-950/20 border-orange-500/40" 
+              : "bg-white/[0.03] border-white/[0.08]"
+          }`}
+        >
+          <p className="text-sm font-bold" style={{ color: mode === "analysis" ? "#fdba74" : "#e2e8f0" }}>Analisa Bandarmology</p>
+          <p className="text-xs mt-1 text-silver-500">Bedah detail satu ticker dengan fase, jejak operator, dan rencana eksekusi.</p>
+        </button>
       </div>
 
       {mode === "analysis" ? (
@@ -589,6 +630,15 @@ export default function AdminBandarmologyPanel() {
               >
                 {stockMasterSyncing ? "Sync sedang jalan..." : "Sync Ulang Stock Master"}
               </button>
+              <button
+                type="button"
+                onClick={() => syncIdxProfiles()}
+                disabled={idxProfileSyncing}
+                className="px-4 py-3 rounded-xl text-sm font-semibold disabled:opacity-60"
+                style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.1)" }}
+              >
+                {idxProfileSyncing ? "Sync Profil..." : "Sync Profil BEI"}
+              </button>
               {stockMasterStatus?.sourceUrl ? (
                 <a
                   href={stockMasterStatus.sourceUrl}
@@ -691,7 +741,9 @@ export default function AdminBandarmologyPanel() {
           <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
             <div>
               <p className="text-xs uppercase tracking-[0.18em] font-bold text-silver-400">Backtest Ringan</p>
-              <h4 className="text-base font-bold text-silver-100 mt-2">Akurasi preset 20 hari terakhir</h4>
+              <h4 className="text-base font-bold text-silver-100 mt-2">
+                Akurasi {CORE_PRESETS.find(p => p.value === screenerPreset)?.label || "Preset"} 20 hari terakhir
+              </h4>
               <p className="text-sm text-silver-400 mt-2 leading-relaxed">
                 Snapshot harian dibandingkan dengan performa 5 hari berikutnya untuk melihat berapa kandidat yang sempat mencapai target 5%.
               </p>
@@ -714,39 +766,97 @@ export default function AdminBandarmologyPanel() {
               <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 mt-4">
                 <ScreenerMetric label="Snapshot" value={`${backtest.snapshotCount}`} />
                 <ScreenerMetric label="Trade Sampel" value={`${backtest.tradeCount}`} />
-                <ScreenerMetric label="Hit Rate" value={backtest.hitRate == null ? "-" : `${backtest.hitRate.toFixed(1)}%`} />
+                <ScreenerMetric label="Hit Rate Total" value={backtest.hitRate == null ? "-" : `${backtest.hitRate.toFixed(1)}%`} />
                 <ScreenerMetric label="Avg Max Gain" value={backtest.avgMaxGainPct == null ? "-" : `${backtest.avgMaxGainPct.toFixed(2)}%`} />
               </div>
-              <div className="grid grid-cols-1 xl:grid-cols-[1fr,320px] gap-4 mt-4">
+
+              <div className="mt-6">
+                <p className="text-sm font-semibold text-silver-100 mb-3">Histori Harian</p>
+                <div className="overflow-x-auto pb-2">
+                  <div className="flex gap-3 min-w-max">
+                    {backtest.dailyStats.map((stat) => {
+                      const hitRate = (stat.hitCount / stat.tradeCount) * 100;
+                      return (
+                        <div key={stat.snapshotDate} className="rounded-2xl p-3 w-40 flex-shrink-0" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(226,232,240,0.06)" }}>
+                          <p className="text-[10px] font-bold text-silver-500 uppercase tracking-wider">{stat.snapshotDate}</p>
+                          <p className="text-base font-bold text-silver-100 mt-1">{hitRate.toFixed(0)}% <span className="text-[10px] font-normal text-silver-400">Hit</span></p>
+                          <div className="flex items-center gap-2 mt-2">
+                            <div className="h-1 flex-1 bg-white/5 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full" style={{ width: `${hitRate}%`, background: hitRate >= 50 ? "#10b981" : "#f59e0b" }} />
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between gap-2 mt-3">
+                            <p className="text-[10px] text-silver-400">
+                              {stat.tradeCount} Trade {stat.pendingCount > 0 ? `(${stat.pendingCount} Ongoing)` : ""}
+                            </p>
+                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${stat.isCompleted ? "bg-emerald-400/10 text-emerald-400" : "bg-blue-400/10 text-blue-400"}`}>
+                              {stat.isCompleted ? "Done" : "Live"}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-[1fr,320px] gap-4 mt-6">
                 <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(226,232,240,0.06)" }}>
-                  <p className="text-sm font-semibold text-silver-100">Sampel terbaru</p>
-                  <div className="space-y-2 mt-3">
-                    {backtest.samples.length > 0 ? backtest.samples.slice(0, 6).map((sample) => (
-                      <div key={`${sample.snapshotDate}-${sample.ticker}`} className="flex items-center justify-between gap-3 rounded-xl px-3 py-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(226,232,240,0.05)" }}>
-                        <div>
-                          <p className="text-xs font-bold text-silver-100">{sample.ticker.replace(".JK", "")}</p>
-                          <p className="text-[11px] text-silver-500 mt-1">{sample.snapshotDate} · Entry {sample.entryPrice.toLocaleString("id-ID")}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xs font-semibold" style={{ color: sample.hitTp ? "#6ee7b7" : "#fca5a5" }}>
-                            {sample.hitTp ? "TP tersentuh" : "Belum sentuh TP"}
-                          </p>
-                          <p className="text-[11px] text-silver-400 mt-1">
-                            Up {sample.maxGainPct == null ? "-" : `${sample.maxGainPct.toFixed(2)}%`} · Down {sample.maxDrawdownPct == null ? "-" : `${Math.abs(sample.maxDrawdownPct).toFixed(2)}%`}
-                          </p>
-                        </div>
-                      </div>
-                    )) : (
-                      <p className="text-sm text-silver-500">Belum ada sampel snapshot yang cukup untuk dihitung.</p>
+                  <p className="text-sm font-semibold text-silver-100">Log Sampel (Saham Berjalan / Ongoing)</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
+                    {backtest.samples.filter(s => !s.isCompleted).length > 0 ? (
+                      backtest.samples.filter(s => !s.isCompleted).map((sample) => {
+                        // Hitung durasi hari
+                        const snapDate = new Date(sample.snapshotDate);
+                        const today = new Date();
+                        const diffTime = today.getTime() - snapDate.getTime();
+                        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+                        return (
+                          <div key={`${sample.snapshotDate}-${sample.ticker}`} className="flex items-center justify-between gap-3 rounded-xl px-3 py-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(226,232,240,0.05)" }}>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <p className="text-xs font-bold text-silver-100">{sample.ticker.replace(".JK", "")}</p>
+                                <span className="px-1 py-0.5 rounded bg-white/5 text-silver-500 text-[8px] font-bold">
+                                  {diffDays} HARI
+                                </span>
+                                {!sample.isCompleted && (
+                                  <span className="px-1 py-0.5 rounded bg-blue-500/10 text-blue-400 text-[8px] font-bold uppercase tracking-tighter">Ongoing</span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-silver-500 mt-1">{sample.snapshotDate} · Entry {sample.entryPrice.toLocaleString("id-ID")}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-xs font-semibold" style={{ color: sample.hitTp ? "#6ee7b7" : (sample.isCompleted ? "#fca5a5" : "#94a3b8") }}>
+                                {sample.hitTp ? "Target 5% OK" : (sample.isCompleted ? "Gagal TP" : "Sedang Jalan")}
+                              </p>
+                              <p className="text-[11px] text-silver-400 mt-1">
+                                {sample.maxGainPct == null ? "-" : `${sample.maxGainPct.toFixed(2)}%`} Max
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <p className="text-sm text-silver-500">Tidak ada saham yang sedang berjalan (ongoing).</p>
                     )}
                   </div>
                 </div>
-                <div className="rounded-2xl p-4" style={{ background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.14)" }}>
-                  <p className="text-xs uppercase tracking-[0.18em] font-bold text-blue-200">Cara baca cepat</p>
-                  <div className="space-y-2 mt-3">
-                    <p className="text-xs text-silver-300">Hit rate menunjukkan berapa persen kandidat sempat memberi ruang profit 5% dalam 5 hari setelah masuk shortlist.</p>
-                    <p className="text-xs text-silver-300">Avg max gain membantu membandingkan preset mana yang paling layak untuk momentum scan.</p>
-                    <p className="text-xs text-silver-300">Avg max drawdown membantu melihat preset mana yang relatif lebih &quot;tenang&quot; untuk dipantau.</p>
+                <div className="rounded-2xl p-4 self-start" style={{ background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.14)" }}>
+                  <p className="text-xs uppercase tracking-[0.18em] font-bold text-blue-200">Cara baca histori</p>
+                  <div className="space-y-3 mt-3">
+                    <p className="text-xs text-silver-300 leading-relaxed">
+                      <strong className="text-blue-300">Total Hit Rate:</strong> Akurasi rata-rata seluruh sinyal di periode ini.
+                    </p>
+                    <p className="text-xs text-silver-300 leading-relaxed">
+                      <strong className="text-emerald-300">Status Done:</strong> Trade sudah melewati masa simpan 5 hari bursa.
+                    </p>
+                    <p className="text-xs text-silver-300 leading-relaxed">
+                      <strong className="text-blue-300">Status Live:</strong> Trade baru saja muncul (kurang dari 5 hari), hasil belum final.
+                    </p>
+                    <p className="text-xs text-silver-300 leading-relaxed italic border-t border-blue-500/20 pt-2">
+                      Gunakan histori harian untuk melihat apakah screener ini sedang &quot;hot&quot; atau sedang &quot;cold&quot; (drawdown).
+                    </p>
                   </div>
                 </div>
               </div>

@@ -31,29 +31,42 @@ export async function GET(
     const searchParams = request.nextUrl.searchParams;
     const range = searchParams.get("range") || "3mo";
     const interval = (searchParams.get("interval") || "1d") as HistoryInterval;
+    
+    // Use Jakarta date for fetching to ensure we are aligned with IDX session
     const now = new Date();
-    const endDate = now.toISOString().split("T")[0];
+    
+    // Set endDate to tomorrow to be inclusive of today's session in Yahoo Finance
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowJakarta = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(tomorrow);
+
     const primaryPeriod = getPeriodStart(now, range);
+    const startDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(primaryPeriod);
+
+    console.log(`API History Request: ${ticker}, Range: ${range}, Interval: ${interval}, Start: ${startDate}, End: ${tomorrowJakarta}`);
 
     let history = await getHistory(
       ticker,
-      primaryPeriod.toISOString().split("T")[0],
-      endDate,
+      startDate,
+      tomorrowJakarta,
       interval
     );
 
-    if (history.length === 0 && interval === "5m" && range === "1d") {
+    // If fetching 1d range and got nothing, fallback to wider window
+    if (history.length === 0 && range === "1d") {
       const fallbackPeriod = getPeriodStart(now, "5d");
+      const fallbackStartDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(fallbackPeriod);
       history = await getHistory(
         ticker,
-        fallbackPeriod.toISOString().split("T")[0],
-        endDate,
+        fallbackStartDate,
+        tomorrowJakarta,
         interval
       );
     }
 
     return NextResponse.json(history);
   } catch (error) {
+    console.error("History API Error:", error);
     return NextResponse.json(
       { error: (error as Error).message },
       { status: 500 }

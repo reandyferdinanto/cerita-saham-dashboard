@@ -7,7 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "migrate:postgres-core": "node scripts/postgres/migrate-core.js"
+    "migrate:postgres-core": "node scripts/postgres/migrate-core.js",
+    "manual:intel": "npx ts-node scripts/trigger-intel.ts",
+    "deploy:restart": "npm run build && pm2 restart cerita-saham-dashboard || pm2 start npm --name \"cerita-saham-dashboard\" -- start",
+    "deploy:full": "npm run manual:intel && npm run deploy:restart"
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4",
@@ -18,6 +21,7 @@
     "framer-motion": "^12.36.0",
     "jose": "^6.2.0",
     "lightweight-charts": "^5.1.0",
+    "lucide-react": "^1.8.0",
     "mongoose": "^9.2.4",
     "next": "^16.2.3",
     "pg": "^8.20.0",
@@ -35,6 +39,7 @@
     "@types/react-dom": "^19",
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
-    "eslint-config-next": "16.1.6"
+    "eslint-config-next": "16.1.6",
+    "ts-node": "^10.9.2"
   }
 }

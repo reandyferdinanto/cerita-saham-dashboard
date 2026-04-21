@@ -1,6 +1,8 @@
 import { connectDB } from "@/lib/db";
 import IndonesiaStock from "@/lib/models/IndonesiaStock";
 import { BANDARMOLOGY_SCREEN_UNIVERSE } from "@/lib/bandarmologyAnalysis";
+import fs from "fs";
+import path from "path";
 
 type PriceBucket = "all" | "under200" | "under300" | "200to500" | "above500";
 
@@ -143,6 +145,52 @@ export async function syncIndonesiaStockMaster(force = false) {
 
   const activeCount = await IndonesiaStock.countDocuments({ active: true });
   return { activeCount, refreshed: true };
+}
+
+export async function syncIndonesiaStockProfilesFromBEI() {
+  await connectDB();
+
+  const detailsFile = path.join(process.cwd(), "external/idx-bei/data/companyDetailsByKodeEmiten.json");
+  if (!fs.existsSync(detailsFile)) {
+    return { success: false, error: "Details file not found. Run scraper first." };
+  }
+
+  try {
+    const allDetails = JSON.parse(fs.readFileSync(detailsFile, "utf8"));
+    const tickers = Object.keys(allDetails);
+    console.log(`Syncing profiles for ${tickers.length} tickers from BEI JSON...`);
+
+    const ops = tickers.map((ticker) => {
+      const response = allDetails[ticker];
+      const profile = (response.data && response.data.length > 0) ? response.data[0] : {};
+      
+      return {
+        updateOne: {
+          filter: { symbol: ticker.toUpperCase() },
+          update: {
+            $set: {
+              listingDate: profile.TanggalPencatatan ? new Date(profile.TanggalPencatatan) : null,
+              sector: profile.Sektor || null,
+              industry: profile.Industri || null,
+              subIndustry: profile.SubIndustri || null,
+              website: profile.Website || null,
+              address: profile.Alamat || null,
+              description: profile.ProfilSingkat || null,
+            }
+          }
+        }
+      };
+    });
+
+    if (ops.length > 0) {
+      await IndonesiaStock.bulkWrite(ops, { ordered: false });
+    }
+
+    return { success: true, count: ops.length };
+  } catch (error) {
+    console.error("Error syncing BEI profiles:", error);
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
 }
 
 export async function getIndonesiaStockUniverse(options?: {

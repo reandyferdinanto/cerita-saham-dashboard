@@ -5,7 +5,10 @@ import GlassCard from "@/components/ui/GlassCard";
 
 export default function AdminTelegramPanel() {
   const [botToken, setBotToken] = useState("");
+  const [adminChatId, setAdminChatId] = useState("");
   const [webhookUrl, setWebhookUrl] = useState("");
+  const [mlScreenerBotToken, setMlScreenerBotToken] = useState("");
+  const [mlScreenerChatId, setMlScreenerChatId] = useState("");
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
@@ -18,7 +21,10 @@ export default function AdminTelegramPanel() {
       const res = await fetch("/api/admin/telegram/setup");
       const data = await res.json();
       if (data.botToken) setBotToken(data.botToken);
+      if (data.adminChatId) setAdminChatId(data.adminChatId);
       if (data.webhookUrl) setWebhookUrl(data.webhookUrl);
+      if (data.mlScreenerBotToken) setMlScreenerBotToken(data.mlScreenerBotToken);
+      if (data.mlScreenerChatId) setMlScreenerChatId(data.mlScreenerChatId);
     } catch (error) {
       console.error("Failed to fetch telegram settings", error);
     }
@@ -33,14 +39,14 @@ export default function AdminTelegramPanel() {
       const res = await fetch("/api/admin/telegram/setup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ botToken }),
+        body: JSON.stringify({ botToken, adminChatId, mlScreenerBotToken, mlScreenerChatId }),
       });
 
       const data = await res.json();
 
       if (res.ok) {
         setStatus({ type: "success", message: data.message });
-        setWebhookUrl(data.webhookUrl);
+        if (data.webhookUrl) setWebhookUrl(data.webhookUrl);
       } else {
         setStatus({ type: "error", message: data.error || "Gagal mengkonfigurasi bot" });
       }
@@ -52,14 +58,17 @@ export default function AdminTelegramPanel() {
   };
 
   const handleReset = async () => {
-    if (!confirm("Apakah Anda yakin ingin menghapus konfigurasi Telegram dan mematikan bot?")) return;
+    if (!confirm("Apakah Anda yakin ingin menghapus semua konfigurasi Telegram dan mematikan bot?")) return;
     
     setLoading(true);
     try {
       const res = await fetch("/api/admin/telegram/setup", { method: "DELETE" });
       if (res.ok) {
         setBotToken("");
+        setAdminChatId("");
         setWebhookUrl("");
+        setMlScreenerBotToken("");
+        setMlScreenerChatId("");
         setStatus({ type: "success", message: "Bot berhasil diputus koneksinya" });
       } else {
         setStatus({ type: "error", message: "Gagal mereset bot" });
@@ -87,7 +96,7 @@ export default function AdminTelegramPanel() {
             </div>
           </div>
           
-          {webhookUrl && (
+          {(webhookUrl || mlScreenerBotToken) && (
             <button
               onClick={handleReset}
               disabled={loading}
@@ -96,32 +105,79 @@ export default function AdminTelegramPanel() {
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
-              Putus Koneksi Bot
+              Hapus Semua Koneksi
             </button>
           )}
         </div>
 
-        <form onSubmit={handleSave} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-silver-300 mb-1.5">
-              Telegram Bot Token (dari @BotFather)
-            </label>
-            <input
-              type="text"
-              value={botToken}
-              onChange={(e) => setBotToken(e.target.value)}
-              placeholder="Contoh: 123456789:ABCdefGHIjklMNOpqrSTUvwxYZ"
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-silver-100 placeholder:text-silver-600 focus:outline-none focus:ring-2 focus:ring-orange-500/40 transition-all"
-              required
-            />
+        <form onSubmit={handleSave} className="space-y-6">
+          <div className="space-y-4">
+            <h3 className="text-md font-semibold text-silver-200 border-b border-white/10 pb-2">Bot Utama (Command & Webhook)</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-silver-300 mb-1.5">
+                  Telegram Bot Token (dari @BotFather)
+                </label>
+                <input
+                  type="text"
+                  value={botToken}
+                  onChange={(e) => setBotToken(e.target.value)}
+                  placeholder="Contoh: 123456789:ABCdefGHIjklMNOpqrSTUvwxYZ"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-silver-100 placeholder:text-silver-600 focus:outline-none focus:ring-2 focus:ring-orange-500/40 transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-silver-300 mb-1.5">
+                  Admin Chat ID (untuk Morning Brief)
+                </label>
+                <input
+                  type="text"
+                  value={adminChatId}
+                  onChange={(e) => setAdminChatId(e.target.value)}
+                  placeholder="Contoh: 123456789"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-silver-100 placeholder:text-silver-600 focus:outline-none focus:ring-2 focus:ring-orange-500/40 transition-all"
+                />
+              </div>
+            </div>
+            
+            {webhookUrl && (
+              <div className="p-4 bg-white/5 rounded-xl border border-white/5 space-y-2">
+                <p className="text-xs font-semibold text-silver-500 uppercase tracking-wider">Status Webhook Aktif</p>
+                <code className="text-xs text-orange-300 break-all">{webhookUrl}</code>
+              </div>
+            )}
           </div>
 
-          {webhookUrl && (
-            <div className="p-4 bg-white/5 rounded-xl border border-white/5 space-y-2">
-              <p className="text-xs font-semibold text-silver-500 uppercase tracking-wider">Status Webhook Aktif</p>
-              <code className="text-xs text-orange-300 break-all">{webhookUrl}</code>
+          <div className="space-y-4">
+            <h3 className="text-md font-semibold text-silver-200 border-b border-white/10 pb-2">Bot Auto-Screener ML (Broadcast Only)</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-silver-300 mb-1.5">
+                  Telegram Bot Token (ML Screener)
+                </label>
+                <input
+                  type="text"
+                  value={mlScreenerBotToken}
+                  onChange={(e) => setMlScreenerBotToken(e.target.value)}
+                  placeholder="Contoh: 987654321:XYZdefGHIjklMNOpqrSTUvwxYZ"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-silver-100 placeholder:text-silver-600 focus:outline-none focus:ring-2 focus:ring-orange-500/40 transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-silver-300 mb-1.5">
+                  Target Chat/Channel ID (Alert Tujuan)
+                </label>
+                <input
+                  type="text"
+                  value={mlScreenerChatId}
+                  onChange={(e) => setMlScreenerChatId(e.target.value)}
+                  placeholder="Contoh: -100123456789"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-silver-100 placeholder:text-silver-600 focus:outline-none focus:ring-2 focus:ring-orange-500/40 transition-all"
+                />
+              </div>
             </div>
-          )}
+            <p className="text-xs text-silver-400">Bot ini akan mengirimkan sinyal saham dengan potensi NAIK (probabilitas &gt;80%) setiap 30 menit selama jam bursa.</p>
+          </div>
 
           {status && (
             <div className={`p-4 rounded-xl text-sm ${
@@ -133,13 +189,13 @@ export default function AdminTelegramPanel() {
 
           <button
             type="submit"
-            disabled={loading}
-            className="w-full sm:w-auto px-8 py-3 bg-orange-500 hover:bg-orange-600 disabled:bg-orange-800 text-white font-bold rounded-xl shadow-lg shadow-orange-500/20 transition-all flex items-center justify-center gap-2"
+            disabled={loading || (!botToken && !mlScreenerBotToken)}
+            className="w-full sm:w-auto px-8 py-3 bg-orange-500 hover:bg-orange-600 disabled:bg-orange-800 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-lg shadow-orange-500/20 transition-all flex items-center justify-center gap-2"
           >
             {loading ? (
               <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             ) : (
-              "Update Webhook & Simpan"
+              "Update Konfigurasi & Simpan"
             )}
           </button>
         </form>
@@ -153,6 +209,7 @@ export default function AdminTelegramPanel() {
           <li>Dapatkan <span className="italic text-silver-200">HTTP API Token</span> yang diberikan</li>
           <li>Masukkan token tersebut ke form di atas lalu klik simpan</li>
           <li>Cari nama bot Anda di Telegram dan kirim <code className="bg-white/5 px-1.5 py-0.5 rounded text-orange-300">/start</code></li>
+          <li>Kirim perintah <code className="bg-white/5 px-1.5 py-0.5 rounded text-orange-300">/my_id</code> (jika bot mendukung) atau gunakan bot @userinfobot untuk mendapatkan <span className="text-orange-300">Chat ID</span> Anda</li>
         </ol>
       </GlassCard>
     </div>

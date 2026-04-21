@@ -11,7 +11,8 @@ export type ScreenerPreset =
   | "washout_reclaim"
   | "under300_focus"
   | "markup_scout"
-  | "stealth_rotation";
+  | "stealth_rotation"
+  | "high_volatility_swing";
 
 export type PriceBucket = "all" | "under200" | "under300" | "200to500" | "above500";
 
@@ -245,6 +246,12 @@ function buildPresetFitScore(preset: ScreenerPreset, row: BandarmologyAnalysisRe
       score += Math.round(stealthAccumulation * 0.18);
       score += Math.round(accumulationBias * 0.08);
       break;
+    case "high_volatility_swing":
+      score += Math.round(breakoutReadiness * 0.2);
+      score += Math.round(accumulationBias * 0.2);
+      if (cheap) score += 10;
+      if ((row.metrics.volumeRatio5v20 ?? 0) >= 1.2) score += 10;
+      break;
     default:
       break;
   }
@@ -293,6 +300,11 @@ function buildPresetMeta(preset: ScreenerPreset, row: BandarmologyAnalysisResult
       return {
         strategyLabel: "Perpindahan Senyap",
         thesis: "Mencari perpindahan minat bandar yang belum ramai: sideways, volume tidak berisik, tetapi barang tampak belum dilepas.",
+      };
+    case "high_volatility_swing":
+      return {
+        strategyLabel: "Swing Volatilitas Tinggi",
+        thesis: "Fokus ke saham < 300 dengan lonjakan volume dan akumulasi siap jalan untuk target profit swing jangka pendek.",
       };
     default:
       return {
@@ -356,6 +368,15 @@ function passesPreset(preset: ScreenerPreset, row: BandarmologyAnalysisResult) {
       return tone !== "bearish" && isCheap && breakoutReadiness >= 52 && supportDefense >= 45 && breakoutDistance <= 10;
     case "stealth_rotation":
       return tone !== "bearish" && price <= 500 && stealthAccumulation >= 60 && accumulationBias >= 44 && vr >= 0.7 && vr <= 1.25;
+    case "high_volatility_swing":
+      return (
+        tone !== "bearish" &&
+        isCheap &&
+        accumulationBias >= 60 &&
+        upDown >= 1.2 &&
+        vr >= 1.2 &&
+        breakoutDistance <= 5
+      );
     default:
       return tone !== "bearish" && isCheap && accumulationBias >= 46 && supportDefense >= 40 && breakoutDistance <= 14;
   }
@@ -425,6 +446,11 @@ function buildPresetReasons(preset: ScreenerPreset, row: BandarmologyAnalysisRes
     case "stealth_rotation":
       if (stealthAccumulation >= 60) reasons.push("rotasi bandar masih senyap");
       if (accumulationBias >= 44) reasons.push("supply belum tampak dibuang agresif");
+      break;
+    case "high_volatility_swing":
+      if ((row.metrics.volumeRatio5v20 ?? 0) >= 1.2) reasons.push("lonjakan volume menandakan partisipasi baru");
+      if ((row.metrics.breakoutDistancePct ?? 999) <= 5) reasons.push("ruang markup masih cukup untuk swing 5 hari");
+      reasons.push("potensi swing volatilitas tinggi untuk profit > 5%");
       break;
     default:
       break;

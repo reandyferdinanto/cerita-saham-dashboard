@@ -10,10 +10,10 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { botToken } = await req.json();
+    const { botToken, adminChatId, mlScreenerBotToken, mlScreenerChatId } = await req.json();
 
-    if (!botToken) {
-      return NextResponse.json({ error: "Bot token is required" }, { status: 400 });
+    if (!botToken && !mlScreenerBotToken) {
+      return NextResponse.json({ error: "At least one bot token is required" }, { status: 400 });
     }
 
     await connectDB();
@@ -24,34 +24,39 @@ export async function POST(req: NextRequest) {
     const protocol = host?.includes("localhost") ? "http" : "https";
     const webhookUrl = `${protocol}://${host}/api/telegram/webhook`;
 
-    console.log(`Setting Telegram Webhook to: ${webhookUrl}`);
+    if (botToken) {
+      console.log(`Setting Telegram Webhook to: ${webhookUrl}`);
 
-    // 1. Update Telegram Webhook
-    const tgResponse = await fetch(`https://api.telegram.org/bot${botToken}/setWebhook?url=${webhookUrl}`);
-    const tgData = await tgResponse.json();
+      // 1. Update Telegram Webhook for Main Bot
+      const tgResponse = await fetch(`https://api.telegram.org/bot${botToken}/setWebhook?url=${webhookUrl}`);
+      const tgData = await tgResponse.json();
 
-    if (!tgData.ok) {
-      console.error("Telegram setWebhook error:", tgData);
-      return NextResponse.json({
-        error: "Failed to set Telegram webhook",
-        details: tgData.description
-      }, { status: 400 });
+      if (!tgData.ok) {
+        console.error("Telegram setWebhook error:", tgData);
+        return NextResponse.json({
+          error: "Failed to set Telegram webhook for Main Bot",
+          details: tgData.description
+        }, { status: 400 });
+      }
     }
 
     // 2. Save to database
     await SiteSettings.findOneAndUpdate(
       {},
       {
-        telegramBotToken: botToken,
-        telegramWebhookUrl: webhookUrl
+        ...(botToken && { telegramBotToken: botToken }),
+        ...(botToken && { telegramWebhookUrl: webhookUrl }),
+        ...(adminChatId !== undefined && { telegramAdminChatId: adminChatId }),
+        ...(mlScreenerBotToken !== undefined && { mlScreenerBotToken: mlScreenerBotToken }),
+        ...(mlScreenerChatId !== undefined && { mlScreenerChatId: mlScreenerChatId })
       },
       { upsert: true, new: true }
     );
 
     return NextResponse.json({
       success: true,
-      message: "Telegram bot configured and webhook updated successfully",
-      webhookUrl
+      message: "Konfigurasi Telegram berhasil disimpan",
+      webhookUrl: botToken ? webhookUrl : undefined
     });
   } catch (error: any) {
     console.error("Telegram setup error:", error);
@@ -79,7 +84,10 @@ export async function DELETE(req: NextRequest) {
       {
         $unset: {
           telegramBotToken: "",
-          telegramWebhookUrl: ""
+          telegramWebhookUrl: "",
+          telegramAdminChatId: "",
+          mlScreenerBotToken: "",
+          mlScreenerChatId: ""
         }
       }
     );
@@ -104,7 +112,10 @@ export async function GET(req: NextRequest) {
     const settings = await SiteSettings.findOne({});
     return NextResponse.json({
       botToken: settings?.telegramBotToken || "",
-      webhookUrl: settings?.telegramWebhookUrl || ""
+      webhookUrl: settings?.telegramWebhookUrl || "",
+      adminChatId: settings?.telegramAdminChatId || "",
+      mlScreenerBotToken: settings?.mlScreenerBotToken || "",
+      mlScreenerChatId: settings?.mlScreenerChatId || ""
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

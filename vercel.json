@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/daily-summary",
       "schedule": "15 9 * * 1-5"
+    },
+    {
+      "path": "/api/cron/ml-auto-screener",
+      "schedule": "0,30 2-8 * * 1-5"
     }
   ]
 }

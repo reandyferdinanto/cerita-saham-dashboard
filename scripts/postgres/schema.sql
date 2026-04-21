@@ -120,3 +120,22 @@ create table if not exists corporate_actions (
 );
 
 create index if not exists idx_corporate_actions_user_id on corporate_actions (user_id, action_date asc);
+
+create table if not exists indonesia_stocks (
+  ticker text primary key,
+  name text not null,
+  listing_date timestamptz,
+  sector text,
+  industry text,
+  sub_industry text,
+  market_cap numeric,
+  shares_outstanding bigint,
+  website text,
+  address text,
+  description text,
+  is_active boolean default true,
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_indonesia_stocks_sector on indonesia_stocks (sector);
+create index if not exists idx_indonesia_stocks_industry on indonesia_stocks (industry);

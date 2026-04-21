@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import GlassCard from "@/components/ui/GlassCard";
@@ -10,8 +8,9 @@ import AdminBandarmologyPanel from "@/app/admin/AdminBandarmologyPanel";
 import AdminStockSummaryPanel from "@/app/admin/AdminStockSummaryPanel";
 import AdminSmartMoneyPanel from "@/app/admin/AdminSmartMoneyPanel";
 import AdminTelegramPanel from "@/app/admin/AdminTelegramPanel";
+import BacktestHistoryView from "@/components/admin/BacktestHistoryView";
 
-type AdminTab = "watchlist" | "bandarmology" | "stock-summary" | "smart-money" | "articles" | "members" | "telegram";
+type AdminTab = "watchlist" | "bandarmology" | "stock-summary" | "smart-money" | "articles" | "members" | "telegram" | "history";
 
 const TAB_CONFIG: Array<{
   id: AdminTab;
@@ -55,17 +54,40 @@ const TAB_CONFIG: Array<{
     label: "Telegram Bot",
     description: "Konfigurasi Bot Telegram untuk cek saham, gainer, dan loser otomatis.",
   },
+  {
+    id: "history",
+    label: "Riwayat Performa",
+    description: "Lihat history backtest dan performa signal screener secara transparan.",
+  },
 ];
 
 function resolveTab(pathname: string, tabParam: string | null): AdminTab {
   if (pathname === "/admin/articles") return "articles";
   if (pathname === "/admin/users") return "members";
   if (tabParam === "broker-summary") return "stock-summary";
-  if (tabParam === "articles" || tabParam === "members" || tabParam === "watchlist" || tabParam === "bandarmology" || tabParam === "stock-summary" || tabParam === "smart-money" || tabParam === "telegram") return tabParam as AdminTab;
+  if (
+    tabParam === "articles" || 
+    tabParam === "members" || 
+    tabParam === "watchlist" || 
+    tabParam === "bandarmology" || 
+    tabParam === "stock-summary" || 
+    tabParam === "smart-money" || 
+    tabParam === "telegram" || 
+    tabParam === "history"
+  ) {
+    return tabParam as AdminTab;
+  }
   return "watchlist";
 }
 
 function TabIcon({ tab }: { tab: AdminTab }) {
+  if (tab === "history") {
+    return (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    );
+  }
   if (tab === "telegram") {
     return (
       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -260,6 +282,7 @@ export default function AdminControlCenter() {
       {activeTab === "telegram" ? <AdminTelegramPanel /> : null}
       {activeTab === "articles" ? <AdminArticlesPageContent embedded /> : null}
       {activeTab === "members" ? <AdminUsersPageContent embedded /> : null}
+      {activeTab === "history" ? <BacktestHistoryView /> : null}
     </div>
   );
 }

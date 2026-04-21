@@ -5,6 +5,8 @@ import { getQuote, getQuotes, getHistory } from "@/lib/yahooFinance";
 import IndonesiaStock from "@/lib/models/IndonesiaStock";
 import { generateStockChartImageUrl } from "@/lib/chartGenerator";
 
+import { generateMorningIntel, generateDailySummary } from "@/lib/intelligence";
+
 async function sendTelegramMessage(chatId: number, text: string, token: string) {
   console.log(`Sending message to ${chatId}: ${text.substring(0, 50).replace(/\n/g, " ")}...`);
   const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
@@ -13,7 +15,7 @@ async function sendTelegramMessage(chatId: number, text: string, token: string) 
     body: JSON.stringify({
       chat_id: chatId,
       text: text,
-      parse_mode: "MarkdownV2",
+      parse_mode: "Markdown", // Switched to Markdown for simpler formatting compatibility
     }),
   });
   
@@ -135,15 +137,33 @@ export async function POST(req: NextRequest) {
     }
 
     if (text === "/START" || text === "/HELP") {
-      const welcome = `Selamat datang di *Cerita Saham Bot*\\!
+      const welcome = `Selamat datang di *Cerita Saham Bot*!
       
 Perintah tersedia:
-• /gainers \\- Top 10 Gainer Hari Ini
-• /losers \\- Top 10 Loser Hari Ini
-• Kode Saham \\(misal: BBCA\\) \\- Detail & Chart Daily
-• Kode Saham \\+ Timeframe \\(misal: BBCA 1h\\) \\- Chart timeframe tertentu \\(5m, 15m, 1h, 4h\\)\\.`;
+• /intel - Laporan Morning Intel (3 Saham Pilihan)
+• /summary - Ringkasan Penutupan IHSG
+• /gainers - Top 10 Gainer Hari Ini
+• /losers - Top 10 Loser Hari Ini
+• Kode Saham (misal: BBCA) - Detail & Chart Daily
+• Kode Saham + Timeframe (misal: BBCA 1h) - Chart timeframe tertentu (5m, 15m, 1h, 4h).`;
       await sendTelegramMessage(chatId, welcome, token);
     } 
+    else if (text === "/INTEL") {
+      await sendTelegramMessage(chatId, "⏳ Sedang meracik *Morning Intel* untuk Anda...", token);
+      try {
+        await generateMorningIntel(chatId.toString());
+      } catch (e) {
+        await sendTelegramMessage(chatId, "❌ Gagal mengaktifkan Morning Intel. Pastikan data sudah tersedia.", token);
+      }
+    }
+    else if (text === "/SUMMARY") {
+      await sendTelegramMessage(chatId, "⏳ Sedang menyiapkan *Daily Summary*...", token);
+      try {
+        await generateDailySummary(chatId.toString());
+      } catch (e) {
+        await sendTelegramMessage(chatId, "❌ Gagal mengambil ringkasan pasar.", token);
+      }
+    }
     else if (text === "/GAINERS") {
       await sendTelegramMessage(chatId, "Sedang mengambil data Top Gainers \\(Seluruh IDX\\)...", token);
       
