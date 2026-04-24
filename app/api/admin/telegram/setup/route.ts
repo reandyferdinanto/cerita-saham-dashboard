@@ -10,10 +10,33 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { botToken, adminChatId, mlScreenerBotToken, mlScreenerChatId } = await req.json();
+    const { 
+      botToken, 
+      adminChatId, 
+      adminThreadId,
+      mlScreenerBotToken, 
+      mlScreenerChatId,
+      watchlistAlertEnabled,
+      watchlistAlertBotToken,
+      watchlistAlertChatId,
+      watchlistAlertThreadId,
+      watchlistAlertMinEmaOffset,
+      watchlistAlertMaxEmaOffset,
+      watchlistAlertOpenOffset,
+      watchlistAlertEma20Enabled,
+      watchlistAlertEma20Min,
+      watchlistAlertEma20Max,
+      watchlistAlertEma50Enabled,
+      watchlistAlertEma50Min,
+      watchlistAlertEma50Max,
+      watchlistAlertOpenGapEnabled,
+      watchlistAlertOpenGapMin,
+      watchlistAlertUniverse,
+      watchlistAlertMinGain
+    } = await req.json();
 
-    if (!botToken && !mlScreenerBotToken) {
-      return NextResponse.json({ error: "At least one bot token is required" }, { status: 400 });
+    if (!botToken && !mlScreenerBotToken && !watchlistAlertBotToken && watchlistAlertEnabled === undefined) {
+      return NextResponse.json({ error: "No configuration data provided" }, { status: 400 });
     }
 
     await connectDB();
@@ -26,18 +49,12 @@ export async function POST(req: NextRequest) {
 
     if (botToken) {
       console.log(`Setting Telegram Webhook to: ${webhookUrl}`);
+      await fetch(`https://api.telegram.org/bot${botToken}/setWebhook?url=${webhookUrl}`);
+    }
 
-      // 1. Update Telegram Webhook for Main Bot
-      const tgResponse = await fetch(`https://api.telegram.org/bot${botToken}/setWebhook?url=${webhookUrl}`);
-      const tgData = await tgResponse.json();
-
-      if (!tgData.ok) {
-        console.error("Telegram setWebhook error:", tgData);
-        return NextResponse.json({
-          error: "Failed to set Telegram webhook for Main Bot",
-          details: tgData.description
-        }, { status: 400 });
-      }
+    if (watchlistAlertBotToken && watchlistAlertBotToken !== botToken) {
+      console.log(`Setting Telegram Webhook for Watchlist Bot to: ${webhookUrl}`);
+      await fetch(`https://api.telegram.org/bot${watchlistAlertBotToken}/setWebhook?url=${webhookUrl}`);
     }
 
     // 2. Save to database
@@ -47,8 +64,26 @@ export async function POST(req: NextRequest) {
         ...(botToken && { telegramBotToken: botToken }),
         ...(botToken && { telegramWebhookUrl: webhookUrl }),
         ...(adminChatId !== undefined && { telegramAdminChatId: adminChatId }),
+        ...(adminThreadId !== undefined && { telegramAdminThreadId: adminThreadId }),
         ...(mlScreenerBotToken !== undefined && { mlScreenerBotToken: mlScreenerBotToken }),
-        ...(mlScreenerChatId !== undefined && { mlScreenerChatId: mlScreenerChatId })
+        ...(mlScreenerChatId !== undefined && { mlScreenerChatId: mlScreenerChatId }),
+        ...(watchlistAlertEnabled !== undefined && { watchlistAlertEnabled }),
+        ...(watchlistAlertBotToken !== undefined && { watchlistAlertBotToken }),
+        ...(watchlistAlertChatId !== undefined && { watchlistAlertChatId }),
+        ...(watchlistAlertThreadId !== undefined && { watchlistAlertThreadId }),
+        ...(watchlistAlertMinEmaOffset !== undefined && { watchlistAlertMinEmaOffset }),
+        ...(watchlistAlertMaxEmaOffset !== undefined && { watchlistAlertMaxEmaOffset }),
+        ...(watchlistAlertOpenOffset !== undefined && { watchlistAlertOpenOffset }),
+        ...(watchlistAlertEma20Enabled !== undefined && { watchlistAlertEma20Enabled }),
+        ...(watchlistAlertEma20Min !== undefined && { watchlistAlertEma20Min }),
+        ...(watchlistAlertEma20Max !== undefined && { watchlistAlertEma20Max }),
+        ...(watchlistAlertEma50Enabled !== undefined && { watchlistAlertEma50Enabled }),
+        ...(watchlistAlertEma50Min !== undefined && { watchlistAlertEma50Min }),
+        ...(watchlistAlertEma50Max !== undefined && { watchlistAlertEma50Max }),
+        ...(watchlistAlertOpenGapEnabled !== undefined && { watchlistAlertOpenGapEnabled }),
+        ...(watchlistAlertOpenGapMin !== undefined && { watchlistAlertOpenGapMin }),
+        ...(watchlistAlertUniverse !== undefined && { watchlistAlertUniverse }),
+        ...(watchlistAlertMinGain !== undefined && { watchlistAlertMinGain })
       },
       { upsert: true, new: true }
     );
@@ -86,8 +121,24 @@ export async function DELETE(req: NextRequest) {
           telegramBotToken: "",
           telegramWebhookUrl: "",
           telegramAdminChatId: "",
+          telegramAdminThreadId: "",
           mlScreenerBotToken: "",
-          mlScreenerChatId: ""
+          mlScreenerChatId: "",
+          watchlistAlertEnabled: "",
+          watchlistAlertBotToken: "",
+          watchlistAlertChatId: "",
+          watchlistAlertThreadId: "",
+          watchlistAlertMinEmaOffset: "",
+          watchlistAlertMaxEmaOffset: "",
+          watchlistAlertOpenOffset: "",
+          watchlistAlertEma20Enabled: "",
+          watchlistAlertEma20Min: "",
+          watchlistAlertEma20Max: "",
+          watchlistAlertEma50Enabled: "",
+          watchlistAlertEma50Min: "",
+          watchlistAlertEma50Max: "",
+          watchlistAlertOpenGapEnabled: "",
+          watchlistAlertOpenGapMin: ""
         }
       }
     );
@@ -114,8 +165,26 @@ export async function GET(req: NextRequest) {
       botToken: settings?.telegramBotToken || "",
       webhookUrl: settings?.telegramWebhookUrl || "",
       adminChatId: settings?.telegramAdminChatId || "",
+      adminThreadId: settings?.telegramAdminThreadId || "",
       mlScreenerBotToken: settings?.mlScreenerBotToken || "",
-      mlScreenerChatId: settings?.mlScreenerChatId || ""
+      mlScreenerChatId: settings?.mlScreenerChatId || "",
+      watchlistAlertEnabled: settings?.watchlistAlertEnabled || false,
+      watchlistAlertBotToken: settings?.watchlistAlertBotToken || "",
+      watchlistAlertChatId: settings?.watchlistAlertChatId || "",
+      watchlistAlertThreadId: settings?.watchlistAlertThreadId || "",
+      watchlistAlertMinEmaOffset: settings?.watchlistAlertMinEmaOffset || 1,
+      watchlistAlertMaxEmaOffset: settings?.watchlistAlertMaxEmaOffset || 2,
+      watchlistAlertOpenOffset: settings?.watchlistAlertOpenOffset || 2,
+      watchlistAlertEma20Enabled: settings?.watchlistAlertEma20Enabled ?? true,
+      watchlistAlertEma20Min: settings?.watchlistAlertEma20Min ?? 1,
+      watchlistAlertEma20Max: settings?.watchlistAlertEma20Max ?? 2,
+      watchlistAlertEma50Enabled: settings?.watchlistAlertEma50Enabled ?? false,
+      watchlistAlertEma50Min: settings?.watchlistAlertEma50Min ?? 1,
+      watchlistAlertEma50Max: settings?.watchlistAlertEma50Max ?? 2,
+      watchlistAlertOpenGapEnabled: settings?.watchlistAlertOpenGapEnabled ?? true,
+      watchlistAlertOpenGapMin: settings?.watchlistAlertOpenGapMin ?? 2,
+      watchlistAlertUniverse: settings?.watchlistAlertUniverse || "watchlist",
+      watchlistAlertMinGain: settings?.watchlistAlertMinGain || 5,
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

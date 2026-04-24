@@ -5,6 +5,7 @@ export interface WatchlistEntry {
   sl: number | null;       // Stop Loss price
   bandarmology: string;    // Bandarmology notes
   addedAt: string;         // ISO date string
+  lastAlertedAt?: Date | null;
 }
 
 export type UserRole = "user" | "admin" | "superadmin";

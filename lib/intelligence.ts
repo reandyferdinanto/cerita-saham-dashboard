@@ -8,13 +8,17 @@ import Article from "./models/Article";
 import { getQuote } from "./yahooFinance";
 import mongoose from "mongoose";
 
-export async function generateMorningIntel(chatId?: string) {
+export async function generateMorningIntel(chatId?: string, threadId?: string | number) {
   await connectDB();
   const settings = await SiteSettings.findOne({});
   const token = settings?.telegramBotToken;
   const targetChatId = chatId || settings?.telegramAdminChatId;
+  const targetThreadId = threadId || settings?.telegramAdminThreadId;
 
   if (!token || !targetChatId) throw new Error("Telegram bot not configured");
+
+  // Send initial "working" message
+  await sendTelegramMessage(targetChatId, "⏳ Sedang meracik *Morning Intel* untuk Anda...", token, targetThreadId);
 
   const screener = await getBandarmologyScreener({
     preset: "high_volatility_swing",
@@ -58,15 +62,16 @@ export async function generateMorningIntel(chatId?: string) {
 
   message += `\n_Gunakan porsi kecil (<5%) & ketat Stop Loss. Disclaimer On._`;
 
-  await sendTelegramMessage(targetChatId, message, token);
+  await sendTelegramMessage(targetChatId, message, token, targetThreadId);
   return { success: true, top3: top3.map(s => s.ticker) };
 }
 
-export async function generateDailySummary(chatId?: string) {
+export async function generateDailySummary(chatId?: string, threadId?: string | number) {
   await connectDB();
   const settings = await SiteSettings.findOne({});
   const token = settings?.telegramBotToken;
   const targetChatId = chatId || settings?.telegramAdminChatId;
+  const targetThreadId = threadId || settings?.telegramAdminThreadId;
   
   // Reuse logic from cron/daily-summary (Simplified for the sake of brevity here)
   // In a real scenario, we'd refactor the RSS parser to a utility
@@ -88,7 +93,7 @@ export async function generateDailySummary(chatId?: string) {
   content += `_Volatilitas cukup terjaga. Detail lengkap dapat dilihat di dashboard._`;
 
   if (token && targetChatId) {
-    await sendTelegramMessage(targetChatId, content, token);
+    await sendTelegramMessage(targetChatId, content, token, targetThreadId);
   }
   
   return { success: true };

@@ -11,6 +11,7 @@ const WatchlistSchema = new Schema<IWatchlistEntry>(
     sl: { type: Number, default: null },
     bandarmology: { type: String, default: "" },
     addedAt: { type: String, required: true },
+    lastAlertedAt: { type: Date, default: null },
   },
   { timestamps: false }
 );

@@ -119,13 +119,12 @@ function calcSRZones(data: OHLCData[], pivotLeft = 7, pivotRight = 7, atrLen = 1
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
-type IndicatorKey = "ma5" | "ma20" | "ma50" | "ma200" | "macd" | "sr";
+type IndicatorKey = "ema9" | "ema20" | "ema50" | "macd" | "sr";
 
 const INDICATOR_CONFIG: { key: IndicatorKey; label: string; color: string }[] = [
-  { key: "ma5",   label: "MA5",   color: "#f59e0b" },
-  { key: "ma20",  label: "MA20",  color: "#3b82f6" },
-  { key: "ma50",  label: "MA50",  color: "#a855f7" },
-  { key: "ma200", label: "MA200", color: "#ec4899" },
+  { key: "ema9",  label: "EMA9",  color: "#f59e0b" },
+  { key: "ema20", label: "EMA20", color: "#3b82f6" },
+  { key: "ema50", label: "EMA50", color: "#a855f7" },
   { key: "macd",  label: "MACD",  color: "#10b981" },
   { key: "sr",    label: "S/R",   color: "#94a3b8" },
 ];
@@ -136,7 +135,7 @@ export default function CandlestickChart({ data, tp, sl, height = 500, mobileHei
   const chartInst = useRef<IChartApi | null>(null);
 
   const [activeIndicators, setActiveIndicators] = useState<Set<IndicatorKey>>(
-    new Set(["ma5", "ma20", "ma50", "macd", "sr"])
+    new Set(["ema9", "ema20", "ema50", "macd", "sr"])
   );
 
   const toggleIndicator = (key: IndicatorKey) => {
@@ -226,14 +225,13 @@ export default function CandlestickChart({ data, tp, sl, height = 500, mobileHei
 
     // ── Moving Averages ──
     const maPeriods: { key: IndicatorKey; period: number; color: string }[] = [
-      { key: "ma5",   period: 5,   color: "#f59e0b" },
-      { key: "ma20",  period: 20,  color: "#3b82f6" },
-      { key: "ma50",  period: 50,  color: "#a855f7" },
-      { key: "ma200", period: 200, color: "#ec4899" },
+      { key: "ema9",  period: 9,   color: "#f59e0b" },
+      { key: "ema20", period: 20,  color: "#3b82f6" },
+      { key: "ema50", period: 50,  color: "#a855f7" },
     ];
     maPeriods.forEach(({ key, period, color }) => {
       if (!activeIndicators.has(key)) return;
-      const values = calcMA(closes, period);
+      const values = calcEMA(closes, period);
       const maData = data
         .map((d, i) => (values[i] != null ? { time: d.time, value: values[i]! } : null))
         .filter(Boolean);
@@ -316,7 +314,12 @@ export default function CandlestickChart({ data, tp, sl, height = 500, mobileHei
         );
     }
 
-    chart.timeScale().fitContent();
+    // Tampilkan seluruh data (6 bulan) dan tambahkan margin 15 bar kosong di sebelah kanan
+    // agar candle terakhir terlihat sangat jelas dan tidak mepet sumbu Y.
+    chart.timeScale().setVisibleLogicalRange({
+      from: 0,
+      to: data.length + 15,
+    });
 
     const handleResize = () => {
       if (chartRef.current) {
