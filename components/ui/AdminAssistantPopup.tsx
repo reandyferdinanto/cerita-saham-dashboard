@@ -56,6 +56,8 @@ export default function AdminAssistantPopup() {
 
   useEffect(() => {
     if (!loading && user && (user.role === "admin" || user.role === "superadmin")) {
+      if (window.innerWidth < 768) return;
+
       const timer = window.setTimeout(() => setOpen(true), 1200);
       return () => window.clearTimeout(timer);
     }

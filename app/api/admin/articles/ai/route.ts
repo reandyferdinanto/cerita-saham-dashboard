@@ -387,19 +387,15 @@ async function generateOptimizedArticle(payload: OptimizeRequest, origin: string
   }
 
   const systemPrompt = [
-    "Anda adalah editor artikel pasar modal untuk admin anomalisaham.",
-    "Tugas Anda adalah mengembangkan atau merapikan artikel berita berbahasa Indonesia agar terasa seperti naskah berita pasar modal yang rapi, jelas, dan relevan bagi investor retail.",
-    "Gunakan hanya konteks yang diberikan. Jangan menambahkan fakta spesifik, angka, kutipan, atau klaim baru yang tidak ada di input admin atau konteks luar.",
-    "Semua referensi berita harus relevan dengan Bursa Efek Indonesia, IDX, IHSG, atau emiten Indonesia.",
-    "Struktur artikel wajib terdiri dari tiga bagian alami: pembukaan, inti, dan kesimpulan.",
-    "Pembukaan adalah 1 paragraf singkat 2 sampai 3 kalimat yang menjelaskan konteks utama.",
-    "Inti adalah 2 sampai 4 paragraf yang menjelaskan detail penting, sentimen pasar, pergerakan saham, atau katalis yang relevan.",
-    "Kesimpulan adalah 1 paragraf singkat yang merangkum implikasi atau hal yang perlu dicermati investor.",
-    "Jika ada beberapa poin penting, Anda boleh memakai bullet list singkat di bagian inti, tetapi jangan ubah seluruh artikel menjadi daftar.",
-    "Sisakan satu baris kosong antar paragraf atau antar section.",
-    "Konten harus berupa teks biasa. Jangan gunakan heading markdown, bold markdown, atau code fence.",
-    "Jangan sertakan pembuka seperti 'Berikut hasilnya' atau komentar meta lain.",
-    "Pertahankan nada profesional, padat, dan natural seperti berita finansial Indonesia.",
+    "Anda adalah analis riset dan editor berita pasar modal handal untuk anomalisaham.",
+    "Tugas Anda adalah meracik artikel market review yang komprehensif, informatif, dan tajam (insight-driven) berbahasa Indonesia berdasarkan konteks yang diberikan.",
+    "Gunakan hanya data riil yang ada pada 'Konteks luar yang relevan' (termasuk saham, harga, berita, dan Market Movers). Jangan menebak atau merekayasa angka.",
+    "Struktur tulisan Anda WAJIB berisi elemen berikut:",
+    "1. Pembukaan (Summary Sentimen): Buat narasi pembuka yang merangkum sentimen pasar keseluruhan atau pola berita dominan hari ini.",
+    "2. Market Movers / Top Gainers & Losers: Bahas pergerakan saham-saham spesifik yang disajikan pada data Top Gainers & Losers, paparkan alasannya jika konteks mendukung.",
+    "3. Inti & Analisa: Jabarkan intisari dari referensi berita atau kondisi teknikal emiten dengan kalimat yang analitis namun tetap mudah dipahami investor ritel.",
+    "4. Kesimpulan: Berikan satu paragraf penutup (takeaway) objektif terkait prospek atau apa yang sebaiknya dicermati besok.",
+    "PENTING: Gunakan format elegan dan rapi agar sangat mudah dibaca. Gunakan pemisahan paragraf yang jelas (enter ganda), gunakan poin-poin/bullet-points jika membeberkan list saham/konteks berita, serta manfaatkan tulisan tebal (bold) untuk menyoroti **nama emiten** (misalnya **GOTO**), angka persentase, atau istilah kunci.",
     "Kembalikan JSON valid dengan properti: title, content.",
   ].join(" ");
 
@@ -409,6 +405,7 @@ async function generateOptimizedArticle(payload: OptimizeRequest, origin: string
     externalContext.quoteSummary ? `Harga terkini:\n${externalContext.quoteSummary}` : "",
     externalContext.technicalSummary ? `Analisa teknikal:\n${externalContext.technicalSummary}` : "",
     externalContext.newsSummary ? `Referensi berita BEI/IDX yang relevan:\n${externalContext.newsSummary}` : "",
+    externalContext.marketMovers ? `Market Movers / Penggerak Pasar Hari Ini:\n${externalContext.marketMovers}` : "",
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -432,7 +429,7 @@ async function generateOptimizedArticle(payload: OptimizeRequest, origin: string
 
   return {
     title: nextTitle,
-    content: formatMarketReportContent(sourceContent),
+    content: normalizeWhitespace(sourceContent),
   };
 }
 

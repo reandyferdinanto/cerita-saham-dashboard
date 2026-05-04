@@ -1,11 +1,11 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0a1a14;
-  --foreground: #e2e8f0;
-  --font-geist-sans: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --background: oklch(15% 0.022 160);
+  --foreground: oklch(92% 0.018 105);
+  --font-geist-sans: var(--font-premium-body), "Trebuchet MS", "Segoe UI", sans-serif;
   --font-geist-mono: "Consolas", "SFMono-Regular", "Liberation Mono", monospace;
-  --font-playfair: Georgia, "Times New Roman", serif;
+  --font-playfair: var(--font-premium-display), Georgia, "Times New Roman", serif;
   --green-900: #064e3b;
   --green-800: #065f46;
   --green-700: #047857;
@@ -42,6 +42,7 @@
   --color-silver-500: var(--silver-500);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-playfair);
 }
 
 body {
@@ -49,6 +50,29 @@ body {
   color: var(--foreground);
   font-family: var(--font-geist-sans);
   min-height: 100vh;
+  font-feature-settings: "kern" 1, "liga" 1;
+}
+
+.font-display {
+  font-family: var(--font-playfair);
+  letter-spacing: -0.045em;
+}
+
+.dashboard-typography {
+  font-family: var(--font-geist-sans);
+  font-kerning: normal;
+}
+
+.dashboard-typography h1,
+.dashboard-typography h2,
+.dashboard-typography .dashboard-display {
+  font-family: var(--font-playfair);
+  font-feature-settings: "kern" 1, "liga" 1;
+}
+
+.dashboard-typography .dashboard-label {
+  font-family: var(--font-geist-sans);
+  letter-spacing: 0.2em;
 }
 
 /* Glassmorphism base */
@@ -137,9 +161,11 @@ body {
 
 /* Animated gradient bg */
 .bg-gradient-animated {
-  background: linear-gradient(135deg, #0a1a14 0%, #064e3b 25%, #0a1a14 50%, #1a0f00 75%, #0a1a14 100%);
-  background-size: 400% 400%;
-  animation: gradientShift 15s ease infinite;
+  background:
+    radial-gradient(circle at 18% 0%, oklch(35% 0.06 154 / 0.42), transparent 32rem),
+    radial-gradient(circle at 82% 12%, oklch(52% 0.11 58 / 0.22), transparent 28rem),
+    linear-gradient(135deg, oklch(13% 0.024 164) 0%, oklch(17% 0.03 150) 48%, oklch(12% 0.018 88) 100%);
+  background-attachment: fixed;
 }
 
 @keyframes gradientShift {
@@ -156,6 +182,19 @@ body {
 
 .pulse-dot {
   animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes marketMarquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+.market-news-marquee {
+  animation: marketMarquee 42s linear infinite;
+}
+
+.market-news-marquee:hover {
+  animation-play-state: paused;
 }
 
 /* Hide scrollbar but keep scrollable */

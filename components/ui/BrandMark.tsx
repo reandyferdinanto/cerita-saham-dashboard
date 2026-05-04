@@ -42,9 +42,9 @@ export default function BrandMark({
       <div className={`relative flex flex-shrink-0 items-center justify-center`}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/anomali-saham-logo.png"
+          src="/anomali-saham-mark.png"
           alt="Anomali Saham Logo"
-          className={`${styles.orb} object-contain mix-blend-screen drop-shadow-md`}
+          className={`${styles.orb} rounded-full object-cover drop-shadow-md ring-1 ring-emerald-300/20`}
         />
       </div>
 
@@ -54,16 +54,7 @@ export default function BrandMark({
           style={{ fontFamily: "var(--font-playfair), Georgia, serif" }}
         >
           anomali
-          <span
-            style={{
-              background: "linear-gradient(135deg, #fbbf24 0%, #fb923c 55%, #f97316 100%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-            }}
-          >
-            saham
-          </span>
+          <span className="text-orange-300">saham</span>
         </p>
         {subtitle ? (
           <p className={`${styles.caption} mt-1 font-medium text-slate-400`}>{subtitle}</p>

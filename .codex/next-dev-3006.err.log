@@ -1,0 +1,159 @@
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <LoadingBoundary name="search/" loading={null}>
+      <HTTPAccessFallbackBoundary notFound={undefined} forbidden={undefined} unauthorized={undefined}>
+        <RedirectBoundary>
+          <RedirectErrorBoundary router={{...}}>
+            <InnerLayoutRouter url="/search" tree={[...]} params={{}} cacheNode={{rsc:{...}, ...}} segmentPath={[...]} ...>
+              <SegmentViewNode type="page" pagePath="search/pag...">
+                <SegmentTrieNode>
+                <ClientPageRoot Component={function SearchPage} serverProvidedParams={{...}}>
+                  <SearchPage params={Promise} searchParams={Promise}>
+                    <Suspense fallback={<div>}>
+                      <SearchPageInner>
+                        <div className="space-y-6">
+                          <div>
+                          <div className="relative">
+                            <div>
+                            <input
+                              type="text"
+                              value=""
+                              onChange={function onChange}
+                              onKeyDown={function onKeyDown}
+                              placeholder="Ketik kode saham IDX (cth: ANTM, GOTO, BRMS) atau nama perusahaan..."
+                              className="glass-input w-full pl-12 pr-12 py-4 text-base placeholder:text-silver-500"
+                              style={{color:"#e2e8f0"}}
+                              autoFocus={true}
+-                             fdprocessedid="29ka5j"
+                            >
+                            ...
+                          <div className="grid grid-...">
+                            <GlassCard>
+                            <GlassCard hover={false}>
+                              <div className={"glass-ca..."} style={undefined}>
+                                <div>
+                                <p>
+                                <div className="flex flex-...">
+                                  <button
+                                    onClick={function onClick}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                                    style={{background:"rgba(6,78,...",color:"#94a3b8",border:"1px solid ..."}}
+                                    onMouseEnter={function onMouseEnter}
+                                    onMouseLeave={function onMouseLeave}
+-                                   fdprocessedid="1qocnf"
+                                  >
+                                  <button
+                                    onClick={function onClick}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                                    style={{background:"rgba(6,78,...",color:"#94a3b8",border:"1px solid ..."}}
+                                    onMouseEnter={function onMouseEnter}
+                                    onMouseLeave={function onMouseLeave}
+-                                   fdprocessedid="qoms8"
+                                  >
+                                  <button
+                                    onClick={function onClick}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                                    style={{background:"rgba(6,78,...",color:"#94a3b8",border:"1px solid ..."}}
+                                    onMouseEnter={function onMouseEnter}
+                                    onMouseLeave={function onMouseLeave}
+-                                   fdprocessedid="4p5sdg"
+                                  >
+                                  <button
+                                    onClick={function onClick}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                                    style={{background:"rgba(6,78,...",color:"#94a3b8",border:"1px solid ..."}}
+                                    onMouseEnter={function onMouseEnter}
+                                    onMouseLeave={function onMouseLeave}
+-                                   fdprocessedid="5hhfed"
+                                  >
+                                  <button
+                                    onClick={function onClick}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                                    style={{background:"rgba(6,78,...",color:"#94a3b8",border:"1px solid ..."}}
+                                    onMouseEnter={function onMouseEnter}
+                                    onMouseLeave={function onMouseLeave}
+-                                   fdprocessedid="luk9xu"
+                                  >
+                                  <button
+                                    onClick={function onClick}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                                    style={{background:"rgba(6,78,...",color:"#94a3b8",border:"1px solid ..."}}
+                                    onMouseEnter={function onMouseEnter}
+                                    onMouseLeave={function onMouseLeave}
+-                                   fdprocessedid="khnu7c"
+                                  >
+              ...
+            ...
+ 
+[browser] The final argument passed to useEffect changed size between renders. The order and size of this array must remain constant.
+
+Previous: [[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object], , , 450, 320, [object Set], true]
+Incoming: [[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object], , , 450, 320, [object Set], true, false] 
+    at CandlestickChart (file://C:/reandy/ceritaSaham-Dashboard/.next/dev/static/chunks/components_charts_CandlestickChart_tsx_0_6i7fg._.js?id=%255Bproject%255D%252Fcomponents%252Fcharts%252FCandlestickChart.tsx+%255Bapp-client%255D+%2528ecmascript%2529:613:180)
+    at S.scheduleRefresh (chrome-extension://fmkadmapgofadopljbjfkapdkoienihi/build/installHook.js:1:86461)
+    at Set.forEach (<anonymous>) (file://C:/reandy/ceritaSaham-Dashboard/.next/dev/static/chunks/components_charts_CandlestickChart_tsx_0_6i7fg._.js?id=%255Bproject%255D%252Fcomponents%252Fcharts%252FCandlestickChart.tsx+%255Bapp-client%255D+%2528ecmascript%2529:613:180)
+Error in chunk fetch: [TypeError: fetch failed] {
+  [cause]: Error: getaddrinfo ENOTFOUND query2.finance.yahoo.com
+      at ignore-listed frames {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'query2.finance.yahoo.com'
+  }
+}
+Error in chunk fetch: [TypeError: fetch failed] {
+  [cause]: Error: getaddrinfo ENOTFOUND query2.finance.yahoo.com
+      at ignore-listed frames {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'query2.finance.yahoo.com'
+  }
+}
+Error in chunk fetch: [TypeError: fetch failed] {
+  [cause]: Error: getaddrinfo ENOTFOUND query2.finance.yahoo.com
+      at ignore-listed frames {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'query2.finance.yahoo.com'
+  }
+}
+Error in chunk fetch: [TypeError: fetch failed] {
+  [cause]: Error: getaddrinfo ENOTFOUND query2.finance.yahoo.com
+      at ignore-listed frames {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'query2.finance.yahoo.com'
+  }
+}
+Error in chunk fetch: [TypeError: fetch failed] {
+  [cause]: Error: getaddrinfo ENOTFOUND query2.finance.yahoo.com
+      at ignore-listed frames {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'query2.finance.yahoo.com'
+  }
+}
+Error in chunk fetch: [TypeError: fetch failed] {
+  [cause]: Error: getaddrinfo ENOTFOUND query2.finance.yahoo.com
+      at ignore-listed frames {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'query2.finance.yahoo.com'
+  }
+}

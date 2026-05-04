@@ -291,7 +291,7 @@ export function StockQuickModal({ ticker, fullTicker, onClose }: StockQuickModal
 
           <div className="flex items-center gap-2">
             {/* Open full page */}
-            <a href={`/stock/${encodeURIComponent(fullTicker)}`}
+            <a href={`/search?q=${encodeURIComponent(ticker)}`}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
               style={{ background: "rgba(249,115,22,0.12)", color: "#fb923c", border: "1px solid rgba(249,115,22,0.2)" }}>
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -398,6 +398,175 @@ export function StockQuickModal({ ticker, fullTicker, onClose }: StockQuickModal
         </div>
       </div>
     </div>
+  );
+}
+
+interface StockQuickPanelProps {
+  ticker: string;
+  fullTicker: string;
+  onClose?: () => void;
+}
+
+export function StockQuickPanel({ ticker, fullTicker, onClose }: StockQuickPanelProps) {
+  const [quote, setQuote] = useState<StockQuote | null>(null);
+  const [history, setHistory] = useState<OHLCData[]>([]);
+  const [loadingQuote, setLoadingQuote] = useState(true);
+  const [loadingChart, setLoadingChart] = useState(true);
+  const [activeTimeframe, setActiveTimeframe] = useState(TIMEFRAMES[3]);
+
+  const fetchQuote = useCallback(async () => {
+    setLoadingQuote(true);
+    try {
+      const res = await fetch(`/api/stocks/quote/${encodeURIComponent(fullTicker)}`);
+      const data = await res.json();
+      if (!data.error) setQuote(data);
+    } catch { /* silent */ }
+    finally { setLoadingQuote(false); }
+  }, [fullTicker]);
+
+  const fetchChart = useCallback(async (tf: typeof TIMEFRAMES[0], livePrice?: number) => {
+    setLoadingChart(true);
+    try {
+      const res = await fetch(`/api/stocks/history/${encodeURIComponent(fullTicker)}?range=${tf.range}&interval=${tf.interval}`);
+      const raw: OHLCData[] = await res.json();
+      if (Array.isArray(raw) && raw.length > 0) {
+        if (livePrice != null && livePrice > 0) {
+          const last = { ...raw[raw.length - 1] };
+          last.close = livePrice;
+          last.high = Math.max(last.high, livePrice);
+          last.low = Math.min(last.low, livePrice);
+          raw[raw.length - 1] = last;
+        }
+        setHistory(raw.filter((d) => d.close != null));
+      } else {
+        setHistory([]);
+      }
+    } catch {
+      setHistory([]);
+    } finally {
+      setLoadingChart(false);
+    }
+  }, [fullTicker]);
+
+  useEffect(() => {
+    fetchQuote();
+  }, [fetchQuote]);
+
+  useEffect(() => {
+    fetchChart(activeTimeframe, quote?.price);
+  }, [activeTimeframe, fetchChart, quote?.price]);
+
+  const change = quote?.change ?? 0;
+  const changePercent = quote?.changePercent ?? 0;
+  const isPositive = change >= 0;
+
+  return (
+    <section className="overflow-hidden rounded-[34px] border border-white/10 bg-[oklch(10%_0.018_145_/_0.82)] shadow-[0_28px_90px_rgba(0,0,0,0.34)]">
+      <div className="flex flex-col gap-4 border-b border-white/[0.06] px-5 py-5 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start gap-4">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-orange-200/20 bg-orange-300/10 text-sm font-black text-orange-200">
+            {ticker.slice(0, 4)}
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-silver-500">Chart inline</p>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <h3 className="text-2xl font-black tracking-[-0.03em] text-silver-100">
+                {ticker}<span className="text-base font-medium text-silver-600">.JK</span>
+              </h3>
+              {!loadingQuote && quote ? (
+                <span className={`rounded-full border px-2.5 py-1 text-xs font-black ${isPositive ? "border-emerald-300/20 bg-emerald-300/10 text-emerald-300" : "border-red-300/20 bg-red-300/10 text-red-300"}`}>
+                  {isPositive ? "+" : ""}{changePercent.toFixed(2)}%
+                </span>
+              ) : null}
+            </div>
+            {quote ? <p className="mt-1 max-w-lg text-sm text-silver-500">{quote.name}</p> : null}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <a
+            href={`/search?q=${encodeURIComponent(ticker)}`}
+            className="rounded-full border border-orange-200/20 bg-orange-200/10 px-4 py-2 text-xs font-black text-orange-200 transition hover:bg-orange-200/15"
+          >
+            Detail penuh
+          </a>
+          {onClose ? (
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-silver-500 transition hover:text-silver-100"
+              aria-label="Tutup chart"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="grid gap-4 p-5 lg:grid-cols-[240px_minmax(0,1fr)]">
+        <div className="space-y-3">
+          {loadingQuote ? (
+            <div className="h-28 rounded-3xl bg-white/[0.04] animate-pulse" />
+          ) : quote ? (
+            <div className="rounded-3xl border border-white/[0.08] bg-white/[0.04] p-4">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-silver-500">Harga terakhir</p>
+              <p className="mt-3 text-4xl font-black tabular-nums tracking-[-0.04em] text-silver-100">
+                {quote.price.toLocaleString("id-ID")}
+              </p>
+              <p className={`mt-1 text-sm font-black ${isPositive ? "text-emerald-300" : "text-red-300"}`}>
+                {isPositive ? "+" : ""}{change.toFixed(0)} ({isPositive ? "+" : ""}{changePercent.toFixed(2)}%)
+              </p>
+            </div>
+          ) : null}
+
+          {quote ? (
+            <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
+              {[
+                { label: "Open", value: quote.open.toLocaleString("id-ID") },
+                { label: "High", value: quote.high.toLocaleString("id-ID") },
+                { label: "Low", value: quote.low.toLocaleString("id-ID") },
+                { label: "Vol", value: `${(quote.volume / 1_000_000).toFixed(1)}M` },
+              ].map((stat) => (
+                <div key={stat.label} className="rounded-2xl border border-white/[0.07] bg-white/[0.035] px-3 py-2.5">
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-silver-600">{stat.label}</p>
+                  <p className="mt-1 text-sm font-black tabular-nums text-silver-300">{stat.value}</p>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="min-w-0">
+          <div className="mb-3 flex items-center gap-1.5 overflow-x-auto rounded-full border border-white/[0.07] bg-white/[0.035] p-1.5">
+            {TIMEFRAMES.map((tf) => (
+              <button
+                key={tf.label}
+                onClick={() => setActiveTimeframe(tf)}
+                className={`shrink-0 rounded-full px-4 py-2 text-xs font-black transition-all ${activeTimeframe.label === tf.label ? "bg-orange-300 text-[oklch(16%_0.02_75)]" : "text-silver-500 hover:text-silver-200"}`}
+              >
+                {tf.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="rounded-[28px] border border-white/[0.08] bg-[radial-gradient(circle_at_50%_0%,rgba(251,146,60,0.08),transparent_36%),rgba(255,255,255,0.025)] p-3">
+            {loadingChart ? (
+              <div className="flex h-[360px] items-center justify-center">
+                <div className="h-8 w-8 animate-spin rounded-full border-2" style={{ borderColor: "rgba(251,146,60,0.2)", borderTopColor: "#fb923c" }} />
+              </div>
+            ) : history.length > 0 ? (
+              <CandlestickChart data={history} height={360} mobileHeight={260} />
+            ) : (
+              <div className="flex h-[360px] items-center justify-center">
+                <p className="text-sm text-silver-600">Data chart belum tersedia.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 

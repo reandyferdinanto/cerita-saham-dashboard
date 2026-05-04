@@ -225,13 +225,13 @@ export function AdminUsersPageContent({ embedded = false }: { embedded?: boolean
           <h3 className="text-sm font-bold text-silver-200">⚙️ Harga & Metode Pembayaran</h3>
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "#475569" }}>Harga Membership (Rp)</p>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               {(["3months","6months","1year"] as const).map((k) => (
                 <div key={k}>
                   <label className="text-[11px] mb-1 block" style={{ color: "#64748b" }}>{DURATION_LABEL[k]}</label>
                   <input type="number" value={settings.membershipPrices[k]}
                     onChange={(e) => setSettings({ ...settings, membershipPrices: { ...settings.membershipPrices, [k]: Number(e.target.value) } })}
-                    className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                    className="w-full rounded-lg px-3 py-2.5 text-sm outline-none"
                     style={{ background: "rgba(6,20,14,0.85)", border: "1px solid rgba(16,185,129,0.15)", color: "#e2e8f0" }} />
                 </div>
               ))}
@@ -264,40 +264,40 @@ export function AdminUsersPageContent({ embedded = false }: { embedded?: boolean
             </div>
           </div>
           <div>
-            <div className="flex items-center justify-between mb-2">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#475569" }}>Metode Pembayaran</p>
               <button onClick={() => setSettings({ ...settings, paymentMethods: [...settings.paymentMethods, { name: "", type: "bank", accountNumber: "", accountName: "" }] })}
-                className="text-[11px] px-2.5 py-1 rounded-lg" style={{ background: "rgba(16,185,129,0.1)", color: "#10b981", border: "1px solid rgba(16,185,129,0.2)" }}>+ Tambah</button>
+                className="min-h-9 rounded-lg px-3 py-1 text-[11px]" style={{ background: "rgba(16,185,129,0.1)", color: "#10b981", border: "1px solid rgba(16,185,129,0.2)" }}>+ Tambah</button>
             </div>
             <div className="space-y-2">
               {settings.paymentMethods.map((pm, i) => (
-                <div key={i} className="grid grid-cols-2 gap-2 p-3 rounded-xl"
+                <div key={i} className="grid grid-cols-1 gap-2 rounded-xl p-3 sm:grid-cols-2"
                   style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(226,232,240,0.06)" }}>
                   <input placeholder="Nama (BCA/OVO/dll)" value={pm.name}
                     onChange={(e) => { const p=[...settings.paymentMethods]; p[i]={...p[i],name:e.target.value}; setSettings({...settings,paymentMethods:p}); }}
-                    className="px-2.5 py-1.5 rounded-lg text-xs outline-none" style={{ background:"rgba(6,20,14,0.85)", border:"1px solid rgba(16,185,129,0.12)", color:"#e2e8f0" }} />
+                    className="rounded-lg px-2.5 py-2.5 text-xs outline-none" style={{ background:"rgba(6,20,14,0.85)", border:"1px solid rgba(16,185,129,0.12)", color:"#e2e8f0" }} />
                   <select value={pm.type}
                     onChange={(e) => { const p=[...settings.paymentMethods]; p[i]={...p[i],type:e.target.value}; setSettings({...settings,paymentMethods:p}); }}
-                    className="px-2.5 py-1.5 rounded-lg text-xs outline-none" style={{ background:"rgba(6,20,14,0.85)", border:"1px solid rgba(16,185,129,0.12)", color:"#e2e8f0" }}>
+                    className="rounded-lg px-2.5 py-2.5 text-xs outline-none" style={{ background:"rgba(6,20,14,0.85)", border:"1px solid rgba(16,185,129,0.12)", color:"#e2e8f0" }}>
                     <option value="bank">Bank</option><option value="emoney">E-Money</option>
                   </select>
                   <input placeholder="No. Rekening / HP" value={pm.accountNumber}
                     onChange={(e) => { const p=[...settings.paymentMethods]; p[i]={...p[i],accountNumber:e.target.value}; setSettings({...settings,paymentMethods:p}); }}
-                    className="px-2.5 py-1.5 rounded-lg text-xs outline-none" style={{ background:"rgba(6,20,14,0.85)", border:"1px solid rgba(16,185,129,0.12)", color:"#e2e8f0" }} />
-                  <div className="flex gap-1">
+                    className="rounded-lg px-2.5 py-2.5 text-xs outline-none" style={{ background:"rgba(6,20,14,0.85)", border:"1px solid rgba(16,185,129,0.12)", color:"#e2e8f0" }} />
+                  <div className="flex min-w-0 gap-1">
                     <input placeholder="Nama pemilik" value={pm.accountName}
                       onChange={(e) => { const p=[...settings.paymentMethods]; p[i]={...p[i],accountName:e.target.value}; setSettings({...settings,paymentMethods:p}); }}
-                      className="flex-1 px-2.5 py-1.5 rounded-lg text-xs outline-none" style={{ background:"rgba(6,20,14,0.85)", border:"1px solid rgba(16,185,129,0.12)", color:"#e2e8f0" }} />
+                      className="min-w-0 flex-1 rounded-lg px-2.5 py-2.5 text-xs outline-none" style={{ background:"rgba(6,20,14,0.85)", border:"1px solid rgba(16,185,129,0.12)", color:"#e2e8f0" }} />
                     <button onClick={() => setSettings({...settings, paymentMethods: settings.paymentMethods.filter((_,j)=>j!==i)})}
-                      className="px-2 rounded-lg text-xs" style={{ background:"rgba(239,68,68,0.1)", color:"#ef4444" }}>✕</button>
+                      className="min-h-9 rounded-lg px-3 text-xs" style={{ background:"rgba(239,68,68,0.1)", color:"#ef4444" }}>✕</button>
                   </div>
                 </div>
               ))}
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <button onClick={saveSettings} disabled={savingSettings}
-              className="px-4 py-2 rounded-xl text-sm font-semibold"
+              className="rounded-xl px-4 py-2.5 text-sm font-semibold"
               style={{ background:"linear-gradient(135deg,#ea580c,#fb923c)", color:"#fff" }}>
               {savingSettings ? "Menyimpan..." : "Simpan"}
             </button>

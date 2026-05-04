@@ -1,5 +1,7 @@
 import { getHistory, getQuote, searchStocks } from "@/lib/yahooFinance";
 import { calcTechnicalSignals } from "@/lib/technicalSignals";
+import { connectDB } from "@/lib/db";
+import StockSummaryRow from "@/lib/models/StockSummaryRow";
 
 export type TopicNewsItem = {
   title: string;
@@ -20,6 +22,7 @@ export type ArticleExternalContext = {
   technicalSummary?: string;
   newsSummary?: string;
   relevantNews: TopicNewsItem[];
+  marketMovers?: string;
 };
 
 const INDONESIA_EXCHANGE_KEYWORDS = [
@@ -177,6 +180,34 @@ export async function buildArticleExternalContext(origin: string, topic: string)
         .join("\n")
       : "";
 
+  let marketMovers = "";
+  try {
+    await connectDB();
+    const rawDates = await StockSummaryRow.distinct("tradeDate");
+    const latestDateStr = rawDates
+         .map((value: any) => new Date(value))
+         .filter((value: any) => !Number.isNaN(value.getTime()))
+         .sort((left: any, right: any) => right.getTime() - left.getTime())
+         .slice(0, 1)
+         .map((value: any) => value.toISOString().slice(0, 10))[0];
+
+    if (latestDateStr) {
+      const tradeDate = new Date(`${latestDateStr}T00:00:00.000Z`);
+      const rows = await StockSummaryRow.find({ tradeDate }).lean();
+      const valid = rows.filter((r: any) => r.close > 50 && r.value > 1000000000 && r.previous > 0);
+      const mapped = valid.map((r: any) => ({
+          code: r.stockCode,
+          pct: (r.change / r.previous) * 100
+      }));
+      mapped.sort((a: any, b: any) => b.pct - a.pct);
+      const topGainers = mapped.slice(0, 5).map((x: any) => `${x.code} (+${x.pct.toFixed(2)}%)`).join(", ");
+      const topLosers = mapped.slice(-5).map((x: any) => `${x.code} (${x.pct.toFixed(2)}%)`).join(", ");
+      marketMovers = `Top Gainers hari ini: ${topGainers}\nTop Losers hari ini: ${topLosers}`;
+    }
+  } catch (e) {
+    console.error("Failed to fetch market movers:", e);
+  }
+
   return {
     topic: normalizedTopic,
     stockSymbol,
@@ -185,5 +216,6 @@ export async function buildArticleExternalContext(origin: string, topic: string)
     technicalSummary,
     newsSummary,
     relevantNews,
+    marketMovers,
   };
 }

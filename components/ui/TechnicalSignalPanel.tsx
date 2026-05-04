@@ -76,7 +76,7 @@ export default function TechnicalSignalPanel({ history, ticker }: Props) {
             <h3 className="text-sm font-bold" style={{ color: "#e2e8f0" }}>
               Sinyal Teknikal <span style={{ color: labelStyle.color }}>{ticker.replace(".JK", "")}</span>
             </h3>
-            <p className="text-[10px]" style={{ color: "#475569" }}>Golden Cross · RSI · MACD · S/R</p>
+            <p className="text-[10px]" style={{ color: "#475569" }}>MA · RSI · MACD · S/R · Radar Momentum</p>
           </div>
         </div>
 

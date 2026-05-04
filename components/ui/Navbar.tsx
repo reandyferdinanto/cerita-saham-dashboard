@@ -1,10 +1,10 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element */
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { useAuth } from "@/components/ui/AuthProvider";
-import BrandMark from "@/components/ui/BrandMark";
 
 // --- PROFESSIONAL ICONS (IMPECCABLE STYLE) ---
 const HomeIcon = () => (
@@ -15,6 +15,11 @@ const HomeIcon = () => (
 const WatchlistIcon = () => (
 	<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
 		<path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+	</svg>
+);
+const ChartIcon = () => (
+	<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+		<path strokeLinecap="round" strokeLinejoin="round" d="M4 19h16M7 16l3-4 3 2 4-7" />
 	</svg>
 );
 const InsightsIcon = () => (
@@ -48,6 +53,7 @@ interface NavLink {
 
 const ALL_LINKS: NavLink[] = [
 	{ href: "/", label: "Dashboard", icon: <HomeIcon /> },
+	{ href: "/search", label: "Chart", icon: <ChartIcon />, minRole: "user" },
 	{ href: "/watchlist", label: "Watchlist", icon: <WatchlistIcon />, minRole: "user" },
 	{ href: "/insights", label: "Insights", icon: <InsightsIcon />, minRole: "user" },
 	{ href: "/investor-tools", label: "Tools", icon: <ToolsIcon />, minRole: "user" },
@@ -62,7 +68,7 @@ function roleRank(role?: string | null): number {
 	return 0;
 }
 
-export default function Navbar({ delayMinutes }: { delayMinutes?: number | null }) {
+export default function Navbar() {
 	const pathname = usePathname();
 	const { user, loading, logout } = useAuth();
 	const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -108,8 +114,8 @@ export default function Navbar({ delayMinutes }: { delayMinutes?: number | null 
 				<div className="max-w-7xl mx-auto px-6 h-16 flex justify-between items-center">
 					<div className="flex items-center gap-10">
 						<Link href="/" className="flex items-center gap-2 group">
-							<img src="/anomali-saham-logo.png" alt="Logo" className="w-8 h-8 group-hover:rotate-12 transition-transform" />
-							<span className="text-xl font-black tracking-tighter text-white">anomali<span className="text-silver-500 font-light">saham</span></span>
+							<img src="/anomali-saham-mark.png" alt="Logo" className="w-8 h-8 rounded-full object-cover ring-1 ring-emerald-300/20 group-hover:rotate-12 transition-transform" />
+							<span className="text-xl font-black tracking-tighter text-white">anomali <span className="text-orange-300 font-medium">saham</span></span>
 						</Link>
 						<div className="flex items-center gap-1">
 							{visibleLinks.map((link) => (
@@ -120,12 +126,6 @@ export default function Navbar({ delayMinutes }: { delayMinutes?: number | null 
 						</div>
 					</div>
 					<div className="flex items-center gap-4">
-						{delayMinutes !== undefined && (
-							<div className="px-3 py-1.5 rounded-full border border-white/5 bg-white/2 flex items-center gap-2">
-								<div className="w-1.5 h-1.5 rounded-full bg-green-500 pulse-dot" />
-								<span className="text-[10px] font-black text-silver-500 uppercase tracking-widest">IDX LIVE</span>
-							</div>
-						)}
 						{renderUserButton()}
 					</div>
 				</div>
@@ -133,11 +133,11 @@ export default function Navbar({ delayMinutes }: { delayMinutes?: number | null 
 
 			{/* MOBILE BOTTOM NAV - IMPECCABLE REDESIGN */}
 			<nav className="md:hidden fixed bottom-0 left-0 right-0 z-[60] bg-slate-950/80 backdrop-blur-3xl border-t border-white/10 pb-safe">
-				<div className="flex justify-around items-center h-16 px-2">
-					{visibleLinks.slice(0, 5).map((link) => {
+				<div className="flex items-center h-16 gap-1 overflow-x-auto px-2 scrollbar-hide">
+					{visibleLinks.map((link) => {
 						const isActive = pathname === link.href;
 						return (
-							<Link key={link.href} href={link.href} className={`flex flex-col items-center gap-1 flex-1 py-2 transition-all ${isActive ? "text-orange-400" : "text-silver-500 hover:text-silver-300"}`}>
+							<Link key={link.href} href={link.href} className={`flex min-w-[64px] flex-col items-center gap-1 py-2 transition-all ${isActive ? "text-orange-400" : "text-silver-500 hover:text-silver-300"}`}>
 								<div className={`p-2 rounded-2xl transition-all duration-500 ${isActive ? "bg-orange-500/15 scale-110 shadow-[0_0_20px_rgba(249,115,22,0.2)]" : ""}`}>
 									{link.icon}
 								</div>
@@ -148,7 +148,7 @@ export default function Navbar({ delayMinutes }: { delayMinutes?: number | null 
 						);
 					})}
 					{/* User Profile on Mobile */}
-					<div className="flex-1 flex flex-col items-center">
+					<div className="flex min-w-[56px] flex-col items-center">
 						{renderUserButton(true)}
 					</div>
 				</div>
@@ -158,8 +158,8 @@ export default function Navbar({ delayMinutes }: { delayMinutes?: number | null 
 			    but here we use sticky top for desktop and fixed bottom for mobile */}
 			<div className="md:hidden h-14 bg-slate-950/50 backdrop-blur-lg border-b border-white/5 flex items-center px-4 sticky top-0 z-50">
 				<Link href="/" className="flex items-center gap-2">
-					<img src="/anomali-saham-logo.png" alt="Logo" className="w-6 h-6" />
-					<span className="text-sm font-black text-white tracking-tighter">anomalisaham</span>
+					<img src="/anomali-saham-mark.png" alt="Logo" className="w-6 h-6 rounded-full object-cover ring-1 ring-emerald-300/20" />
+					<span className="text-sm font-black text-white tracking-tighter">anomali <span className="text-orange-300 font-medium">saham</span></span>
 				</Link>
 			</div>
 		</>

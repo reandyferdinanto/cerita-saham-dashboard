@@ -18,6 +18,41 @@ export interface SignalItem {
   weight: number;
 }
 
+export type RadarSqueezeState = "high" | "normal" | "low" | null;
+export type RadarDivergence = "bullish" | "bearish" | null;
+
+export interface RadarMomentumPoint {
+  time: string | number;
+  momentum: number | null;
+  signal: number | null;
+  flux: number | null;
+  overFlux: number | null;
+  squeeze: RadarSqueezeState;
+  divergence: RadarDivergence;
+}
+
+export interface RadarMomentumDivergenceLink {
+  fromTime: string | number;
+  toTime: string | number;
+  fromValue: number;
+  toValue: number;
+  type: Exclude<RadarDivergence, null>;
+}
+
+export interface RadarMomentumResult {
+  status: "supportive" | "caution" | "neutral";
+  bias: "bullish" | "bearish" | "mixed";
+  summary: string;
+  detail: string;
+  momentum: number | null;
+  signal: number | null;
+  flux: number | null;
+  squeeze: RadarSqueezeState;
+  divergence: RadarDivergence;
+  points: RadarMomentumPoint[];
+  divergenceLinks: RadarMomentumDivergenceLink[];
+}
+
 export interface TechnicalResult {
   label: "BUY" | "SELL" | "WAIT";
   score: number;
@@ -34,6 +69,7 @@ export interface TechnicalResult {
   ma50: number | null;
   ma200: number | null;
   srLevels: { type: "R" | "S"; price: number; strength: number }[];
+  radarMomentum: RadarMomentumResult | null;
 }
 
 function ema(values: number[], period: number): number[] {
@@ -216,6 +252,322 @@ function calcSR(bars: OHLCVBar[]): { type: "R" | "S"; price: number; strength: n
     }));
 }
 
+function rollingExtreme(values: number[], period: number, mode: "high" | "low"): (number | null)[] {
+  return values.map((_, i) => {
+    if (i < period - 1) return null;
+    const window = values.slice(i - period + 1, i + 1);
+    return mode === "high" ? Math.max(...window) : Math.min(...window);
+  });
+}
+
+function rollingStdev(values: number[], period: number): (number | null)[] {
+  return values.map((_, i) => {
+    if (i < period - 1) return null;
+    const window = values.slice(i - period + 1, i + 1);
+    const mean = window.reduce((a, b) => a + b, 0) / period;
+    const variance = window.reduce((sum, value) => sum + (value - mean) ** 2, 0) / Math.max(period - 1, 1);
+    return Math.sqrt(variance);
+  });
+}
+
+function smaNullable(values: (number | null)[], period: number): (number | null)[] {
+  return values.map((_, i) => {
+    if (i < period - 1) return null;
+    const window = values.slice(i - period + 1, i + 1);
+    if (window.some((value) => value === null)) return null;
+    return (window as number[]).reduce((a, b) => a + b, 0) / period;
+  });
+}
+
+function rmaNullable(values: (number | null)[], period: number): (number | null)[] {
+  const result: (number | null)[] = [];
+  let prev: number | null = null;
+  let seed: number[] = [];
+
+  for (const value of values) {
+    if (value === null || !Number.isFinite(value)) {
+      result.push(null);
+      continue;
+    }
+
+    if (prev === null) {
+      seed = [...seed, value].slice(-period);
+      if (seed.length < period) {
+        result.push(null);
+        continue;
+      }
+      prev = seed.reduce((a, b) => a + b, 0) / period;
+      result.push(prev);
+      continue;
+    }
+
+    prev = (prev * (period - 1) + value) / period;
+    result.push(prev);
+  }
+
+  return result;
+}
+
+function atrSeries(bars: OHLCVBar[], period: number): (number | null)[] {
+  const trueRanges = bars.map((bar, i) => {
+    if (i === 0) return bar.high - bar.low;
+    const prevClose = bars[i - 1].close;
+    return Math.max(
+      bar.high - bar.low,
+      Math.abs(bar.high - prevClose),
+      Math.abs(bar.low - prevClose)
+    );
+  });
+
+  return rmaNullable(trueRanges, period);
+}
+
+function linregNullable(values: (number | null)[], period: number): (number | null)[] {
+  const xSum = (period * (period - 1)) / 2;
+  const x2Sum = ((period - 1) * period * (2 * period - 1)) / 6;
+  const divisor = period * x2Sum - xSum * xSum;
+
+  return values.map((_, i) => {
+    if (i < period - 1) return null;
+    const window = values.slice(i - period + 1, i + 1);
+    if (window.some((value) => value === null)) return null;
+
+    const yValues = window as number[];
+    const ySum = yValues.reduce((a, b) => a + b, 0);
+    const xySum = yValues.reduce((sum, y, x) => sum + x * y, 0);
+    const slope = divisor === 0 ? 0 : (period * xySum - xSum * ySum) / divisor;
+    const intercept = (ySum - slope * xSum) / period;
+    return intercept + slope * (period - 1);
+  });
+}
+
+function latestNumber(values: (number | null)[]): number | null {
+  for (let i = values.length - 1; i >= 0; i--) {
+    if (values[i] !== null) return values[i];
+  }
+  return null;
+}
+
+export function calcRadarMomentum(bars: OHLCVBar[], pointLimit: number | null = 90): RadarMomentumResult | null {
+  const len = 20;
+  const sig = 3;
+  const fluxLen = 30;
+  const divergenceThreshold = 25;
+
+  if (bars.length < fluxLen + len) return null;
+
+  const closes = bars.map((bar) => bar.close);
+  const highs = bars.map((bar) => bar.high);
+  const lows = bars.map((bar) => bar.low);
+  const hl2 = bars.map((bar) => (bar.high + bar.low) / 2);
+  const hl2Average = sma(hl2, len);
+  const highestHigh = rollingExtreme(highs, len, "high");
+  const lowestLow = rollingExtreme(lows, len, "low");
+  const atr = atrSeries(bars, len);
+
+  const rawMomentum = bars.map((bar, i) => {
+    const rangeMid =
+      highestHigh[i] === null || lowestLow[i] === null
+        ? null
+        : (highestHigh[i] + lowestLow[i]) / 2;
+    const averageMid =
+      rangeMid === null || hl2Average[i] === null ? null : (rangeMid + hl2Average[i]) / 2;
+    const atrValue = atr[i];
+
+    if (averageMid === null || atrValue === null || atrValue === 0) return null;
+    return ((bar.close - averageMid) / atrValue) * 100;
+  });
+
+  const momentum = linregNullable(rawMomentum, len);
+  const signal = smaNullable(momentum, sig);
+
+  const atrFlux = atrSeries(bars, fluxLen);
+  const upRaw = bars.map((bar, i) => {
+    if (i === 0) return 0;
+    return Math.max(bar.high - bars[i - 1].high, 0);
+  });
+  const downRaw = bars.map((bar, i) => {
+    if (i === 0) return 0;
+    return Math.max((bar.low - bars[i - 1].low) * -1, 0);
+  });
+  const upRma = rmaNullable(upRaw, fluxLen);
+  const downRma = rmaNullable(downRaw, fluxLen);
+  const fluxRaw = bars.map((_, i) => {
+    const tr = atrFlux[i];
+    const up = upRma[i];
+    const down = downRma[i];
+    if (tr === null || tr === 0 || up === null || down === null) return null;
+
+    const upRatio = up / tr;
+    const downRatio = down / tr;
+    const total = upRatio + downRatio;
+    if (total === 0) return null;
+    return ((upRatio - downRatio) / total) * 100;
+  });
+  const flux = rmaNullable(fluxRaw, Math.max(1, Math.floor(fluxLen / 2)));
+  const overFlux = flux.map((value) => {
+    if (value === null) return null;
+    if (value > 25) return value - 25;
+    if (value < -25) return value + 25;
+    return null;
+  });
+
+  const stdev = rollingStdev(closes, len);
+  const squeeze = bars.map((_, i): RadarSqueezeState => {
+    const deviation = stdev[i];
+    const atrValue = atr[i];
+    if (deviation === null || atrValue === null) return null;
+    if (deviation < atrValue * 0.5) return "high";
+    if (deviation < atrValue * 0.75) return "normal";
+    if (deviation < atrValue) return "low";
+    return null;
+  });
+
+  const divergence: RadarDivergence[] = new Array(bars.length).fill(null);
+  const divergenceLinks: (RadarMomentumDivergenceLink & { fromIndex: number; toIndex: number })[] = [];
+  let lastBearishPivot: { index: number; price: number; signal: number } | null = null;
+  let lastBullishPivot: { index: number; price: number; signal: number } | null = null;
+
+  for (let i = 1; i < bars.length; i++) {
+    const prevMomentum = momentum[i - 1];
+    const prevSignal = signal[i - 1];
+    const currMomentum = momentum[i];
+    const currSignal = signal[i];
+
+    if (
+      prevMomentum === null ||
+      prevSignal === null ||
+      currMomentum === null ||
+      currSignal === null
+    ) {
+      continue;
+    }
+
+    const crossedDown = prevMomentum >= prevSignal && currMomentum < currSignal;
+    const crossedUp = prevMomentum <= prevSignal && currMomentum > currSignal;
+
+    if (crossedDown && currMomentum > divergenceThreshold) {
+      if (lastBearishPivot && bars[i].high > lastBearishPivot.price && currSignal < lastBearishPivot.signal) {
+        divergence[i] = "bearish";
+        divergenceLinks.push({
+          fromIndex: lastBearishPivot.index,
+          toIndex: i,
+          fromTime: bars[lastBearishPivot.index].time,
+          toTime: bars[i].time,
+          fromValue: lastBearishPivot.signal,
+          toValue: currSignal,
+          type: "bearish",
+        });
+        lastBearishPivot = null;
+      } else {
+        lastBearishPivot = { index: i, price: bars[i].high, signal: currSignal };
+      }
+    }
+
+    if (crossedUp && currMomentum < -divergenceThreshold) {
+      if (lastBullishPivot && bars[i].low < lastBullishPivot.price && currSignal > lastBullishPivot.signal) {
+        divergence[i] = "bullish";
+        divergenceLinks.push({
+          fromIndex: lastBullishPivot.index,
+          toIndex: i,
+          fromTime: bars[lastBullishPivot.index].time,
+          toTime: bars[i].time,
+          fromValue: lastBullishPivot.signal,
+          toValue: currSignal,
+          type: "bullish",
+        });
+        lastBullishPivot = null;
+      } else {
+        lastBullishPivot = { index: i, price: bars[i].low, signal: currSignal };
+      }
+    }
+  }
+
+  const startIndex = pointLimit === null ? 0 : Math.max(0, bars.length - pointLimit);
+  const visibleDivergenceLinks = divergenceLinks
+    .filter((link) => link.fromIndex >= startIndex && link.toIndex >= startIndex)
+    .map((link) => ({
+      fromTime: link.fromTime,
+      toTime: link.toTime,
+      fromValue: link.fromValue,
+      toValue: link.toValue,
+      type: link.type,
+    }));
+  const points: RadarMomentumPoint[] = bars.slice(startIndex).map((bar, relativeIndex) => {
+    const i = startIndex + relativeIndex;
+    return {
+      time: bar.time,
+      momentum: momentum[i] ?? null,
+      signal: signal[i] ?? null,
+      flux: flux[i] ?? null,
+      overFlux: overFlux[i] ?? null,
+      squeeze: squeeze[i],
+      divergence: divergence[i],
+    };
+  }).filter((point) => point.momentum !== null || point.flux !== null || point.squeeze !== null);
+
+  if (points.length < 10) return null;
+
+  const currentMomentum = latestNumber(momentum);
+  const currentSignal = latestNumber(signal);
+  const currentFlux = latestNumber(flux);
+  const currentSqueeze = [...squeeze].reverse().find((value) => value !== null) ?? null;
+  const currentDivergence = [...divergence].reverse().find((value) => value !== null) ?? null;
+  const bullishStack =
+    currentMomentum !== null &&
+    currentSignal !== null &&
+    currentFlux !== null &&
+    currentMomentum > currentSignal &&
+    currentMomentum > 0 &&
+    currentFlux > 0;
+  const bearishStack =
+    currentMomentum !== null &&
+    currentSignal !== null &&
+    currentFlux !== null &&
+    currentMomentum < currentSignal &&
+    currentMomentum < 0 &&
+    currentFlux < 0;
+  const status: RadarMomentumResult["status"] =
+    currentDivergence === "bullish" || bullishStack
+      ? "supportive"
+      : currentDivergence === "bearish" || bearishStack
+        ? "caution"
+        : "neutral";
+  const bias: RadarMomentumResult["bias"] =
+    currentMomentum !== null && currentFlux !== null && currentMomentum > 0 && currentFlux > 0
+      ? "bullish"
+      : currentMomentum !== null && currentFlux !== null && currentMomentum < 0 && currentFlux < 0
+        ? "bearish"
+        : "mixed";
+
+  const summary =
+    status === "supportive"
+      ? "Momentum tambahan mulai mendukung"
+      : status === "caution"
+        ? "Momentum tambahan belum rapi"
+        : "Momentum tambahan masih netral";
+  const detail =
+    status === "supportive"
+      ? "Tekanan harga dan flux ikut searah, jadi bisa dipakai sebagai konfirmasi ekstra saat area entry juga masuk akal."
+      : status === "caution"
+        ? "Garis momentum atau flux belum kompak, jadi tunggu struktur harga lebih jelas sebelum menambah keyakinan."
+        : "Belum ada dorongan yang cukup jelas dari tekanan harga; tetap prioritaskan MA, RSI, MACD, serta area support-resistance.";
+
+  return {
+    status,
+    bias,
+    summary,
+    detail,
+    momentum: currentMomentum,
+    signal: currentSignal,
+    flux: currentFlux,
+    squeeze: currentSqueeze,
+    divergence: currentDivergence,
+    points,
+    divergenceLinks: visibleDivergenceLinks,
+  };
+}
+
 export function calcTechnicalSignals(bars: OHLCVBar[]): TechnicalResult {
   const closes = bars.map((b) => b.close);
   const volumes = bars.map((b) => b.volume);
@@ -232,6 +584,7 @@ export function calcTechnicalSignals(bars: OHLCVBar[]): TechnicalResult {
 
   const rsi = calcRSI(closes);
   const { macd: macdLine, signal: macdSignal, hist: macdHist } = calcMACD(closes);
+  const radarMomentum = calcRadarMomentum(bars);
 
   const avgVol5 = volumes.slice(-6, -1).reduce((a, b) => a + b, 0) / 5;
   const lastVol = volumes[volumes.length - 1];
@@ -342,6 +695,31 @@ export function calcTechnicalSignals(bars: OHLCVBar[]): TechnicalResult {
       signals.push({ name: "Momentum", value: `Harga di atas MA5 (${ma5.toFixed(0)})`, signal: "buy", weight: 10 });
     } else {
       signals.push({ name: "Momentum", value: `Harga di bawah MA5 (${ma5.toFixed(0)})`, signal: "sell", weight: 10 });
+    }
+  }
+
+  if (radarMomentum) {
+    if (radarMomentum.status === "supportive") {
+      signals.push({
+        name: "Radar Momentum",
+        value: radarMomentum.summary,
+        signal: "buy",
+        weight: 6,
+      });
+    } else if (radarMomentum.status === "caution") {
+      signals.push({
+        name: "Radar Momentum",
+        value: radarMomentum.summary,
+        signal: "sell",
+        weight: 6,
+      });
+    } else {
+      signals.push({
+        name: "Radar Momentum",
+        value: radarMomentum.summary,
+        signal: "neutral",
+        weight: 0,
+      });
     }
   }
 
@@ -464,5 +842,6 @@ export function calcTechnicalSignals(bars: OHLCVBar[]): TechnicalResult {
     ma50,
     ma200,
     srLevels,
+    radarMomentum,
   };
 }

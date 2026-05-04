@@ -19,6 +19,7 @@ type LineChartPoint = {
 interface LineChartProps {
   data: LineChartPoint[];
   height?: number;
+  mobileHeight?: number;
   lineColor?: string;
   areaTopColor?: string;
   areaBottomColor?: string;
@@ -42,18 +43,19 @@ function toDateFromChartTime(time: Time): Date | null {
 export default function LineChart({
   data,
   height = 400,
+  mobileHeight,
   lineColor = "#f97316",
   areaTopColor = "rgba(249, 115, 22, 0.3)",
   areaBottomColor = "rgba(249, 115, 22, 0.0)",
   locale = "id-ID",
   timeZone = "Asia/Jakarta",
-  title,
 }: LineChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
 
   useEffect(() => {
     if (!chartContainerRef.current || data.length === 0) return;
+    const effectiveHeight = mobileHeight && window.innerWidth < 640 ? mobileHeight : height;
 
     const chartData: AreaData<Time>[] = data.map((point) => ({
       time: point.time as Time,
@@ -91,7 +93,7 @@ export default function LineChart({
         horzLines: { color: "rgba(226, 232, 240, 0.05)" },
       },
       width: chartContainerRef.current.clientWidth,
-      height,
+      height: effectiveHeight,
       crosshair: {
         vertLine: { color: "rgba(249, 115, 22, 0.3)", labelBackgroundColor: "#064e3b" },
         horzLine: { color: "rgba(249, 115, 22, 0.3)", labelBackgroundColor: "#064e3b" },
@@ -138,7 +140,10 @@ export default function LineChart({
 
     const handleResize = () => {
       if (chartContainerRef.current) {
-        chart.applyOptions({ width: chartContainerRef.current.clientWidth });
+        chart.applyOptions({
+          width: chartContainerRef.current.clientWidth,
+          height: mobileHeight && window.innerWidth < 640 ? mobileHeight : height,
+        });
       }
     };
 
@@ -148,7 +153,7 @@ export default function LineChart({
       window.removeEventListener("resize", handleResize);
       chart.remove();
     };
-  }, [data, height, lineColor, areaTopColor, areaBottomColor, locale, timeZone]);
+  }, [data, height, mobileHeight, lineColor, areaTopColor, areaBottomColor, locale, timeZone]);
 
   return <div ref={chartContainerRef} className="w-full h-full" />;
 }

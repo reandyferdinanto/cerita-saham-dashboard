@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import GlassCard from "@/components/ui/GlassCard";
+import { createMarketArticleIllustration, MARKET_ILLUSTRATION_PRESETS } from "@/lib/articleIllustration";
 
 interface Article {
   _id: string;
@@ -200,6 +201,20 @@ export function AdminArticlesPageContent({ embedded = false }: { embedded?: bool
     }
   };
 
+  const illustrationChoices = MARKET_ILLUSTRATION_PRESETS.map((preset) => ({
+    ...preset,
+    imageUrl: createMarketArticleIllustration({
+      title: form.title || "Ringkasan Market Hari Ini",
+      dateLabel: "Hari ini",
+      marketStatus: "up",
+      ihsgLevel: "IHSG 7.231",
+      changePercent: "+0,74%",
+      gainers: ["COAL", "MPIX", "REAL"],
+      losers: ["GOTO", "WIRG", "CAKK"],
+      variant: preset.variant,
+    }),
+  }));
+
   return (
     <div className="space-y-6">
       {!embedded ? (
@@ -312,6 +327,57 @@ export function AdminArticlesPageContent({ embedded = false }: { embedded?: bool
               placeholder="https://..."
             />
           </div>
+          <div
+            className="rounded-2xl p-4 space-y-3"
+            style={{ background: "rgba(2,6,23,0.45)", border: "1px solid rgba(226,232,240,0.08)" }}
+          >
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <h3 className="text-sm font-semibold text-silver-200">Pilih Ilustrasi Market (Opsional)</h3>
+                <p className="text-xs text-silver-500 mt-1">
+                  Klik salah satu template untuk mengisi URL gambar otomatis. Field URL di atas tetap bisa diisi manual.
+                </p>
+              </div>
+              {form.imageUrl.startsWith("data:image/svg+xml") ? (
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, imageUrl: "" })}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold text-silver-400 bg-silver-800 hover:text-red-300 transition"
+                >
+                  Hapus pilihan
+                </button>
+              ) : null}
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              {illustrationChoices.map((choice) => {
+                const selected = form.imageUrl === choice.imageUrl;
+                return (
+                  <button
+                    key={choice.variant}
+                    type="button"
+                    onClick={() => setForm({ ...form, imageUrl: choice.imageUrl })}
+                    className="group overflow-hidden rounded-xl text-left transition-all"
+                    style={{
+                      background: selected ? "rgba(251,146,60,0.14)" : "rgba(255,255,255,0.04)",
+                      border: selected ? "1px solid rgba(251,146,60,0.65)" : "1px solid rgba(226,232,240,0.08)",
+                    }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={choice.imageUrl}
+                      alt={`Ilustrasi ${choice.name}`}
+                      className="aspect-video w-full object-cover opacity-90 transition group-hover:opacity-100"
+                    />
+                    <div className="p-3">
+                      <div className="text-xs font-semibold text-silver-200">{choice.name}</div>
+                      <div className="mt-1 text-[10px] leading-relaxed text-silver-500">{choice.tone}</div>
+                      {selected ? <div className="mt-2 text-[10px] font-semibold uppercase text-orange-300">Dipilih</div> : null}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           <div>
             <label className="text-[10px] text-silver-500 uppercase block mb-1">Konten (Teks dengan paragraf)</label>
             <textarea
@@ -378,10 +444,10 @@ export function AdminArticlesPageContent({ embedded = false }: { embedded?: bool
           <div className="space-y-4">
             {articles.map((article) => (
               <div key={article._id} className="p-4 rounded-xl" style={{ background: "rgba(6,78,59,0.15)", border: "1px solid rgba(226,232,240,0.06)" }}>
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="text-base font-bold text-silver-200">{article.title}</h3>
-                    <div className="flex gap-3 text-[10px] uppercase text-silver-500 mt-1">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <h3 className="line-clamp-2 text-base font-bold text-silver-200">{article.title}</h3>
+                    <div className="mt-1 flex flex-wrap gap-3 text-[10px] uppercase text-silver-500">
                       <span>{new Date(article.createdAt).toLocaleDateString("id-ID")}</span>
                       {article.isPublic ? (
                         <span className="text-green-500">Publik</span>
@@ -390,16 +456,16 @@ export function AdminArticlesPageContent({ embedded = false }: { embedded?: bool
                       )}
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex shrink-0 gap-2">
                     <button
                       onClick={() => handleEdit(article)}
-                      className="px-2 py-1 text-xs text-silver-400 hover:text-orange-400 transition"
+                      className="min-h-9 px-3 py-1 text-xs text-silver-400 transition hover:text-orange-400"
                     >
                       Edit
                     </button>
                     <button
                       onClick={() => handleDelete(article._id)}
-                      className="px-2 py-1 text-xs text-silver-400 hover:text-red-400 transition"
+                      className="min-h-9 px-3 py-1 text-xs text-silver-400 transition hover:text-red-400"
                     >
                       Hapus
                     </button>

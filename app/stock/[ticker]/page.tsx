@@ -222,7 +222,7 @@ export default function StockDetailPage({
         </div>
 
         {chartLoading ? (
-          <div className="h-[500px] flex items-center justify-center">
+          <div className="flex h-[320px] items-center justify-center sm:h-[500px]">
             <div className="flex flex-col items-center gap-3">
               <div className="w-8 h-8 border-2 rounded-full animate-spin"
                 style={{ borderColor: "rgba(251,146,60,0.2)", borderTopColor: "#fb923c" }} />
@@ -232,7 +232,7 @@ export default function StockDetailPage({
         ) : history.length > 0 ? (
           <CandlestickChart data={history} tp={entry?.tp} sl={entry?.sl} height={500} />
         ) : (
-          <div className="h-[500px] flex items-center justify-center">
+          <div className="flex h-[320px] items-center justify-center sm:h-[500px]">
             <span className="text-silver-500 text-sm">
               {loading ? "Loading..." : "No chart data available"}
             </span>

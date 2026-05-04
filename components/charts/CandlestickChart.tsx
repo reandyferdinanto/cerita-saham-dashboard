@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   createChart,
+  createSeriesMarkers,
   ColorType,
   LineStyle,
   IChartApi,
@@ -11,7 +12,9 @@ import {
   LineSeries,
   BaselineSeries,
 } from "lightweight-charts";
+import type { BaselineData, CandlestickData, HistogramData, LineData, SeriesMarker, Time } from "lightweight-charts";
 import { OHLCData } from "@/lib/types";
+import { calcRadarMomentum, OHLCVBar } from "@/lib/technicalSignals";
 
 interface CandlestickChartProps {
   data: OHLCData[];
@@ -22,12 +25,6 @@ interface CandlestickChartProps {
 }
 
 // ── Indicator helpers ──────────────────────────────────────────────────────────
-
-function calcMA(closes: number[], period: number): (number | null)[] {
-  return closes.map((_, i) =>
-    i < period - 1 ? null : closes.slice(i - period + 1, i + 1).reduce((s, v) => s + v, 0) / period
-  );
-}
 
 function calcEMA(closes: number[], period: number): (number | null)[] {
   const k = 2 / (period + 1);
@@ -99,6 +96,10 @@ function calcATR(data: OHLCData[], period = 14): number[] {
 
 interface SRLevel { price: number; idx: number; }
 
+const asChartTime = (time: string | number) => time as Time;
+const compactChartData = <T,>(values: (T | null)[]): T[] =>
+  values.filter((value): value is T => value !== null);
+
 function calcSRZones(data: OHLCData[], pivotLeft = 7, pivotRight = 7, atrLen = 14, zoneMult = 0.25, maxStore = 60): { res: SRLevel[]; sup: SRLevel[] } {
   const atr = calcATR(data, atrLen);
   const phVals: number[] = [], phIdxs: number[] = [], plVals: number[] = [], plIdxs: number[] = [];
@@ -119,7 +120,7 @@ function calcSRZones(data: OHLCData[], pivotLeft = 7, pivotRight = 7, atrLen = 1
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
-type IndicatorKey = "ema9" | "ema20" | "ema50" | "macd" | "sr";
+type IndicatorKey = "ema9" | "ema20" | "ema50" | "macd" | "sr" | "radar";
 
 const INDICATOR_CONFIG: { key: IndicatorKey; label: string; color: string }[] = [
   { key: "ema9",  label: "EMA9",  color: "#f59e0b" },
@@ -127,26 +128,32 @@ const INDICATOR_CONFIG: { key: IndicatorKey; label: string; color: string }[] = 
   { key: "ema50", label: "EMA50", color: "#a855f7" },
   { key: "macd",  label: "MACD",  color: "#10b981" },
   { key: "sr",    label: "S/R",   color: "#94a3b8" },
+  { key: "radar", label: "Radar", color: "#11cf77" },
 ];
 
 export default function CandlestickChart({ data, tp, sl, height = 500, mobileHeight = 320 }: CandlestickChartProps) {
-  // Single chart ref — MACD lives inside the same chart on a separate price scale
+  // Single chart ref: price, MACD, and Radar Momentum render in one chart instance.
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInst = useRef<IChartApi | null>(null);
 
   const [activeIndicators, setActiveIndicators] = useState<Set<IndicatorKey>>(
-    new Set(["ema9", "ema20", "ema50", "macd", "sr"])
+    new Set(["ema9", "ema20", "ema50", "macd", "sr", "radar"])
   );
 
   const toggleIndicator = (key: IndicatorKey) => {
     setActiveIndicators((prev) => {
       const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
       return next;
     });
   };
 
   const showMACD = activeIndicators.has("macd");
+  const showRadar = activeIndicators.has("radar");
 
   useEffect(() => {
     if (!chartRef.current || data.length === 0) return;
@@ -156,16 +163,21 @@ export default function CandlestickChart({ data, tp, sl, height = 500, mobileHei
     const isIntraday = typeof data[0]?.time === "number";
     const closes = data.map((d) => d.close);
 
-    // ── Single chart — MACD pane lives at the bottom via scaleMargins ──
-    // When MACD is on: price occupies top 62%, volume 8% overlay, MACD 30% bottom.
-    // When MACD is off: price occupies full height.
-    const MACD_PANE_RATIO = 0.30; // fraction of chart height for MACD
+    // Lower panes use separate price scales inside the same chart.
+    // When both are active, MACD sits above Radar Momentum with a small visual gap.
+    const hasLowerPane = showMACD || showRadar;
+    const MACD_PANE_RATIO = showMACD ? (showRadar ? 0.22 : 0.30) : 0;
+    const RADAR_PANE_RATIO = showRadar ? (showMACD ? 0.22 : 0.30) : 0;
+    const LOWER_GAP = showMACD && showRadar ? 0.04 : hasLowerPane ? 0.02 : 0;
+    const LOWER_RESERVED = MACD_PANE_RATIO + RADAR_PANE_RATIO + LOWER_GAP;
     const PRICE_TOP    = 0;
-    const PRICE_BOTTOM = showMACD ? MACD_PANE_RATIO + 0.02 : 0; // gap between panes
-    const VOL_TOP      = showMACD ? 0.60 : 0.82;
-    const VOL_BOTTOM   = showMACD ? MACD_PANE_RATIO + 0.02 : 0;
-    const MACD_TOP     = 1 - MACD_PANE_RATIO;
-    const MACD_BOTTOM  = 0;
+    const PRICE_BOTTOM = LOWER_RESERVED;
+    const VOL_TOP      = hasLowerPane ? Math.max(0.48, 1 - LOWER_RESERVED - 0.10) : 0.82;
+    const VOL_BOTTOM   = LOWER_RESERVED;
+    const MACD_TOP     = showRadar ? 1 - RADAR_PANE_RATIO - MACD_PANE_RATIO : 1 - MACD_PANE_RATIO;
+    const MACD_BOTTOM  = showRadar ? RADAR_PANE_RATIO + 0.02 : 0;
+    const RADAR_TOP    = 1 - RADAR_PANE_RATIO;
+    const RADAR_BOTTOM = 0;
 
     const chart = createChart(chartRef.current, {
       layout: {
@@ -204,7 +216,7 @@ export default function CandlestickChart({ data, tp, sl, height = 500, mobileHei
       wickUpColor: "#10b981", wickDownColor: "#ef4444",
     });
     candleSeries.setData(
-      data.map((d) => ({ time: d.time, open: d.open, high: d.high, low: d.low, close: d.close })) as any
+      data.map((d) => ({ time: asChartTime(d.time), open: d.open, high: d.high, low: d.low, close: d.close })) as CandlestickData<Time>[]
     );
 
     // ── Volume ──
@@ -217,10 +229,10 @@ export default function CandlestickChart({ data, tp, sl, height = 500, mobileHei
     });
     volSeries.setData(
       data.map((d) => ({
-        time: d.time,
+        time: asChartTime(d.time),
         value: d.volume,
         color: d.close >= d.open ? "rgba(16,185,129,0.25)" : "rgba(239,68,68,0.25)",
-      })) as any
+      })) as HistogramData<Time>[]
     );
 
     // ── Moving Averages ──
@@ -232,14 +244,14 @@ export default function CandlestickChart({ data, tp, sl, height = 500, mobileHei
     maPeriods.forEach(({ key, period, color }) => {
       if (!activeIndicators.has(key)) return;
       const values = calcEMA(closes, period);
-      const maData = data
-        .map((d, i) => (values[i] != null ? { time: d.time, value: values[i]! } : null))
-        .filter(Boolean);
+      const maData = compactChartData<LineData<Time>>(
+        data.map((d, i) => (values[i] != null ? { time: asChartTime(d.time), value: values[i]! } : null))
+      );
       if (maData.length === 0) return;
       chart.addSeries(LineSeries, {
         color, lineWidth: 1, priceLineVisible: false,
         lastValueVisible: true, crosshairMarkerVisible: false,
-      }).setData(maData as any);
+      }).setData(maData);
     });
 
     // ── TP / SL lines ──
@@ -258,15 +270,15 @@ export default function CandlestickChart({ data, tp, sl, height = 500, mobileHei
         const slice = data.slice(startIdx);
         if (slice.length < 1) return;
         chart.addSeries(LineSeries, { color: lineColor, lineWidth: 1, lineStyle: LineStyle.Solid, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false })
-          .setData(slice.map((d) => ({ time: d.time, value: top })) as any);
+          .setData(slice.map((d) => ({ time: asChartTime(d.time), value: top })) as LineData<Time>[]);
         chart.addSeries(LineSeries, { color: lineColor, lineWidth: 1, lineStyle: LineStyle.Solid, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false })
-          .setData(slice.map((d) => ({ time: d.time, value: bot })) as any);
+          .setData(slice.map((d) => ({ time: asChartTime(d.time), value: bot })) as LineData<Time>[]);
         chart.addSeries(BaselineSeries, {
           baseValue: { type: "price", price: bot },
           topFillColor1: fillColor, topFillColor2: fillColor, topLineColor: "rgba(0,0,0,0)",
           bottomFillColor1: "rgba(0,0,0,0)", bottomFillColor2: "rgba(0,0,0,0)", bottomLineColor: "rgba(0,0,0,0)",
-          lineWidth: 0 as any, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
-        }).setData(slice.map((d) => ({ time: d.time, value: top })) as any);
+          lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+        }).setData(slice.map((d) => ({ time: asChartTime(d.time), value: top })) as LineData<Time>[]);
         candleSeries.createPriceLine({ price: centerPrice, color: "rgba(0,0,0,0)", lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: label });
       };
 
@@ -292,26 +304,141 @@ export default function CandlestickChart({ data, tp, sl, height = 500, mobileHei
 
       histSeries
         .setData(
-          data
-            .map((d, i) =>
+          compactChartData<HistogramData<Time>>(
+            data.map((d, i) =>
               histogram[i] != null
-                ? { time: d.time, value: histogram[i]!, color: histogram[i]! >= 0 ? "rgba(16,185,129,0.6)" : "rgba(239,68,68,0.6)" }
+                ? { time: asChartTime(d.time), value: histogram[i]!, color: histogram[i]! >= 0 ? "rgba(16,185,129,0.6)" : "rgba(239,68,68,0.6)" }
                 : null
             )
-            .filter(Boolean) as any
+          )
         );
 
       // MACD line
       chart.addSeries(LineSeries, { color: "#3b82f6", lineWidth: 1, ...macdScaleOpts })
         .setData(
-          data.map((d, i) => (macd[i] != null ? { time: d.time, value: macd[i]! } : null)).filter(Boolean) as any
+          compactChartData<LineData<Time>>(
+            data.map((d, i) => (macd[i] != null ? { time: asChartTime(d.time), value: macd[i]! } : null))
+          )
         );
 
       // Signal line
       chart.addSeries(LineSeries, { color: "#f97316", lineWidth: 1, ...macdScaleOpts })
         .setData(
-          data.map((d, i) => (signal[i] != null ? { time: d.time, value: signal[i]! } : null)).filter(Boolean) as any
+          compactChartData<LineData<Time>>(
+            data.map((d, i) => (signal[i] != null ? { time: asChartTime(d.time), value: signal[i]! } : null))
+          )
         );
+    }
+
+    if (showRadar) {
+      const radarBars: OHLCVBar[] = data.map((d) => ({
+        time: d.time,
+        open: d.open,
+        high: d.high,
+        low: d.low,
+        close: d.close,
+        volume: d.volume ?? 0,
+      }));
+      const radar = calcRadarMomentum(radarBars, null);
+
+      if (radar) {
+        const radarScaleOpts = {
+          priceScaleId: "radar",
+          priceLineVisible: false,
+          lastValueVisible: false,
+          crosshairMarkerVisible: false,
+        };
+        const fluxSeries = chart.addSeries(BaselineSeries, {
+          baseValue: { type: "price", price: 0 },
+          topLineColor: "rgba(22,155,93,0.78)",
+          topFillColor1: "rgba(22,155,93,0.30)",
+          topFillColor2: "rgba(22,155,93,0.08)",
+          bottomLineColor: "rgba(151,5,41,0.78)",
+          bottomFillColor1: "rgba(151,5,41,0.30)",
+          bottomFillColor2: "rgba(151,5,41,0.08)",
+          lineWidth: 1,
+          ...radarScaleOpts,
+        });
+        chart.priceScale("radar").applyOptions({
+          scaleMargins: { top: RADAR_TOP, bottom: RADAR_BOTTOM },
+          borderColor: "rgba(226,232,240,0.06)",
+        });
+        fluxSeries.setData(
+          compactChartData<BaselineData<Time>>(
+            radar.points.map((point) =>
+              point.flux !== null
+                ? {
+                    time: asChartTime(point.time),
+                    value: point.flux,
+                  }
+                : null
+            )
+          )
+        );
+
+        chart.addSeries(HistogramSeries, { ...radarScaleOpts })
+          .setData(
+            compactChartData<HistogramData<Time>>(
+              radar.points.map((point) =>
+                point.squeeze
+                  ? {
+                      time: asChartTime(point.time),
+                      value: point.squeeze === "high" ? -5 : point.squeeze === "normal" ? -3.5 : -2,
+                      color: point.squeeze === "high" ? "#ff1100" : point.squeeze === "normal" ? "#ff5e00" : "#ffa600",
+                    }
+                  : null
+              )
+            )
+          );
+
+        chart.addSeries(LineSeries, {
+          color: "rgba(203,213,225,0.42)",
+          lineWidth: 1,
+          ...radarScaleOpts,
+        }).setData(
+          compactChartData<LineData<Time>>(
+            radar.points.map((point) => (point.signal !== null ? { time: asChartTime(point.time), value: point.signal } : null))
+          )
+        );
+
+        const momentumSeries = chart.addSeries(LineSeries, {
+          color: "#ffcfa6",
+          lineWidth: 2,
+          ...radarScaleOpts,
+        });
+        momentumSeries.setData(
+          compactChartData<LineData<Time>>(
+            radar.points.map((point) => (point.momentum !== null ? { time: asChartTime(point.time), value: point.momentum } : null))
+          )
+        );
+
+        radar.divergenceLinks.forEach((link) => {
+          chart.addSeries(LineSeries, {
+            color: link.type === "bullish" ? "#11cf77" : "#f87171",
+            lineWidth: 2,
+            priceLineVisible: false,
+            lastValueVisible: false,
+            crosshairMarkerVisible: false,
+            priceScaleId: "radar",
+          }).setData([
+            { time: asChartTime(link.fromTime), value: link.fromValue },
+            { time: asChartTime(link.toTime), value: link.toValue },
+          ] as LineData<Time>[]);
+        });
+
+        const markers: SeriesMarker<Time>[] = radar.points
+          .filter((point) => point.divergence)
+          .map((point) => ({
+            time: asChartTime(point.time),
+            position: point.divergence === "bullish" ? "belowBar" : "aboveBar",
+            color: point.divergence === "bullish" ? "#11cf77" : "#f87171",
+            shape: point.divergence === "bullish" ? "arrowUp" : "arrowDown",
+            text: point.divergence === "bullish" ? "D+" : "D-",
+          }));
+        if (markers.length > 0) {
+          createSeriesMarkers(momentumSeries, markers);
+        }
+      }
     }
 
     // Tampilkan seluruh data (6 bulan) dan tambahkan margin 15 bar kosong di sebelah kanan
@@ -332,7 +459,7 @@ export default function CandlestickChart({ data, tp, sl, height = 500, mobileHei
       window.removeEventListener("resize", handleResize);
       chart.remove();
     };
-  }, [data, tp, sl, height, mobileHeight, activeIndicators, showMACD]);
+  }, [data, tp, sl, height, mobileHeight, activeIndicators, showMACD, showRadar]);
 
   return (
     <div className="w-full">
@@ -356,7 +483,7 @@ export default function CandlestickChart({ data, tp, sl, height = 500, mobileHei
         })}
       </div>
 
-      {/* Single chart div — price + MACD both render here */}
+      {/* Single chart div: price + MACD + Radar Momentum render here */}
       <div ref={chartRef} className="w-full" />
 
       {/* MACD legend */}
@@ -371,6 +498,24 @@ export default function CandlestickChart({ data, tp, sl, height = 500, mobileHei
           </span>
           <span className="flex items-center gap-1 text-[10px] flex-shrink-0" style={{ color: "#10b981" }}>
             <span className="w-4 h-3 inline-block rounded-sm" style={{ background: "rgba(16,185,129,0.5)" }} /> Histogram
+          </span>
+        </div>
+      )}
+
+      {showRadar && (
+        <div className="flex items-center gap-3 px-1 mt-1 overflow-x-auto scrollbar-hide">
+          <span className="text-[10px] font-semibold uppercase tracking-wider flex-shrink-0" style={{ color: "#334155" }}>Radar Momentum</span>
+          <span className="flex items-center gap-1 text-[10px] flex-shrink-0" style={{ color: "#ffcfa6" }}>
+            <span className="w-5 h-0.5 inline-block rounded" style={{ background: "#ffcfa6" }} /> Momentum
+          </span>
+          <span className="flex items-center gap-1 text-[10px] flex-shrink-0" style={{ color: "#10b981" }}>
+            <span className="w-4 h-3 inline-block rounded-sm" style={{ background: "rgba(22,155,93,0.45)" }} /> Flux
+          </span>
+          <span className="flex items-center gap-1 text-[10px] flex-shrink-0" style={{ color: "#ffa600" }}>
+            <span className="w-4 h-1.5 inline-block rounded-sm" style={{ background: "#ffa600" }} /> Squeeze
+          </span>
+          <span className="flex items-center gap-1 text-[10px] flex-shrink-0" style={{ color: "#11cf77" }}>
+            <span className="w-5 h-0.5 inline-block rounded" style={{ background: "#11cf77" }} /> D+
           </span>
         </div>
       )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import dynamic from "next/dynamic";
 import { Search, Brain, TrendingUp, TrendingDown, Activity, ActivitySquare, Loader2, RefreshCw, Zap } from "lucide-react";
 import GlassCard from "@/components/ui/GlassCard";
@@ -45,6 +45,10 @@ interface ScreenerData {
   timestamp: string;
 }
 
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Terjadi kesalahan saat memproses data.";
+}
+
 export default function MachineLearningPage() {
   const [tickerInput, setTickerInput] = useState("BBCA");
   const [isLoading, setIsLoading] = useState(false);
@@ -78,8 +82,8 @@ export default function MachineLearningPage() {
       }
 
       setData(result);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(getErrorMessage(err));
       setData(null);
     } finally {
       setIsLoading(false);
@@ -94,8 +98,8 @@ export default function MachineLearningPage() {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Gagal menjalankan screener");
       setScreenerData(result);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(getErrorMessage(err));
     } finally {
       setIsScreening(false);
     }
@@ -132,8 +136,7 @@ export default function MachineLearningPage() {
                 value={tickerInput}
                 onChange={(e) => setTickerInput(e.target.value)}
                 placeholder="Cek saham (BBCA, ASII)..."
-                className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-32 text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:border-transparent transition-all shadow-inner uppercase font-mono tracking-wider"
-                style={{ focusRingColor: "oklch(65% 0.2 150)" } as any}
+                className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-32 text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-transparent transition-all shadow-inner uppercase font-mono tracking-wider"
               />
               <button
                 type="submit"
@@ -147,12 +150,11 @@ export default function MachineLearningPage() {
           </form>
 
           {/* Screener Button Group */}
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <select 
               value={priceBucket}
               onChange={(e) => setPriceBucket(e.target.value)}
-              className="bg-white/5 border border-white/10 rounded-2xl px-4 py-4 text-white focus:outline-none focus:ring-2 focus:border-transparent transition-all uppercase font-mono text-sm"
-              style={{ focusRingColor: "oklch(65% 0.2 150)" } as any}
+              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-4 font-mono text-sm uppercase text-white transition-all focus:border-transparent focus:outline-none focus:ring-2 focus:ring-emerald-500/50 sm:w-auto"
             >
               <option value="all">Semua Harga</option>
               <option value="under200">Di Bawah 200</option>
@@ -163,7 +165,7 @@ export default function MachineLearningPage() {
             <button
               onClick={runScreener}
               disabled={isScreening}
-              className="px-8 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95 disabled:opacity-50 shadow-lg border border-white/5 whitespace-nowrap"
+              className="flex items-center justify-center gap-2 whitespace-nowrap rounded-2xl border border-white/5 px-8 py-4 font-bold shadow-lg transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
               style={{ backgroundColor: "rgba(16, 185, 129, 0.1)", color: "oklch(65% 0.2 150)" }}
             >
               {isScreening ? (
@@ -277,7 +279,7 @@ export default function MachineLearningPage() {
         {/* Screener Results Section */}
         {(screenerData || isScreening) && (
           <div className="mt-12 space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
                   <ActivitySquare className="w-6 h-6 text-emerald-500" />
@@ -296,7 +298,7 @@ export default function MachineLearningPage() {
               <button 
                 onClick={runScreener}
                 disabled={isScreening}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm font-medium hover:bg-white/10 transition-all disabled:opacity-50"
+                className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium transition-all hover:bg-white/10 disabled:opacity-50 sm:justify-start"
               >
                 <RefreshCw className={`w-4 h-4 ${isScreening ? 'animate-spin' : ''}`} />
                 Refresh List
@@ -377,7 +379,7 @@ export default function MachineLearningPage() {
                     </tbody>
                   </table>
                 </div>
-                <div className="px-6 py-4 bg-black/20 border-t border-white/10 flex justify-between items-center">
+                <div className="flex flex-col gap-1 border-t border-white/10 bg-black/20 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
                   <span className="text-xs text-gray-500">Terakhir diperbarui: {new Date(screenerData.timestamp).toLocaleString()}</span>
                   <span className="text-xs text-gray-400">{screenerData.count} saham ditemukan</span>
                 </div>

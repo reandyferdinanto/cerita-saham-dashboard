@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback, useRef, Suspense, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
-import Link from "next/link";
 import GlassCard from "@/components/ui/GlassCard";
 import FundamentalSection from "@/components/ui/FundamentalSection";
 import TechnicalSignalPanel from "@/components/ui/TechnicalSignalPanel";
@@ -573,23 +572,17 @@ function SearchPageInner() {
                 {/* Chart type toggle */}
                 <div className="flex gap-0.5 rounded-lg p-0.5" style={{ background: "rgba(6,78,59,0.3)" }}>
                   <button onClick={() => setChartType("candlestick")}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all"
+                    className="px-2.5 py-1 rounded-md text-xs font-medium transition-all"
                     style={chartType === "candlestick"
                       ? { background: "rgba(249,115,22,0.18)", color: "#fb923c", border: "1px solid rgba(249,115,22,0.3)" }
                       : { color: "#64748b" }}>
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z" />
-                    </svg>
                     Candle
                   </button>
                   <button onClick={() => setChartType("line")}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all"
+                    className="px-2.5 py-1 rounded-md text-xs font-medium transition-all"
                     style={chartType === "line"
                       ? { background: "rgba(249,115,22,0.18)", color: "#fb923c", border: "1px solid rgba(249,115,22,0.3)" }
                       : { color: "#64748b" }}>
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M7 12l3-3 3 3 4-4" />
-                    </svg>
                     Line
                   </button>
                 </div>
@@ -626,7 +619,7 @@ function SearchPageInner() {
 
             {/* Chart area */}
             {loadingChart ? (
-              <div className="h-[450px] flex items-center justify-center">
+              <div className="flex h-[320px] items-center justify-center sm:h-[450px]">
                 <div className="flex flex-col items-center gap-3">
                   <div className="w-10 h-10 border-2 rounded-full animate-spin"
                     style={{ borderColor: "rgba(251,146,60,0.2)", borderTopColor: "#fb923c" }} />
@@ -648,7 +641,7 @@ function SearchPageInner() {
                 />
               )
             ) : (
-              <div className="h-[450px] flex items-center justify-center">
+              <div className="flex h-[320px] items-center justify-center sm:h-[450px]">
                 <div className="text-center">
                   <svg className="w-12 h-12 mx-auto mb-3" style={{ color: "#1e3a2f" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
@@ -1104,30 +1097,6 @@ function SearchPageInner() {
             )}
           </GlassCard>
           </div>
-          </div>
-
-          {/* Action buttons */}
-          <div className="flex gap-3 flex-wrap">
-            <Link
-              href={`/stock/${encodeURIComponent(selectedTicker)}`}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all"
-              style={{ background: "rgba(249,115,22,0.15)", color: "#fb923c", border: "1px solid rgba(249,115,22,0.25)" }}
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-              Lihat Detail Lengkap
-            </Link>
-            <Link
-              href="/admin"
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all"
-              style={{ background: "rgba(16,185,129,0.1)", color: "#10b981", border: "1px solid rgba(16,185,129,0.2)" }}
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-              Tambah ke Watchlist
-            </Link>
           </div>
         </div>
       )}
