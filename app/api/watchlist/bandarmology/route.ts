@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdminSession } from "@/lib/adminSession";
 import { analyzeBandarmology } from "@/lib/bandarmologyAnalysis";
 
 export async function GET(req: NextRequest) {
+  const session = await requireAdminSession(req);
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const ticker = req.nextUrl.searchParams.get("ticker") || "";
     const result = await analyzeBandarmology(ticker);

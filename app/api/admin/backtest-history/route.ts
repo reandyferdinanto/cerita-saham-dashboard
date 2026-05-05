@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdminSession } from "@/lib/adminSession";
 import { connectDB } from "@/lib/db";
 import { SignalPerformanceModel } from "@/lib/models/SignalPerformance";
 import { calculateSharpeRatio, calculateMaxDrawdown, calculateEquityCurve } from "@/lib/riskAnalytics";
 
 export async function GET(req: NextRequest) {
+  const session = await requireAdminSession(req);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     await connectDB();
     const history = await SignalPerformanceModel.find().sort({ exitDate: 1 }); // Sort ascending for equity curve
@@ -29,7 +33,7 @@ export async function GET(req: NextRequest) {
         equityCurve
       }
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Gagal memuat riwayat performa" }, { status: 500 });
   }
 }

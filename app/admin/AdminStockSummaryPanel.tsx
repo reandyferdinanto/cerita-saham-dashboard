@@ -423,13 +423,6 @@ export default function AdminStockSummaryPanel() {
   const foreignLine = chartFlowData.map((point) => ({ time: point.time, value: point.foreignAccumulation }));
   const previousAvailableDate = availableDates.find((date) => date < stockQueryDate) || "";
 
-  const openBandarmologyFlow = (ticker: string) => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("tab", "bandarmology");
-    params.set("ticker", ticker.replace(/\.JK$/i, ""));
-    router.replace(`/admin?${params.toString()}`);
-  };
-
   const openWatchlistDraft = (draft: { ticker: string; name: string; tp: number | null; sl: number | null; note: string }) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", "watchlist");
@@ -588,14 +581,6 @@ export default function AdminStockSummaryPanel() {
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => openBandarmologyFlow(selectedTicker)}
-              className="rounded-xl px-3 py-2 text-xs font-semibold"
-              style={{ background: "rgba(251,146,60,0.12)", color: "#fdba74", border: "1px solid rgba(251,146,60,0.18)" }}
-            >
-              Buka Bandarmology
-            </button>
-            <button
-              type="button"
               onClick={() => openWatchlistDraft({
                 ticker: selectedTicker,
                 name: selectedTicker,
@@ -729,18 +714,7 @@ export default function AdminStockSummaryPanel() {
                   ))}
                 </div>
 
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      openBandarmologyFlow(item.stockCode);
-                    }}
-                    className="rounded-xl px-3 py-2 text-xs font-semibold"
-                    style={{ background: "rgba(251,146,60,0.12)", color: "#fdba74", border: "1px solid rgba(251,146,60,0.18)" }}
-                  >
-                    Lanjut ke Bandarmology
-                  </button>
+                <div className="grid grid-cols-1 gap-2">
                   <button
                     type="button"
                     onClick={(event) => {
