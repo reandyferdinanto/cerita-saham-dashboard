@@ -3,9 +3,9 @@
 :root {
   --background: oklch(15% 0.022 160);
   --foreground: oklch(92% 0.018 105);
-  --font-geist-sans: var(--font-premium-body), "Trebuchet MS", "Segoe UI", sans-serif;
+  --font-geist-sans: var(--font-alegreya-sans), "Alegreya Sans", "Trebuchet MS", "Segoe UI", sans-serif;
   --font-geist-mono: "Consolas", "SFMono-Regular", "Liberation Mono", monospace;
-  --font-playfair: var(--font-premium-display), Georgia, "Times New Roman", serif;
+  --font-playfair: var(--font-bodoni-moda), "Bodoni Moda", Georgia, "Times New Roman", serif;
   --green-900: #064e3b;
   --green-800: #065f46;
   --green-700: #047857;

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { OHLCData } from "@/lib/types";
-import { inferTradeDateFromFilename } from "@/lib/xlsxWorkbook";
+import { inferTradeDateFromFilename } from "@/lib/xlsxFilename";
 
 const StockSummaryAccumulationChart = dynamic(
   () => import("@/app/admin/StockSummaryAccumulationChart"),
@@ -846,4 +846,3 @@ export default function AdminStockSummaryPanel() {
     </div>
   );
 }
-

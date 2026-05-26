@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "migrate:postgres-core": "node scripts/postgres/migrate-core.js",
@@ -21,7 +21,7 @@
     "framer-motion": "^12.36.0",
     "jose": "^6.2.0",
     "lightweight-charts": "^5.1.0",
-    "lucide-react": "^1.8.0",
+    "lucide-react": "^1.14.0",
     "mongoose": "^9.2.4",
     "next": "^16.2.3",
     "pg": "^8.20.0",

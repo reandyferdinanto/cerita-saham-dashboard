@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { connectDB } from "@/lib/db";
-import SiteSettings from "@/lib/models/SiteSettings";
-import Watchlist from "@/lib/models/Watchlist";
-import IndonesiaStock from "@/lib/models/IndonesiaStock";
-import { getQuotes, getHistory } from "@/lib/yahooFinance";
+import { getQuotes } from "@/lib/yahooFinance";
+import { getTelegramSettings } from "@/lib/data/telegramSettings";
+import { listWatchlistEntries } from "@/lib/data/watchlist";
+import { queryPostgres } from "@/lib/postgres";
 
 // Simplified EMA calculation for a single value
 function calculateLastEMA(prices: number[], period: number): number {
@@ -40,10 +39,9 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    await connectDB();
-    const settings = await SiteSettings.findOne({});
+    const settings = await getTelegramSettings();
     
-    if (!settings?.watchlistAlertEnabled || !settings?.watchlistAlertBotToken || !settings?.watchlistAlertChatId) {
+    if (!settings.watchlistAlertEnabled || !settings.watchlistAlertBotToken || !settings.watchlistAlertChatId) {
       return NextResponse.json({ message: "Watchlist Alert is disabled or not configured" });
     }
 
@@ -66,12 +64,14 @@ export async function GET(req: NextRequest) {
     const universe = settings.watchlistAlertUniverse || "watchlist";
 
     if (universe === "all") {
-      const allStocks = await IndonesiaStock.find({ active: true }).select("ticker").lean();
-      tickersToScan = allStocks.map((s: any) => s.ticker.endsWith(".JK") ? s.ticker : `${s.ticker}.JK`);
+      const allStocks = await queryPostgres<{ ticker: string }>(
+        `select ticker from indonesia_stocks where coalesce(is_active, true) = true order by ticker asc`
+      );
+      tickersToScan = allStocks.rows.map((s) => s.ticker.endsWith(".JK") ? s.ticker : `${s.ticker}.JK`);
     } else {
-      const watchlist = await Watchlist.find({});
+      const watchlist = await listWatchlistEntries();
       if (watchlist.length === 0) return NextResponse.json({ message: "Watchlist is empty" });
-      tickersToScan = watchlist.map((w: any) => w.ticker.endsWith(".JK") ? w.ticker : `${w.ticker}.JK`);
+      tickersToScan = watchlist.map((w) => w.ticker.endsWith(".JK") ? w.ticker : `${w.ticker}.JK`);
     }
 
     // 3. Fetch Quotes for real-time price and open

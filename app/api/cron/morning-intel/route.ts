@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { connectDB } from "@/lib/db";
-import SiteSettings from "@/lib/models/SiteSettings";
 import { getBandarmologyScreener } from "@/lib/bandarmologyScreener";
 import { analyzeSmartMoney } from "@/lib/smartMoneyEngine";
 import { sendTelegramMessage } from "@/lib/telegram";
+import { getTelegramSettings } from "@/lib/data/telegramSettings";
 
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
@@ -14,10 +13,9 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    await connectDB();
-    const settings = await SiteSettings.findOne({});
-    const token = settings?.telegramBotToken;
-    const adminChatId = settings?.telegramAdminChatId;
+    const settings = await getTelegramSettings();
+    const token = settings.telegramBotToken;
+    const adminChatId = settings.telegramAdminChatId;
 
     if (!token || !adminChatId) {
       return NextResponse.json({ error: "Telegram bot not configured or adminChatId missing" }, { status: 400 });

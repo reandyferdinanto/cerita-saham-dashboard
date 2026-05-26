@@ -14,8 +14,10 @@ export async function takeChartScreenshot(ticker: string, interval: string = "1d
         await page.setViewportSize({ width: 1050, height: 1100 });
 
 
-        // Gunakan port 3005 sesuai dengan yang terlihat di log PM2
-        const url = `http://127.0.0.1:3005/stock/${ticker.toUpperCase()}/bot-view?interval=${interval}`;
+        const internalBaseUrl =
+            process.env.CHART_CAPTURE_INTERNAL_URL ||
+            `http://127.0.0.1:${process.env.PORT || "3001"}`;
+        const url = `${internalBaseUrl}/stock/${encodeURIComponent(ticker.toUpperCase())}/bot-view?interval=${encodeURIComponent(interval)}`;
         console.log(`[Playwright] Navigating to internal URL: ${url}`);
 
         try {
@@ -50,14 +52,15 @@ export async function takeChartScreenshot(ticker: string, interval: string = "1d
             // Fallback jika id tidak ketemu
             await page.screenshot({ path: filepath });
         }
-        console.log(`[Playwright] Screenshot saved to ${filepath}`);
+        const stat = fs.statSync(filepath);
+        if (stat.size === 0) throw new Error(`Screenshot file is empty: ${filepath}`);
 
-        await browser.close();
-        // Berikan cache buster agar Telegram tidak mengambil gambar lama
-        return `https://ceritasaham-dashboard.my.id/screenshots/${filename}?v=${Date.now()}`;
+        console.log(`[Playwright] Screenshot saved to ${filepath} (${stat.size} bytes)`);
+        return filepath;
     } catch (e) {
         console.error("[Playwright ERROR]:", e);
-        await browser.close();
         return null;
+    } finally {
+        await browser.close();
     }
 }

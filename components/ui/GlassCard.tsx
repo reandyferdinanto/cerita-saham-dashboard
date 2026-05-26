@@ -1,3 +1,5 @@
+"use client";
+
 import { ReactNode, CSSProperties } from "react";
 
 interface GlassCardProps {
@@ -17,4 +19,3 @@ export default function GlassCard({ children, className = "", hover = true, styl
     </div>
   );
 }
-

@@ -24,8 +24,38 @@ create table if not exists site_settings (
   membership_prices jsonb not null,
   payment_methods jsonb not null,
   enabled_investor_tools text[] not null,
+  telegram_bot_token text not null default '',
+  telegram_webhook_url text not null default '',
+  telegram_admin_chat_id text not null default '',
+  telegram_admin_thread_id text not null default '',
+  ml_screener_bot_token text not null default '',
+  ml_screener_chat_id text not null default '',
+  watchlist_alert_enabled boolean not null default false,
+  watchlist_alert_bot_token text not null default '',
+  watchlist_alert_chat_id text not null default '',
+  watchlist_alert_thread_id text not null default '',
+  watchlist_alert_min_ema_offset numeric not null default 1,
+  watchlist_alert_max_ema_offset numeric not null default 2,
+  watchlist_alert_open_offset numeric not null default 2,
+  watchlist_alert_ema20_enabled boolean not null default true,
+  watchlist_alert_ema20_min numeric not null default 1,
+  watchlist_alert_ema20_max numeric not null default 2,
+  watchlist_alert_ema50_enabled boolean not null default false,
+  watchlist_alert_ema50_min numeric not null default 1,
+  watchlist_alert_ema50_max numeric not null default 2,
+  watchlist_alert_open_gap_enabled boolean not null default true,
+  watchlist_alert_open_gap_min numeric not null default 2,
+  watchlist_alert_universe text not null default 'watchlist',
+  watchlist_alert_min_gain numeric not null default 5,
   updated_at timestamptz not null default now()
 );
+
+create table if not exists telegram_updates (
+  update_id bigint primary key,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_telegram_updates_created_at on telegram_updates (created_at);
 
 create table if not exists watchlist (
   ticker text primary key,

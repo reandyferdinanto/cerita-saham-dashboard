@@ -53,12 +53,20 @@ function normalizeTime(value: unknown): string {
   return "";
 }
 
+function resolveHeight(width: number, fallback: number) {
+  if (width < 480) return 300;
+  if (width < 768) return 350;
+  return fallback;
+}
+
 export default function AdminBreakdownChart({ data, selectedIndex, onSelect, height = 430 }: BreakdownChartProps) {
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInst = useRef<IChartApi | null>(null);
 
   useEffect(() => {
     if (!chartRef.current || data.length === 0) return;
+    const initialWidth = chartRef.current.clientWidth;
+    const initialHeight = resolveHeight(initialWidth, height);
 
     const chart = createChart(chartRef.current, {
       layout: {
@@ -80,8 +88,8 @@ export default function AdminBreakdownChart({ data, selectedIndex, onSelect, hei
         timeVisible: false,
         secondsVisible: false,
       },
-      width: chartRef.current.clientWidth,
-      height,
+      width: initialWidth,
+      height: initialHeight,
     });
     chartInst.current = chart;
 
@@ -147,7 +155,9 @@ export default function AdminBreakdownChart({ data, selectedIndex, onSelect, hei
     chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, data.length - 110), to: data.length + 8 });
 
     const handleResize = () => {
-      if (chartRef.current) chart.applyOptions({ width: chartRef.current.clientWidth });
+      if (!chartRef.current) return;
+      const nextWidth = chartRef.current.clientWidth;
+      chart.applyOptions({ width: nextWidth, height: resolveHeight(nextWidth, height) });
     };
     window.addEventListener("resize", handleResize);
 

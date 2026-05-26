@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactCompiler: true,
+  experimental: {
+    webpackBuildWorker: false,
+  },
   serverExternalPackages: ["yahoo-finance2", "@upstash/redis", "mongoose", "bcryptjs"],
   images: {
     remotePatterns: [

@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/adminSession";
-import { connectDB } from "@/lib/db";
-import IndonesiaStock from "@/lib/models/IndonesiaStock";
-import { syncIndonesiaStockMaster } from "@/lib/indonesiaStockMaster";
+import { queryPostgres } from "@/lib/postgres";
+import {
+  ensureIndonesiaStocksTable,
+  IDX_UNIVERSE_SOURCE_NAME,
+  IDX_UNIVERSE_SOURCE_URL,
+  syncIndonesiaStockMaster,
+} from "@/lib/indonesiaStockMaster";
 
 export async function GET(req: NextRequest) {
   const session = await requireAdminSession(req);
@@ -11,17 +15,22 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    await connectDB();
-    const [activeCount, latest] = await Promise.all([
-      IndonesiaStock.countDocuments({ active: true }),
-      IndonesiaStock.findOne({ active: true }).sort({ lastSyncedAt: -1 }).lean(),
-    ]);
+    await ensureIndonesiaStocksTable();
+    const status = await queryPostgres<{ active_count: string; last_synced_at: Date | null }>(
+      `
+        select
+          count(*) filter (where is_active = true) as active_count,
+          max(updated_at) filter (where is_active = true) as last_synced_at
+        from indonesia_stocks
+      `
+    );
+    const row = status.rows[0];
 
     return NextResponse.json({
-      activeCount,
-      source: "stockanalysis",
-      sourceUrl: "https://stockanalysis.com/list/indonesia-stock-exchange/",
-      lastSyncedAt: latest?.lastSyncedAt || null,
+      activeCount: Number(row?.active_count || 0),
+      source: IDX_UNIVERSE_SOURCE_NAME,
+      sourceUrl: IDX_UNIVERSE_SOURCE_URL,
+      lastSyncedAt: row?.last_synced_at || null,
     });
   } catch (error) {
     return NextResponse.json(
@@ -41,8 +50,6 @@ export async function POST(req: NextRequest) {
     const result = await syncIndonesiaStockMaster(true);
     return NextResponse.json({
       ok: true,
-      source: "stockanalysis",
-      sourceUrl: "https://stockanalysis.com/list/indonesia-stock-exchange/",
       ...result,
     });
   } catch (error) {

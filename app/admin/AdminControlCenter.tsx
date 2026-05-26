@@ -1,8 +1,10 @@
+"use client";
+
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import GlassCard from "@/components/ui/GlassCard";
-import { AdminArticlesPageContent } from "@/app/admin/articles/page";
-import { AdminUsersPageContent } from "@/app/admin/users/page";
+import { AdminArticlesPageContent } from "@/app/admin/articles/AdminArticlesPageContent";
+import { AdminUsersPageContent } from "@/app/admin/users/AdminUsersPageContent";
 import AdminWatchlistPanel from "@/app/admin/AdminWatchlistPanel";
 import AdminStockSummaryPanel from "@/app/admin/AdminStockSummaryPanel";
 import AdminBreakdownPanel from "@/app/admin/AdminBreakdownPanel";

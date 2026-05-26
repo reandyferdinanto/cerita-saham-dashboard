@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { connectDB } from "@/lib/db";
-import SiteSettings from "@/lib/models/SiteSettings";
 import { getBandarmologyScreener } from "@/lib/bandarmologyScreener";
 import { getBandarmologyBacktest } from "@/lib/bandarmologyBacktest";
 import { exec } from "child_process";
 import { promisify } from "util";
+import { getTelegramSettings } from "@/lib/data/telegramSettings";
 
 const execAsync = promisify(exec);
 
@@ -22,10 +21,9 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    await connectDB();
-    const settings = await SiteSettings.findOne({});
-    const botToken = settings?.mlScreenerBotToken;
-    const chatId = settings?.mlScreenerChatId;
+    const settings = await getTelegramSettings();
+    const botToken = settings.mlScreenerBotToken;
+    const chatId = settings.mlScreenerChatId;
 
     if (!botToken || !chatId) {
       return NextResponse.json({ error: "ML Screener Telegram bot not configured" }, { status: 400 });

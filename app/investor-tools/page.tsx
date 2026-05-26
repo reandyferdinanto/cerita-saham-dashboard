@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -726,4 +725,3 @@ function BriefContent({ text }: { text: string }) {
 function EmptyText({ text }: { text: string }) {
   return <p className="text-sm text-silver-500 leading-7">{text}</p>;
 }
-

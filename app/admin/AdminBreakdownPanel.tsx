@@ -6,7 +6,7 @@ import type { OHLCData, SearchResult } from "@/lib/types";
 
 const AdminBreakdownChart = dynamic(() => import("@/app/admin/AdminBreakdownChart"), {
   ssr: false,
-  loading: () => <div className="h-[430px] rounded-3xl bg-silver-100/[0.035]" />,
+  loading: () => <div className="h-[300px] rounded-2xl bg-silver-100/[0.035] sm:h-[350px] lg:h-[430px] lg:rounded-3xl" />,
 });
 
 type BreakdownContextRow = {
@@ -50,6 +50,32 @@ function formatDate(value: string | number) {
   return parsed.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+function formatShortDate(value: string | number) {
+  if (typeof value === "string") {
+    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) return `${match[3]}/${match[2]}/${match[1]}`;
+  }
+
+  const parsed = typeof value === "number" ? new Date(value * 1000) : new Date(value);
+  if (Number.isNaN(parsed.getTime())) return String(value);
+  return parsed.toLocaleDateString("id-ID", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function formatPosition(row: BreakdownContextRow, rows: BreakdownContextRow[]) {
+  const selected = rows.find((item) => item.selected);
+  if (selected) {
+    const distance = row.index - selected.index;
+    return distance > 0 ? `+${distance}` : String(distance);
+  }
+
+  if (row.selected || row.relation === "Candle dipilih") return "0";
+  const before = row.relation.match(/^(\d+) candle sebelum$/);
+  if (before) return `-${before[1]}`;
+  const after = row.relation.match(/^(\d+) candle setelah$/);
+  if (after) return `+${after[1]}`;
+  return row.relation;
+}
+
 function buildRows(history: OHLCData[], selectedIndex: number | null): BreakdownContextRow[] {
   if (selectedIndex == null || !history[selectedIndex]) return [];
 
@@ -76,6 +102,76 @@ function buildRows(history: OHLCData[], selectedIndex: number | null): Breakdown
       selected: index === selectedIndex,
     };
   });
+}
+
+function CandleRowCards({
+  rows,
+  onOpen,
+  actionLabel,
+}: {
+  rows: BreakdownContextRow[];
+  onOpen?: (row: BreakdownContextRow) => void;
+  actionLabel?: string;
+}) {
+  if (rows.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-silver-200/10 px-4 py-8 text-center text-sm text-silver-600">
+        Klik candle di chart.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2 md:hidden">
+      {rows.map((row) => (
+        <div
+          key={`${row.date}-${row.index}`}
+          className="rounded-2xl border border-silver-200/10 p-3"
+          style={{ background: row.selected ? "rgba(251,146,60,0.14)" : "rgba(255,255,255,0.025)" }}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              {onOpen ? (
+                <button
+                  type="button"
+                  onClick={() => onOpen(row)}
+                  className="text-left text-sm font-black text-orange-200 underline-offset-4 hover:text-orange-100 hover:underline"
+                >
+                  {formatShortDate(row.date)}
+                </button>
+              ) : (
+                <p className="text-sm font-black text-silver-100">{formatShortDate(row.date)}</p>
+              )}
+              <p className="mt-1 text-xs text-silver-500">Posisi {formatPosition(row, rows)}</p>
+            </div>
+            {onOpen ? (
+              <button
+                type="button"
+                onClick={() => onOpen(row)}
+                className="shrink-0 rounded-lg border border-orange-200/15 bg-orange-100/10 px-2.5 py-1.5 text-[10px] font-bold text-orange-200"
+              >
+                {actionLabel ?? "Buka"}
+              </button>
+            ) : null}
+          </div>
+          <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-xl bg-emerald-300/[0.055] px-2 py-2">
+              <p className="text-[9px] uppercase tracking-[0.12em] text-emerald-300/70">H</p>
+              <p className="mt-0.5 text-xs font-black text-emerald-300">{formatPrice(row.high)}</p>
+            </div>
+            <div className="rounded-xl bg-red-300/[0.055] px-2 py-2">
+              <p className="text-[9px] uppercase tracking-[0.12em] text-red-300/70">L</p>
+              <p className="mt-0.5 text-xs font-black text-red-300">{formatPrice(row.low)}</p>
+            </div>
+            <div className="rounded-xl bg-silver-100/[0.035] px-2 py-2">
+              <p className="text-[9px] uppercase tracking-[0.12em] text-silver-600">Close</p>
+              <p className="mt-0.5 text-xs font-black text-silver-100">{formatPrice(row.close)}</p>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export default function AdminBreakdownPanel() {
@@ -195,17 +291,17 @@ export default function AdminBreakdownPanel() {
   };
 
   return (
-    <div className="space-y-5">
-      <div className="rounded-[26px] border border-silver-200/10 bg-silver-100/[0.035] p-4 sm:p-5">
+    <div className="space-y-4 sm:space-y-5">
+      <div className="rounded-[22px] border border-silver-200/10 bg-silver-100/[0.035] p-3 sm:rounded-[26px] sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl">
             <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-orange-300">Candle Breakdown</p>
-            <h3 className="mt-2 text-xl font-extrabold text-silver-100">Chart harian sederhana untuk catat high/low penting.</h3>
+            <h3 className="mt-2 text-lg font-extrabold text-silver-100 sm:text-xl">Chart harian sederhana untuk catat high/low penting.</h3>
             <p className="mt-2 text-sm leading-relaxed text-silver-500">
-              Cari saham, klik candle, lalu simpan price, high, dan low dari candle pilihan beserta 5 candle perdagangan sebelum dan sesudahnya.
+              Cari saham, klik candle, lalu simpan high, low, dan close dari candle pilihan beserta 5 candle perdagangan sebelum dan sesudahnya.
             </p>
           </div>
-          <div className="rounded-2xl border border-silver-200/10 bg-[oklch(10%_0.014_150_/_0.58)] px-4 py-3 text-sm text-silver-400">
+          <div className="w-full rounded-2xl border border-silver-200/10 bg-[oklch(10%_0.014_150_/_0.58)] px-4 py-3 text-sm text-silver-400 sm:w-auto sm:min-w-36">
             <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-silver-600">Tersimpan</p>
             <p className="mt-1 text-lg font-black text-silver-100">{saved.length}</p>
           </div>
@@ -226,13 +322,13 @@ export default function AdminBreakdownPanel() {
                 }
               }}
               placeholder="Cari ticker, contoh: ANTM, GOTO, BRMS"
-              className="glass-input flex-1 px-4 py-3 text-sm text-silver-200"
+              className="glass-input w-full flex-1 px-4 py-3 text-sm text-silver-200"
             />
             <button
               type="button"
               onClick={openDirectTicker}
               disabled={loadingChart || !query.trim()}
-              className="rounded-xl px-5 py-3 text-sm font-bold disabled:opacity-50"
+              className="w-full rounded-xl px-5 py-3 text-sm font-bold disabled:opacity-50 md:w-auto"
               style={{ background: "rgba(251,146,60,0.14)", border: "1px solid rgba(251,146,60,0.24)", color: "#fdba74" }}
             >
               {loadingChart ? "Memuat..." : "Buka Chart"}
@@ -263,14 +359,14 @@ export default function AdminBreakdownPanel() {
 
       {error ? <p className="rounded-2xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-300">{error}</p> : null}
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">
-        <div className="rounded-[26px] border border-silver-200/10 bg-silver-100/[0.025] p-4">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.65fr)] xl:gap-5">
+        <div className="min-w-0 rounded-[22px] border border-silver-200/10 bg-silver-100/[0.025] p-3 sm:rounded-[26px] sm:p-4">
           <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-            <div>
+            <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-silver-600">Chart</p>
-              <h3 className="mt-1 text-lg font-extrabold text-silver-100">
+              <h3 className="mt-1 flex flex-col text-lg font-extrabold text-silver-100 sm:block">
                 {selectedTicker ? selectedTicker.replace(".JK", "") : "Pilih saham"}
-                {selectedName && selectedTicker ? <span className="ml-2 text-sm font-semibold text-silver-500">{selectedName}</span> : null}
+                {selectedName && selectedTicker ? <span className="text-sm font-semibold text-silver-500 sm:ml-2">{selectedName}</span> : null}
               </h3>
             </div>
             {selectedCandle ? (
@@ -279,37 +375,37 @@ export default function AdminBreakdownPanel() {
           </div>
 
           {loadingChart ? (
-            <div className="flex h-[430px] items-center justify-center rounded-3xl bg-silver-100/[0.035] text-sm text-silver-500">Memuat chart...</div>
+            <div className="flex h-[300px] items-center justify-center rounded-2xl bg-silver-100/[0.035] text-sm text-silver-500 sm:h-[350px] lg:h-[430px] lg:rounded-3xl">Memuat chart...</div>
           ) : history.length > 0 ? (
             <>
               {selectedCandle ? (
                 <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <div className="rounded-2xl border border-silver-200/10 bg-silver-100/[0.035] p-3">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-silver-600">Price / Close</p>
-                    <p className="mt-1 text-2xl font-black text-silver-100">{formatPrice(selectedCandle.close)}</p>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-silver-600">Close</p>
+                    <p className="mt-1 text-xl font-black text-silver-100 sm:text-2xl">{formatPrice(selectedCandle.close)}</p>
                   </div>
                   <div className="rounded-2xl border border-emerald-300/15 bg-emerald-300/[0.06] p-3">
                     <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-300/70">High</p>
-                    <p className="mt-1 text-2xl font-black text-emerald-300">{formatPrice(selectedCandle.high)}</p>
+                    <p className="mt-1 text-xl font-black text-emerald-300 sm:text-2xl">{formatPrice(selectedCandle.high)}</p>
                   </div>
                   <div className="rounded-2xl border border-red-300/15 bg-red-300/[0.06] p-3">
                     <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-red-300/70">Low</p>
-                    <p className="mt-1 text-2xl font-black text-red-300">{formatPrice(selectedCandle.low)}</p>
+                    <p className="mt-1 text-xl font-black text-red-300 sm:text-2xl">{formatPrice(selectedCandle.low)}</p>
                   </div>
                 </div>
               ) : null}
               <AdminBreakdownChart data={history} selectedIndex={selectedIndex} onSelect={setSelectedIndex} />
             </>
           ) : (
-            <div className="flex h-[430px] items-center justify-center rounded-3xl bg-silver-100/[0.035] text-center text-sm text-silver-500">
+            <div className="flex h-[300px] items-center justify-center rounded-2xl bg-silver-100/[0.035] px-6 text-center text-sm text-silver-500 sm:h-[350px] lg:h-[430px] lg:rounded-3xl">
               Cari saham untuk mulai breakdown candle.
             </div>
           )}
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-[26px] border border-silver-200/10 bg-silver-100/[0.025] p-4">
-            <div className="flex items-start justify-between gap-3">
+          <div className="rounded-[22px] border border-silver-200/10 bg-silver-100/[0.025] p-3 sm:rounded-[26px] sm:p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-silver-600">Tabel Candle</p>
                 <h3 className="mt-1 text-lg font-extrabold text-silver-100">High / Low sekitar candle</h3>
@@ -318,7 +414,7 @@ export default function AdminBreakdownPanel() {
                 type="button"
                 onClick={addBreakdown}
                 disabled={!selectedCandle || contextRows.length === 0}
-                className="rounded-xl px-4 py-2.5 text-xs font-black disabled:cursor-not-allowed disabled:opacity-40"
+                className="w-full rounded-xl px-4 py-2.5 text-xs font-black disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
                 style={{ background: "rgba(16,185,129,0.16)", border: "1px solid rgba(16,185,129,0.28)", color: "#6ee7b7" }}
               >
                 Add ke List
@@ -332,18 +428,18 @@ export default function AdminBreakdownPanel() {
                     <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-orange-200/75">Candle dipilih</p>
                     <p className="mt-1 text-sm font-bold text-silver-100">{formatDate(selectedCandle.time)}</p>
                   </div>
-                  <div className="grid grid-cols-3 gap-2 text-right">
+                  <div className="grid grid-cols-3 gap-2 text-center">
                     <div>
-                      <p className="text-[10px] uppercase tracking-[0.14em] text-silver-600">Price</p>
-                      <p className="text-sm font-black text-silver-100">{formatPrice(selectedCandle.close)}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] uppercase tracking-[0.14em] text-emerald-300/70">High</p>
+                      <p className="text-[10px] uppercase tracking-[0.14em] text-emerald-300/70">H</p>
                       <p className="text-sm font-black text-emerald-300">{formatPrice(selectedCandle.high)}</p>
                     </div>
                     <div>
-                      <p className="text-[10px] uppercase tracking-[0.14em] text-red-300/70">Low</p>
+                      <p className="text-[10px] uppercase tracking-[0.14em] text-red-300/70">L</p>
                       <p className="text-sm font-black text-red-300">{formatPrice(selectedCandle.low)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-[0.14em] text-silver-600">Close</p>
+                      <p className="text-sm font-black text-silver-100">{formatPrice(selectedCandle.close)}</p>
                     </div>
                   </div>
                 </div>
@@ -372,31 +468,40 @@ export default function AdminBreakdownPanel() {
 
             {saveMessage ? <p className="mt-3 rounded-xl border border-emerald-300/15 bg-emerald-300/10 px-3 py-2 text-xs font-semibold text-emerald-300">{saveMessage}</p> : null}
 
-            <div className="mt-4 overflow-x-auto rounded-2xl border border-silver-200/10">
-              <table className="w-full min-w-[560px] text-left text-xs text-silver-400">
-                <thead className="bg-silver-100/[0.04] text-[10px] uppercase tracking-[0.14em] text-silver-600">
+            <CandleRowCards rows={contextRows} />
+
+            <div className="mt-4 hidden overflow-hidden rounded-2xl border border-silver-200/10 md:block">
+              <table className="w-full table-fixed text-center text-[11px] text-silver-400">
+                <colgroup>
+                  <col className="w-[24%]" />
+                  <col className="w-[13%]" />
+                  <col className="w-[21%]" />
+                  <col className="w-[21%]" />
+                  <col className="w-[21%]" />
+                </colgroup>
+                <thead className="bg-silver-100/[0.04] text-[9px] uppercase tracking-[0.08em] text-silver-600">
                   <tr>
-                    <th className="px-3 py-3">Tanggal</th>
-                    <th className="px-3 py-3">Posisi</th>
-                    <th className="px-3 py-3 text-right">Price / Close</th>
-                    <th className="px-3 py-3 text-right">Nilai High</th>
-                    <th className="px-3 py-3 text-right">Nilai Low</th>
+                    <th className="px-1.5 py-2.5">Tanggal</th>
+                    <th className="px-1.5 py-2.5">Posisi</th>
+                    <th className="px-1.5 py-2.5">H</th>
+                    <th className="px-1.5 py-2.5">L</th>
+                    <th className="px-1.5 py-2.5">Close</th>
                   </tr>
                 </thead>
                 <tbody>
                   {contextRows.length === 0 ? (
-                    <tr><td colSpan={5} className="px-3 py-8 text-center text-silver-600">Klik candle di chart.</td></tr>
+                    <tr><td colSpan={5} className="px-1.5 py-8 text-center text-silver-600">Klik candle di chart.</td></tr>
                   ) : contextRows.map((row) => (
                     <tr
                       key={`${row.date}-${row.index}`}
                       className="border-t border-silver-200/10"
                       style={{ background: row.selected ? "rgba(251,146,60,0.14)" : "transparent", outline: row.selected ? "2px solid rgba(251,146,60,0.45)" : "none" }}
                     >
-                      <td className="px-3 py-3 font-semibold text-silver-200">{formatDate(row.date)}</td>
-                      <td className="px-3 py-3">{row.relation}</td>
-                      <td className="px-3 py-3 text-right text-silver-200">{formatPrice(row.close)}</td>
-                      <td className="px-3 py-3 text-right text-emerald-300">{formatPrice(row.high)}</td>
-                      <td className="px-3 py-3 text-right text-red-300">{formatPrice(row.low)}</td>
+                      <td className="px-1.5 py-2.5 font-semibold text-silver-200">{formatShortDate(row.date)}</td>
+                      <td className="px-1.5 py-2.5">{formatPosition(row, contextRows)}</td>
+                      <td className="px-1.5 py-2.5 text-emerald-300">{formatPrice(row.high)}</td>
+                      <td className="px-1.5 py-2.5 text-red-300">{formatPrice(row.low)}</td>
+                      <td className="px-1.5 py-2.5 text-silver-200">{formatPrice(row.close)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -406,14 +511,14 @@ export default function AdminBreakdownPanel() {
         </div>
       </div>
 
-      <div className="rounded-[26px] border border-silver-200/10 bg-silver-100/[0.025] p-4">
-        <div className="mb-4 flex items-end justify-between gap-3">
+      <div className="rounded-[22px] border border-silver-200/10 bg-silver-100/[0.025] p-3 sm:rounded-[26px] sm:p-4">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-silver-600">List Table High Low</p>
             <h3 className="mt-1 text-lg font-extrabold text-silver-100">Breakdown tersimpan</h3>
           </div>
           {saved.length > 0 ? (
-            <button type="button" onClick={() => setSaved([])} className="rounded-xl border border-red-300/15 bg-red-400/10 px-3 py-2 text-xs font-bold text-red-300">
+            <button type="button" onClick={() => setSaved([])} className="w-full rounded-xl border border-red-300/15 bg-red-400/10 px-3 py-2 text-xs font-bold text-red-300 sm:w-auto">
               Bersihkan
             </button>
           ) : null}
@@ -430,52 +535,64 @@ export default function AdminBreakdownPanel() {
               return (
                 <div key={item.id} className="rounded-2xl border border-silver-200/10 bg-[oklch(9%_0.014_150_/_0.38)] p-3">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <p className="text-base font-black text-silver-100">{item.ticker.replace(".JK", "")} <span className="text-sm font-semibold text-silver-500">{item.name}</span></p>
-                      <p className="mt-1 text-xs text-silver-500">Candle: {formatDate(item.selectedDate)} | Price {selected ? formatPrice(selected.close) : "-"} | High {selected ? formatPrice(selected.high) : "-"} | Low {selected ? formatPrice(selected.low) : "-"}</p>
+                    <div className="min-w-0">
+                      <p className="flex flex-col text-base font-black text-silver-100 sm:block">{item.ticker.replace(".JK", "")} <span className="text-sm font-semibold text-silver-500">{item.name}</span></p>
+                      <p className="mt-1 text-xs text-silver-500">Candle: {formatShortDate(item.selectedDate)} | H {selected ? formatPrice(selected.high) : "-"} | L {selected ? formatPrice(selected.low) : "-"} | Close {selected ? formatPrice(selected.close) : "-"}</p>
                       {item.note ? <p className="mt-2 text-sm leading-relaxed text-silver-400">{item.note}</p> : null}
                     </div>
-                    <button type="button" onClick={() => deleteBreakdown(item.id)} className="rounded-xl border border-red-300/15 bg-red-400/10 px-3 py-2 text-xs font-bold text-red-300 hover:bg-red-400/15">
+                    <button type="button" onClick={() => deleteBreakdown(item.id)} className="w-full rounded-xl border border-red-300/15 bg-red-400/10 px-3 py-2 text-xs font-bold text-red-300 hover:bg-red-400/15 sm:w-auto">
                       Delete
                     </button>
                   </div>
 
-                  <div className="mt-3 overflow-x-auto rounded-xl border border-silver-200/10">
-                    <table className="w-full min-w-[680px] text-left text-xs text-silver-400">
-                      <thead className="bg-silver-100/[0.035] text-[10px] uppercase tracking-[0.14em] text-silver-600">
+                  <div className="mt-3 md:hidden">
+                    <CandleRowCards rows={item.rows} onOpen={(row) => openSavedRow(item, row)} actionLabel="Chart" />
+                  </div>
+
+                  <div className="mt-3 hidden overflow-hidden rounded-xl border border-silver-200/10 md:block">
+                    <table className="w-full table-fixed text-center text-[11px] text-silver-400">
+                      <colgroup>
+                        <col className="w-[20%]" />
+                        <col className="w-[11%]" />
+                        <col className="w-[19%]" />
+                        <col className="w-[19%]" />
+                        <col className="w-[19%]" />
+                        <col className="w-[12%]" />
+                      </colgroup>
+                      <thead className="bg-silver-100/[0.035] text-[9px] uppercase tracking-[0.08em] text-silver-600">
                         <tr>
-                          <th className="px-3 py-2.5">Tanggal</th>
-                          <th className="px-3 py-2.5">Posisi</th>
-                          <th className="px-3 py-2.5 text-right">Price / Close</th>
-                          <th className="px-3 py-2.5 text-right">Nilai High</th>
-                          <th className="px-3 py-2.5 text-right">Nilai Low</th>
-                          <th className="px-3 py-2.5 text-right">Aksi</th>
+                          <th className="px-1.5 py-2.5">Tanggal</th>
+                          <th className="px-1.5 py-2.5">Posisi</th>
+                          <th className="px-1.5 py-2.5">H</th>
+                          <th className="px-1.5 py-2.5">L</th>
+                          <th className="px-1.5 py-2.5">Close</th>
+                          <th className="px-1.5 py-2.5">Chart</th>
                         </tr>
                       </thead>
                       <tbody>
                         {item.rows.map((row) => (
                           <tr key={`${item.id}-${row.date}-${row.index}`} className="border-t border-silver-200/10" style={{ background: row.selected ? "rgba(251,146,60,0.12)" : "transparent" }}>
-                            <td className="px-3 py-2.5">
+                            <td className="px-1.5 py-2.5">
                               <button
                                 type="button"
                                 onClick={() => openSavedRow(item, row)}
                                 className="font-bold text-orange-200 underline-offset-4 hover:text-orange-100 hover:underline"
                                 title="Buka candle ini di chart atas"
                               >
-                                {formatDate(row.date)}
+                                {formatShortDate(row.date)}
                               </button>
                             </td>
-                            <td className="px-3 py-2.5">{row.relation}</td>
-                            <td className="px-3 py-2.5 text-right text-silver-200">{formatPrice(row.close)}</td>
-                            <td className="px-3 py-2.5 text-right text-emerald-300">{formatPrice(row.high)}</td>
-                            <td className="px-3 py-2.5 text-right text-red-300">{formatPrice(row.low)}</td>
-                            <td className="px-3 py-2.5 text-right">
+                            <td className="px-1.5 py-2.5">{formatPosition(row, item.rows)}</td>
+                            <td className="px-1.5 py-2.5 text-emerald-300">{formatPrice(row.high)}</td>
+                            <td className="px-1.5 py-2.5 text-red-300">{formatPrice(row.low)}</td>
+                            <td className="px-1.5 py-2.5 text-silver-200">{formatPrice(row.close)}</td>
+                            <td className="px-1.5 py-2.5">
                               <button
                                 type="button"
                                 onClick={() => openSavedRow(item, row)}
-                                className="rounded-lg border border-orange-200/15 bg-orange-100/10 px-2 py-1 text-[10px] font-bold text-orange-200"
+                                className="rounded-md border border-orange-200/15 bg-orange-100/10 px-1.5 py-1 text-[9px] font-bold text-orange-200"
                               >
-                                Buka chart
+                                Buka
                               </button>
                             </td>
                           </tr>

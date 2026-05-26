@@ -5,16 +5,18 @@ import NavbarWrapper from "@/components/ui/NavbarWrapper";
 import { AuthProvider } from "@/components/ui/AuthProvider";
 import AdminAssistantPopup from "@/components/ui/AdminAssistantPopup";
 
-const premiumBody = Alegreya_Sans({
+const alegreyaSans = Alegreya_Sans({
   subsets: ["latin"],
-  weight: ["400", "500", "700", "800"],
-  variable: "--font-premium-body",
+  weight: ["400", "500", "700", "800", "900"],
+  variable: "--font-alegreya-sans",
+  display: "swap",
 });
 
-const premiumDisplay = Bodoni_Moda({
+const bodoniModa = Bodoni_Moda({
   subsets: ["latin"],
-  weight: ["500", "600", "700", "800"],
-  variable: "--font-premium-display",
+  weight: ["400", "500", "600", "700", "800", "900"],
+  variable: "--font-bodoni-moda",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -38,9 +40,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="id">
-      <body
-        className={`${premiumBody.variable} ${premiumDisplay.variable} antialiased bg-gradient-animated min-h-screen`}
-      >
+      <body className={`${alegreyaSans.variable} ${bodoniModa.variable} antialiased bg-gradient-animated min-h-screen`}>
         <AuthProvider>
           <NavbarWrapper />
           <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 pb-24 md:pb-6">

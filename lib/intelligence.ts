@@ -1,19 +1,15 @@
 
-import { connectDB } from "./db";
-import SiteSettings from "./models/SiteSettings";
 import { getBandarmologyScreener } from "./bandarmologyScreener";
 import { analyzeSmartMoney } from "./smartMoneyEngine";
 import { sendTelegramMessage } from "./telegram";
-import Article from "./models/Article";
 import { getQuote } from "./yahooFinance";
-import mongoose from "mongoose";
+import { getTelegramSettings } from "./data/telegramSettings";
 
 export async function generateMorningIntel(chatId?: string, threadId?: string | number) {
-  await connectDB();
-  const settings = await SiteSettings.findOne({});
-  const token = settings?.telegramBotToken;
-  const targetChatId = chatId || settings?.telegramAdminChatId;
-  const targetThreadId = threadId || settings?.telegramAdminThreadId;
+  const settings = await getTelegramSettings();
+  const token = settings.telegramBotToken;
+  const targetChatId = chatId || settings.telegramAdminChatId;
+  const targetThreadId = threadId || settings.telegramAdminThreadId;
 
   if (!token || !targetChatId) throw new Error("Telegram bot not configured");
 
@@ -67,11 +63,10 @@ export async function generateMorningIntel(chatId?: string, threadId?: string | 
 }
 
 export async function generateDailySummary(chatId?: string, threadId?: string | number) {
-  await connectDB();
-  const settings = await SiteSettings.findOne({});
-  const token = settings?.telegramBotToken;
-  const targetChatId = chatId || settings?.telegramAdminChatId;
-  const targetThreadId = threadId || settings?.telegramAdminThreadId;
+  const settings = await getTelegramSettings();
+  const token = settings.telegramBotToken;
+  const targetChatId = chatId || settings.telegramAdminChatId;
+  const targetThreadId = threadId || settings.telegramAdminThreadId;
   
   // Reuse logic from cron/daily-summary (Simplified for the sake of brevity here)
   // In a real scenario, we'd refactor the RSS parser to a utility

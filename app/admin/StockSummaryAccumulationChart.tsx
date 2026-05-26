@@ -36,7 +36,7 @@ export default function StockSummaryAccumulationChart({
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
         textColor: "#94a3b8",
-        fontFamily: "Arial, sans-serif",
+        fontFamily: "var(--font-geist-sans)",
       },
       grid: {
         vertLines: { color: "rgba(226,232,240,0.04)" },
