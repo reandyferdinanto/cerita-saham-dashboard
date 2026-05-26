@@ -183,7 +183,7 @@ export default function CandlestickChart({ data, tp, sl, height = 500, mobileHei
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
         textColor: "#94a3b8",
-        fontFamily: "var(--font-geist-sans)",
+        fontFamily: "Inter, sans-serif",
       },
       grid: {
         vertLines: { color: "rgba(226,232,240,0.04)" },

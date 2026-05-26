@@ -226,6 +226,7 @@ export default function InsightsPage() {
   const autoArticleCount = articles.filter(isAutoArticle).length;
   const manualArticleCount = articles.filter((article) => !isAutoArticle(article)).length;
   const ipotNewsCount = visibleNews.filter((item) => item.source.toLowerCase().includes("ipot")).length;
+  const cnbcNewsCount = visibleNews.filter((item) => item.source.toLowerCase().includes("cnbc")).length;
 
   return (
     <div className="dashboard-typography space-y-8 pb-8 sm:space-y-10">
@@ -248,14 +249,14 @@ export default function InsightsPage() {
                   Insight Desk
                 </span>
                 <span className="rounded-full border border-silver-200/10 bg-silver-100/[0.06] px-3 py-1.5 text-xs font-semibold text-silver-300">
-                  Detik + IPOT
+                  Detik + IPOT + CNBC + Bisnis
                 </span>
               </div>
               <h1 className="max-w-4xl text-[2.65rem] font-extrabold leading-[0.92] tracking-[-0.055em] text-[oklch(94%_0.02_96)] sm:text-6xl lg:text-7xl">
                 Insight Desk untuk baca market tanpa kebanyakan noise.
               </h1>
               <p className="mt-4 max-w-2xl text-[0.95rem] leading-7 text-[oklch(78%_0.025_105)] sm:mt-6 sm:text-base sm:leading-8">
-                Special Article, AI Article 5 hari terakhir, dan market wire dari Detik serta IPOT dikumpulkan dalam satu halaman yang lebih rapi buat riset harian.
+                Special Article, AI Article 5 hari terakhir, dan market wire dari Detik, IPOT, CNBC Indonesia, serta Bisnis.com dikumpulkan dalam satu halaman yang lebih rapi buat riset harian.
               </p>
             </div>
 
@@ -289,7 +290,7 @@ export default function InsightsPage() {
               </span>
             </div>
             <p className="mb-4 text-xs leading-relaxed text-silver-500">
-              {newsLoading ? "Mengambil feed market..." : `${visibleNews.length} headline aktif, ${ipotNewsCount} dari IPOT.`}
+              {newsLoading ? "Mengambil feed market..." : `${visibleNews.length} headline aktif, ${ipotNewsCount} IPOT, ${cnbcNewsCount} CNBC.`}
             </p>
             <div className="space-y-3">
               {newsLoading
@@ -407,7 +408,7 @@ export default function InsightsPage() {
             <h2 className="mt-1 text-2xl font-extrabold tracking-[-0.04em] text-silver-100 sm:text-3xl">Berita pilihan hari ini</h2>
           </div>
           <p className="max-w-md text-sm text-silver-500">
-            Feed Detik dan IPOT tampil di halaman utama insights. Klik ticker yang terdeteksi untuk membuka chart cepat.
+            Feed Detik, IPOT, CNBC Indonesia, dan Bisnis.com tampil di halaman utama insights. Klik ticker yang terdeteksi untuk membuka chart cepat.
           </p>
         </div>
 

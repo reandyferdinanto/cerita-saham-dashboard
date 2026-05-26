@@ -51,7 +51,7 @@ export default function BrandMark({
       <div className={isCenter ? "text-center" : ""}>
         <p
           className={`${styles.text} font-black leading-none tracking-[0.02em] text-slate-100`}
-          style={{ fontFamily: "var(--font-playfair), Georgia, serif" }}
+          style={{ fontFamily: "var(--font-inter), Inter, sans-serif" }}
         >
           anomali
           <span className="text-orange-300">saham</span>

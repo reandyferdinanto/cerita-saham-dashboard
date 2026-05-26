@@ -149,6 +149,8 @@ export async function GET() {
     const feeds = [
       { url: "https://finance.detik.com/rss", source: "Detik Finance" },
       { url: "https://finance.detik.com/bursa-valas/rss", source: "Detik Bursa" },
+      { url: "https://www.cnbcindonesia.com/market/rss", source: "CNBC Indonesia" },
+      { url: "https://rss.bisnis.com/", source: "Bisnis.com" },
     ];
 
     const [results, ipotResults] = await Promise.all([
@@ -156,10 +158,10 @@ export async function GET() {
       Promise.allSettled(IPOT_LEVELS.map((level) => fetchIpotLevel(level))),
     ]);
 
-    const detikNews: NewsItem[] = [];
+    const allRssNews: NewsItem[] = [];
     for (const result of results) {
       if (result.status === "fulfilled") {
-        detikNews.push(...result.value);
+        allRssNews.push(...result.value);
       } else {
         console.error("Feed error:", result.reason);
       }
@@ -174,21 +176,20 @@ export async function GET() {
       }
     }
 
-    // Keep IPOT visible even when its industry feeds are older than Detik.
-    const sortedDetik = detikNews
+    const sortedRss = allRssNews
       .sort((a, b) => (b.pubDate ? new Date(b.pubDate).getTime() : 0) - (a.pubDate ? new Date(a.pubDate).getTime() : 0))
-      .slice(0, 12);
+      .slice(0, 20);
     const sortedIpot = ipotNews
       .sort((a, b) => (b.pubDate ? new Date(b.pubDate).getTime() : 0) - (a.pubDate ? new Date(a.pubDate).getTime() : 0))
       .slice(0, 6);
+
     const balancedNews: NewsItem[] = [];
-    for (let i = 0; i < Math.max(sortedDetik.length, sortedIpot.length); i += 1) {
-      if (sortedDetik[i]) balancedNews.push(sortedDetik[i]);
-      if (sortedDetik[i + 6]) balancedNews.push(sortedDetik[i + 6]);
+    for (let i = 0; i < Math.max(sortedRss.length, sortedIpot.length); i += 1) {
+      if (sortedRss[i]) balancedNews.push(sortedRss[i]);
       if (sortedIpot[i]) balancedNews.push(sortedIpot[i]);
     }
 
-    // Deduplicate by link while preserving the Detik/IPOT mix order.
+    // Deduplicate by link
     const seen = new Set<string>();
     const sorted = balancedNews
       .filter((n) => {
@@ -196,7 +197,7 @@ export async function GET() {
         seen.add(n.link);
         return true;
       })
-      .slice(0, 18);
+      .slice(0, 24);
 
     return NextResponse.json(sorted);
   } catch (error) {
