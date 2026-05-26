@@ -14,12 +14,14 @@ export async function GET(req: NextRequest) {
   try {
     const date = req.nextUrl.searchParams.get("date");
     const limit = Number(req.nextUrl.searchParams.get("limit") || 12);
+    const minRRParam = req.nextUrl.searchParams.get("minRR");
+    const minRiskReward = minRRParam ? Number(minRRParam) : 0;
 
     if (!date) {
       return NextResponse.json({ error: "Query param date wajib diisi (YYYY-MM-DD)" }, { status: 400 });
     }
 
-    const result = await getAccumulationAnalysis({ tradeDate: date, limit });
+    const result = await getAccumulationAnalysis({ tradeDate: date, limit, minRiskReward });
     return NextResponse.json(result);
   } catch (error) {
     return NextResponse.json(

@@ -1,6 +1,7 @@
 import { connectDB } from "@/lib/db";
 import StockSummaryRow, { IStockSummaryRow } from "@/lib/models/StockSummaryRow";
 import { analyzeBandarmologyTicker, BandarmologyAnalysisResult } from "@/lib/bandarmologyAnalysis";
+import { buildTechnicalSnapshot, OHLCVRow, SetupTag, TradePlan } from "@/lib/technicalIndicators";
 
 export type StockAccumulationCandidate = {
   stockCode: string;
@@ -31,6 +32,22 @@ export type StockAccumulationCandidate = {
   bandarmologyTone: "bullish" | "neutral" | "bearish" | "warning" | null;
   bandarmologyAlignment: "selaras" | "campuran" | "bertabrakan" | "tidak_tersedia";
   bandarmologyNote: string | null;
+  // --- Technical analysis additions ---
+  atr14: number | null;
+  rvol: number | null;
+  mfi14: number | null;
+  rsi14: number | null;
+  macdHistogram: number | null;
+  macdRising: boolean;
+  bbSqueeze: boolean;
+  bbWidthPercent: number | null;
+  setups: SetupTag[];
+  tradePlan: TradePlan | null;
+  technicalScore: number; // 0-50 bonus from technical setups
+  // --- Risk warnings ---
+  changePercent: number | null; // Daily move on screening date
+  pumpExhaustion: boolean; // Daily move >12% — likely late-stage pump
+  riskWarnings: string[]; // Human-readable cautions
 };
 
 export type StockAccumulationSeriesPoint = {
@@ -83,26 +100,102 @@ function buildLocalPressure(row: IStockSummaryRow) {
   return ((closeStrength * 50) + ((bidOfferEdge - 1) * 30) + Math.max(intradayPush, -2) * 6) * liquidityBoost;
 }
 
+function describePhasePlain(phase: string): string {
+  // Short, plain-Indonesian explanation of what the bandarmology phase actually means for traders.
+  const map: Record<string, string> = {
+    "Support dikunci bandar": "Bandar terlihat menjaga area support — tiap turun langsung diserap, jadi harga sulit jatuh.",
+    "Akumulasi di support": "Smart money pelan-pelan mengumpulkan barang di area support sambil menahan harga.",
+    "Sideways akumulasi senyap": "Harga gerak datar tapi barang justru diserap diam-diam — fase build-up sebelum naik.",
+    "Markup dini": "Bandar baru mulai menggerakkan harga naik. Masih dekat area kumpul, jadi belum terlambat.",
+    "Akumulasi menuju markup": "Volume mulai naik dan harga mendekati breakout — bandar sedang siap-siap dorong.",
+    "Markup sehat": "Tren naik berjalan sehat: harga di atas MA20 dan MA50, volume bullish dominan.",
+    "Trend pullback sehat": "Lagi koreksi sehat ke MA20. Demand masih jaga struktur — pullback wajar sebelum lanjut naik.",
+    "Reclaim awal": "Harga baru saja merebut MA20 dari bawah. Sinyal awal pemulihan, butuh follow-through.",
+    "Base building": "Lagi bikin dasar — range sempit + volume serap. Belum jalan, tapi pondasi terlihat solid.",
+    "Akumulasi dalam range": "Ada jejak akumulasi (OBV+, A/D+) walau belum jelas bias arahnya.",
+    "False breakout risk": "Harga dekat breakout tapi volume belum mendukung — risiko gagal breakout cukup tinggi.",
+    "Distribusi dalam range": "Lebih banyak supply dilepas daripada demand. Belum drop tajam, tapi tekanan jual ada.",
+    "Markdown / distribusi lanjut": "Trend turun + bandar lepas barang. Hindari buy, struktur masih lemah.",
+    "Netral / transisi": "Belum ada jejak bandar yang dominan — saham lagi di fase transisi tanpa arah jelas.",
+  };
+  return map[phase] || `Fase "${phase}" — belum cukup jelas arahnya berdasarkan jejak bandar.`;
+}
+
+function buildEvidenceFromMetrics(metrics: BandarmologyAnalysisResult["metrics"]): string {
+  const evidence: string[] = [];
+
+  if (metrics.priceVsMa20 != null) {
+    const sign = metrics.priceVsMa20 >= 0 ? "+" : "";
+    evidence.push(`harga ${sign}${metrics.priceVsMa20.toFixed(1)}% vs MA20`);
+  }
+  if (metrics.volumeRatio5v20 != null) {
+    if (metrics.volumeRatio5v20 >= 1.3) {
+      evidence.push(`volume 5H ${metrics.volumeRatio5v20.toFixed(2)}x vs 20H (aktif)`);
+    } else if (metrics.volumeRatio5v20 <= 0.8) {
+      evidence.push(`volume 5H ${metrics.volumeRatio5v20.toFixed(2)}x vs 20H (sepi)`);
+    }
+  }
+  if (metrics.upDownVolumeRatio != null) {
+    if (metrics.upDownVolumeRatio >= 1.2) {
+      evidence.push(`up/down vol ${metrics.upDownVolumeRatio.toFixed(2)}x (demand dominan)`);
+    } else if (metrics.upDownVolumeRatio <= 0.8) {
+      evidence.push(`up/down vol ${metrics.upDownVolumeRatio.toFixed(2)}x (supply dominan)`);
+    }
+  }
+  if (metrics.obvSlope20 != null && metrics.adSlope20 != null) {
+    if (metrics.obvSlope20 > 0 && metrics.adSlope20 > 0) {
+      evidence.push("OBV & A/D naik (akumulasi)");
+    } else if (metrics.obvSlope20 < 0 && metrics.adSlope20 < 0) {
+      evidence.push("OBV & A/D turun (distribusi)");
+    }
+  }
+  if (metrics.breakoutDistancePct != null && metrics.breakoutDistancePct <= 5) {
+    evidence.push(`${metrics.breakoutDistancePct.toFixed(1)}% dari breakout 20H`);
+  }
+  if (metrics.rsi != null) {
+    if (metrics.rsi >= 70) evidence.push(`RSI ${metrics.rsi.toFixed(0)} (overbought)`);
+    else if (metrics.rsi <= 35) evidence.push(`RSI ${metrics.rsi.toFixed(0)} (oversold)`);
+  }
+
+  return evidence.slice(0, 4).join(" · ");
+}
+
 function buildBandarmologyAlignment(analysis: BandarmologyAnalysisResult) {
   const phase = analysis.summary.phase;
   const tone = analysis.summary.tone;
+  const conviction = analysis.summary.conviction;
+  const operatorBias = analysis.summary.operatorBias;
+  const phasePlain = describePhasePlain(phase);
+  const evidence = buildEvidenceFromMetrics(analysis.metrics);
+  const evidenceTail = evidence ? ` Bukti: ${evidence}.` : "";
+  const convictionTail = conviction > 0 ? ` Conviction bandar ${conviction}/100.` : "";
 
+  // BEARISH / DISTRIBUTION
   if (tone === "bearish" || phase === "Markdown / distribusi lanjut") {
     return {
       score: -36,
       alignment: "bertabrakan" as const,
-      note: "Bandarmology masih membaca distribusi, jadi sinyal flow harian belum cukup aman untuk disebut siap jalan.",
+      note: `${phasePlain}${evidenceTail} Operator bias: ${operatorBias}. Lebih aman tunggu konfirmasi reversal.`,
     };
   }
 
-  if (phase === "False breakout risk" || tone === "warning") {
+  // WARNING / FALSE BREAKOUT / DISTRIBUSI RANGE
+  if (phase === "False breakout risk") {
     return {
       score: -16,
       alignment: "bertabrakan" as const,
-      note: "Bandarmology melihat struktur masih rawan false move, jadi kandidat ini belum cukup sinkron.",
+      note: `${phasePlain}${evidenceTail} Aman jika tunggu close di atas resistance dengan volume jelas dulu.`,
+    };
+  }
+  if (phase === "Distribusi dalam range" || tone === "warning") {
+    return {
+      score: -12,
+      alignment: "bertabrakan" as const,
+      note: `${phasePlain}${evidenceTail} Risk/reward kurang menarik selama supply masih lebih berat.`,
     };
   }
 
+  // BULLISH ALIGNMENT (akumulasi/markup)
   if (
     phase === "Support dikunci bandar" ||
     phase === "Akumulasi di support" ||
@@ -113,30 +206,70 @@ function buildBandarmologyAlignment(analysis: BandarmologyAnalysisResult) {
     return {
       score: 18,
       alignment: "selaras" as const,
-      note: `Bandarmology ikut mendukung lewat fase "${phase}", jadi flow harian dan struktur harga saling menguatkan.`,
+      note: `${phasePlain}${evidenceTail}${convictionTail} Flow harian + struktur harga sama-sama mendukung.`,
     };
   }
 
-  if (phase === "Trend pullback sehat" || phase === "Base building" || phase === "Reclaim awal" || phase === "Akumulasi dalam range") {
+  // STRONG TREND ALREADY RUNNING — usually "Markup sehat"
+  if (phase === "Markup sehat") {
+    const distancePct = analysis.metrics.priceVsMa20 ?? 0;
+    if (distancePct >= 6) {
+      return {
+        score: 6,
+        alignment: "campuran" as const,
+        note: `${phasePlain}${evidenceTail} Tapi harga sudah ${distancePct.toFixed(1)}% di atas MA20 — masuk di sini risiko kena pullback. Ideal tunggu retest MA20 atau breakout baru.`,
+      };
+    }
+    return {
+      score: 12,
+      alignment: "selaras" as const,
+      note: `${phasePlain}${evidenceTail} Tren naik sudah jalan dengan momentum sehat — entry valid selama harga belum jauh dari MA20.${convictionTail}`,
+    };
+  }
+
+  // MIXED / EARLY SIGNS
+  if (phase === "Trend pullback sehat") {
+    return {
+      score: 10,
+      alignment: "campuran" as const,
+      note: `${phasePlain}${evidenceTail} Posisi pullback ke MA20 sering jadi entry point bagus kalau didukung volume serap.`,
+    };
+  }
+  if (phase === "Base building") {
     return {
       score: 8,
       alignment: "campuran" as const,
-      note: `Bandarmology belum seagresif stock summary, tetapi fase "${phase}" masih cukup layak untuk pantauan lanjutan.`,
+      note: `${phasePlain}${evidenceTail} Belum trigger gerak, tapi siap meledak kalau breakout dengan volume.`,
+    };
+  }
+  if (phase === "Reclaim awal") {
+    return {
+      score: 8,
+      alignment: "campuran" as const,
+      note: `${phasePlain}${evidenceTail} Butuh konfirmasi 1-2 candle close di atas MA20 lagi sebelum yakin pemulihan.`,
+    };
+  }
+  if (phase === "Akumulasi dalam range") {
+    return {
+      score: 6,
+      alignment: "campuran" as const,
+      note: `${phasePlain}${evidenceTail} Cocok untuk pantau, belum waktunya entry agresif.`,
     };
   }
 
+  // NEUTRAL / FALLBACK
   if (tone === "bullish" || tone === "neutral") {
     return {
       score: 4,
       alignment: "campuran" as const,
-      note: "Bandarmology belum sekuat flow harian, tetapi juga belum memberi sinyal konflik yang berat.",
+      note: `${phasePlain}${evidenceTail} Operator bias: ${operatorBias}.`,
     };
   }
 
   return {
     score: 0,
     alignment: "tidak_tersedia" as const,
-    note: "Bandarmology belum memberi sinyal yang cukup kuat untuk memperjelas kandidat ini.",
+    note: `${phasePlain} Data bandarmology belum cukup jelas untuk konfirmasi.`,
   };
 }
 
@@ -229,6 +362,49 @@ function buildCandidate(currentRow: IStockSummaryRow, recentRows: IStockSummaryR
   const cumulativeValue = historyWindow.reduce((sum, row) => sum + safeNumber(row.value), 0);
   const cumulativeForeignRatio = cumulativeValue > 0 ? (cumulativeForeign / cumulativeValue) * 100 : 0;
 
+  // ---- Technical snapshot (uses full recentRows for ATR, BB, MACD, RVOL, etc.) ----
+  const technicalRows: OHLCVRow[] = recentRows.map((row) => ({
+    high: row.high ?? null,
+    low: row.low ?? null,
+    close: row.close ?? null,
+    openPrice: row.openPrice ?? null,
+    volume: row.volume ?? null,
+    previous: row.previous ?? null,
+  }));
+  const tech = buildTechnicalSnapshot(technicalRows);
+
+  // Technical bonus score (0-50): rewards confluence of momentum confirmations.
+  let technicalScore = 0;
+  if (tech.rvol != null) {
+    if (tech.rvol >= 3) technicalScore += 14;
+    else if (tech.rvol >= 2) technicalScore += 10;
+    else if (tech.rvol >= 1.5) technicalScore += 6;
+  }
+  if (tech.pocketPivot) technicalScore += 12;
+  if (tech.bbSqueeze) technicalScore += 8;
+  if (tech.nr7) technicalScore += 5;
+  if (tech.insideBar) technicalScore += 4;
+  if (tech.highBreak6M) technicalScore += 10;
+  if (tech.macd && tech.macd.histogram > 0 && tech.macd.histogramRising) technicalScore += 6;
+  if (tech.mfi14 != null && tech.mfi14 >= 60) technicalScore += 4;
+  if (tech.mfi14 != null && tech.mfi14 >= 80) technicalScore -= 4; // overbought caution
+  technicalScore = clamp(technicalScore, 0, 50);
+
+  // Add setup-driven reasons.
+  if (tech.rvol != null && tech.rvol >= 1.5) {
+    reasons.push(`RVOL ${tech.rvol.toFixed(2)}x avg 20D`);
+  }
+  if (tech.pocketPivot) reasons.push("Pocket Pivot terdeteksi");
+  if (tech.bbSqueeze) reasons.push(`BB Squeeze (width ${tech.bbWidthPercent?.toFixed(2) ?? "?"}%)`);
+  if (tech.nr7) reasons.push("NR7: range tersempit 7 hari");
+  if (tech.insideBar) reasons.push("Inside Bar: kompresi");
+  if (tech.highBreak6M) reasons.push("Breakout 6 bulan tertinggi");
+  if (tech.macd?.histogramRising && tech.macd.histogram > 0) reasons.push("MACD histogram rising > 0");
+  if (tech.mfi14 != null) {
+    if (tech.mfi14 >= 80) reasons.push(`MFI ${tech.mfi14.toFixed(0)} (overbought)`);
+    else if (tech.mfi14 >= 60) reasons.push(`MFI ${tech.mfi14.toFixed(0)} kuat`);
+  }
+
   if (positiveForeignDays >= 3) {
     accumulationScore += 16;
     reasons.push(`Foreign konsisten ${positiveForeignDays}/${historyWindow.length} hari`);
@@ -274,6 +450,51 @@ function buildCandidate(currentRow: IStockSummaryRow, recentRows: IStockSummaryR
   if (positiveForeignDays >= 3) convictionScore += 6;
   if (strongCloseDays >= 3) convictionScore += 4;
   convictionScore += Math.round(liquidityMultiple * 4);
+  convictionScore += technicalScore; // Add technical confluence bonus
+
+  // ---- Pump Exhaustion Detection ----
+  // If today's daily move is large (≥ 12%), the stock has likely already moved significantly.
+  // Entering after a vertical pump exposes trader to distribution risk on the next day.
+  const riskWarnings: string[] = [];
+  let pumpExhaustion = false;
+  if (changePercent != null && changePercent >= 12) {
+    pumpExhaustion = true;
+    if (changePercent >= 20) {
+      convictionScore -= 30;
+      riskWarnings.push(
+        `Sudah pump +${round(changePercent)}% hari ini. Risiko distribusi pasca-pump tinggi — jangan kejar di sini.`
+      );
+    } else if (changePercent >= 15) {
+      convictionScore -= 22;
+      riskWarnings.push(
+        `Pump kuat +${round(changePercent)}% hari ini. Lebih aman tunggu retest atau konsolidasi 1-2 hari sebelum entry.`
+      );
+    } else {
+      convictionScore -= 12;
+      riskWarnings.push(
+        `Sudah naik +${round(changePercent)}% hari ini. Entry di sini berisiko karena ATR-based SL akan terlalu lebar.`
+      );
+    }
+  }
+
+  // Inflated ATR warning: if ATR is large relative to price (>5%), SL distance will hurt
+  if (tech.atr14 != null && close > 0 && (tech.atr14 / close) * 100 >= 5) {
+    riskWarnings.push(
+      `ATR ${tech.atr14.toFixed(2)} (${((tech.atr14 / close) * 100).toFixed(1)}% dari harga) — volatilitas tinggi, SL akan jauh.`
+    );
+  }
+
+  // Boost setup-driven phase upgrade if strong technical signal even with moderate accumulation
+  let phaseBoostFromTech = false;
+  if (
+    !pumpExhaustion &&
+    technicalScore >= 24 &&
+    (tech.pocketPivot || tech.bbSqueeze || tech.highBreak6M) &&
+    tech.rvol != null &&
+    tech.rvol >= 1.5
+  ) {
+    phaseBoostFromTech = true;
+  }
 
   let convictionLabel: StockAccumulationCandidate["convictionLabel"] = "Awal";
   if (convictionScore >= 92) {
@@ -290,10 +511,21 @@ function buildCandidate(currentRow: IStockSummaryRow, recentRows: IStockSummaryR
   } else if (accumulationScore >= 48 || positiveForeignDays >= 3) {
     phase = "Akumulasi Kuat";
   }
+  if (phaseBoostFromTech && phase === "Akumulasi Kuat") {
+    phase = "Akumulasi Siap Jalan";
+  } else if (phaseBoostFromTech && phase === "Pantau" && accumulationScore >= 30) {
+    phase = "Akumulasi Kuat";
+  }
+  // Pump-exhausted candidates can never be "Siap Jalan" — too risky to chase
+  if (pumpExhaustion && phase === "Akumulasi Siap Jalan") {
+    phase = "Akumulasi Kuat";
+  }
 
   const summary =
-    phase === "Akumulasi Siap Jalan"
-      ? `Hari aktif terlihat kuat dan didukung konsistensi ${Math.min(historyWindow.length, 5)} hari terakhir, sehingga peluang dorongan lanjutan lebih sehat.`
+    pumpExhaustion
+      ? `Sudah pump kuat hari ini (+${changePercent != null ? round(changePercent) : "?"}%). Setup masih ada, tapi entry di sini berisiko karena ATR terlalu lebar — tunggu retest atau konsolidasi 1-2 hari sebelum putuskan.`
+      : phase === "Akumulasi Siap Jalan"
+        ? `Hari aktif terlihat kuat dan didukung konsistensi ${Math.min(historyWindow.length, 5)} hari terakhir, sehingga peluang dorongan lanjutan lebih sehat.`
       : phase === "Akumulasi Kuat"
         ? `Ada jejak serap yang cukup jelas dalam beberapa hari terakhir, tetapi trigger gerak lanjut tetap perlu dipantau.`
         : `Mulai menarik untuk dipantau. Kualitas hari ini ada, tetapi konsistensi 3-5 hari masih perlu diperkuat.`;
@@ -327,10 +559,24 @@ function buildCandidate(currentRow: IStockSummaryRow, recentRows: IStockSummaryR
     bandarmologyTone: null,
     bandarmologyAlignment: "tidak_tersedia",
     bandarmologyNote: null,
+    atr14: tech.atr14,
+    rvol: tech.rvol,
+    mfi14: tech.mfi14,
+    rsi14: tech.rsi14,
+    macdHistogram: tech.macd?.histogram ?? null,
+    macdRising: tech.macd?.histogramRising ?? false,
+    bbSqueeze: tech.bbSqueeze,
+    bbWidthPercent: tech.bbWidthPercent,
+    setups: tech.setups,
+    tradePlan: tech.tradePlan,
+    technicalScore,
+    changePercent: changePercent != null ? round(changePercent) : null,
+    pumpExhaustion,
+    riskWarnings,
   };
 }
 
-export async function getAccumulationAnalysis(args: { tradeDate: string; limit?: number }) {
+export async function getAccumulationAnalysis(args: { tradeDate: string; limit?: number; minRiskReward?: number }) {
   await connectDB();
   const tradeDate = new Date(`${args.tradeDate}T00:00:00.000Z`);
   const limit = Math.min(args.limit ?? 12, 30);
@@ -340,7 +586,7 @@ export async function getAccumulationAnalysis(args: { tradeDate: string; limit?:
     .map((value) => new Date(value))
     .filter((value) => !Number.isNaN(value.getTime()))
     .sort((left, right) => right.getTime() - left.getTime())
-    .slice(0, 5);
+    .slice(0, 60);
 
   if (recentDates.length === 0) {
     return {
@@ -426,8 +672,15 @@ export async function getAccumulationAnalysis(args: { tradeDate: string; limit?:
     })
   );
 
+  const minRR = args.minRiskReward ?? 0;
   const filteredCandidates = alignedCandidates
     .filter((candidate) => candidate.bandarmologyAlignment !== "bertabrakan")
+    .filter((candidate) => {
+      if (minRR <= 0) return true;
+      // If no trade plan available, fail-safe include only when minRR is loose
+      if (!candidate.tradePlan) return minRR <= 1;
+      return candidate.tradePlan.riskRewardRatio >= minRR;
+    })
     .sort((a, b) => {
       const alignmentRank = { selaras: 0, campuran: 1, tidak_tersedia: 2, bertabrakan: 3 } as const;
       const alignmentDiff = alignmentRank[a.bandarmologyAlignment] - alignmentRank[b.bandarmologyAlignment];

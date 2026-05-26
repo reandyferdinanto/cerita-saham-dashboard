@@ -60,6 +60,49 @@ type StockAccumulationCandidate = {
   bandarmologyTone: "bullish" | "neutral" | "bearish" | "warning" | null;
   bandarmologyAlignment: "selaras" | "campuran" | "bertabrakan" | "tidak_tersedia";
   bandarmologyNote: string | null;
+  // Technical fields
+  atr14: number | null;
+  rvol: number | null;
+  mfi14: number | null;
+  rsi14: number | null;
+  macdHistogram: number | null;
+  macdRising: boolean;
+  bbSqueeze: boolean;
+  bbWidthPercent: number | null;
+  setups: string[];
+  tradePlan: {
+    entry: number;
+    stopLoss: number;
+    takeProfit1: number;
+    takeProfit2: number;
+    riskRewardRatio: number;
+    riskRewardRatio2: number;
+    riskPercent: number;
+    reward1Percent: number;
+    reward2Percent: number;
+    basis: string;
+  } | null;
+  technicalScore: number;
+  changePercent: number | null;
+  pumpExhaustion: boolean;
+  riskWarnings: string[];
+};
+
+type LiveStatus = "setup_valid" | "near_sl" | "sl_hit" | "tp1_reached" | "tp2_reached" | "above_entry" | "better_entry" | "no_plan";
+
+type LiveStatusResult = {
+  ticker: string;
+  currentPrice: number | null;
+  changePercent: number | null;
+  high: number | null;
+  low: number | null;
+  previousClose: number | null;
+  status: LiveStatus;
+  recommendation: string;
+  pricedSinceEntry: number | null;
+  distanceToSL: number | null;
+  distanceToTP1: number | null;
+  intradayLowHitSL: boolean;
 };
 
 type StockSeriesPoint = {
@@ -114,10 +157,17 @@ function formatDayLabel(value: string) {
 }
 
 function buildWatchlistDraftFromAccumulation(item: StockAccumulationCandidate) {
+  const setupPart = item.setups.length > 0 ? `Setup: ${item.setups.join(", ")}` : "";
+  const rrPart = item.tradePlan
+    ? `R/R 1:${item.tradePlan.riskRewardRatio.toFixed(2)} (TP1) / 1:${item.tradePlan.riskRewardRatio2.toFixed(2)} (TP2)`
+    : "";
   const note = [
-    `${item.phase} | Conviction ${item.convictionScore}`,
+    `${item.phase} | Conviction ${item.convictionScore} | Tech ${item.technicalScore}`,
     `Net foreign ${formatNumber(item.netForeign)}`,
     item.bidOfferRatio != null ? `Bid/offer ${item.bidOfferRatio}x` : "",
+    item.rvol != null ? `RVOL ${item.rvol.toFixed(2)}x` : "",
+    setupPart,
+    rrPart,
     item.summary,
   ]
     .filter(Boolean)
@@ -126,8 +176,8 @@ function buildWatchlistDraftFromAccumulation(item: StockAccumulationCandidate) {
   return {
     ticker: item.stockCode,
     name: item.companyName || item.stockCode,
-    tp: item.close && item.closeToHighPercent != null ? Math.round(item.close * 1.05) : null,
-    sl: item.close && item.closeToHighPercent != null ? Math.round(item.close * 0.95) : null,
+    tp: item.tradePlan?.takeProfit1 ?? (item.close ? Math.round(item.close * 1.05) : null),
+    sl: item.tradePlan?.stopLoss ?? (item.close ? Math.round(item.close * 0.95) : null),
     note,
   };
 }
@@ -152,6 +202,10 @@ export default function AdminStockSummaryPanel() {
   const [deleteMessage, setDeleteMessage] = useState("");
   const [accumulationRows, setAccumulationRows] = useState<StockAccumulationCandidate[]>([]);
   const [accumulationLookbackDays, setAccumulationLookbackDays] = useState(1);
+  const [minRiskReward, setMinRiskReward] = useState<number>(0);
+  const [liveStatusMap, setLiveStatusMap] = useState<Record<string, LiveStatusResult>>({});
+  const [liveStatusLoading, setLiveStatusLoading] = useState(false);
+  const [liveStatusFetchedAt, setLiveStatusFetchedAt] = useState<string>("");
   const [accumulationLoading, setAccumulationLoading] = useState(false);
   const [accumulationError, setAccumulationError] = useState("");
   const [dateSelectionLoading, setDateSelectionLoading] = useState(false);
@@ -218,6 +272,9 @@ export default function AdminStockSummaryPanel() {
       setAccumulationLoading(true);
       setAccumulationError("");
       const qs = new URLSearchParams({ date: stockQueryDate, limit: "12" });
+      if (minRiskReward > 0) {
+        qs.set("minRR", String(minRiskReward));
+      }
       const res = await fetch(`/api/admin/stock-summary/analysis?${qs.toString()}`, { cache: "no-store" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Gagal memuat analisa akumulasi");
@@ -238,6 +295,47 @@ export default function AdminStockSummaryPanel() {
     }
   };
 
+  const fetchLiveStatus = async (rows: StockAccumulationCandidate[]) => {
+    if (rows.length === 0) {
+      setLiveStatusMap({});
+      return;
+    }
+    try {
+      setLiveStatusLoading(true);
+      const payload = {
+        tickers: rows.map((row) => ({
+          ticker: row.stockCode,
+          tradePlan: row.tradePlan
+            ? {
+                entry: row.tradePlan.entry,
+                stopLoss: row.tradePlan.stopLoss,
+                takeProfit1: row.tradePlan.takeProfit1,
+                takeProfit2: row.tradePlan.takeProfit2,
+              }
+            : null,
+        })),
+      };
+      const res = await fetch("/api/admin/stock-summary/live-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        cache: "no-store",
+      });
+      const data = await res.json();
+      if (Array.isArray(data.data)) {
+        const next: Record<string, LiveStatusResult> = {};
+        for (const item of data.data as LiveStatusResult[]) {
+          next[item.ticker] = item;
+        }
+        setLiveStatusMap(next);
+        setLiveStatusFetchedAt(typeof data.fetchedAt === "string" ? data.fetchedAt : new Date().toISOString());
+      }
+    } catch {
+      console.error("Failed to fetch live status");
+    } finally {
+      setLiveStatusLoading(false);
+    }
+  };
   const loadChart = async (ticker: string) => {
     if (!ticker.trim()) {
       setChartError("Pilih ticker terlebih dahulu.");
@@ -284,6 +382,15 @@ export default function AdminStockSummaryPanel() {
     void loadAccumulationRows();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stockQueryDate]);
+
+  useEffect(() => {
+    if (accumulationRows.length > 0) {
+      void fetchLiveStatus(accumulationRows);
+    } else {
+      setLiveStatusMap({});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accumulationRows]);
 
   useEffect(() => {
     if (accumulationLoading) return;
@@ -630,6 +737,43 @@ export default function AdminStockSummaryPanel() {
           </button>
         </div>
 
+        {/* R/R minimum filter */}
+        <div className="flex flex-wrap items-center gap-2 rounded-xl p-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(226,232,240,0.05)" }}>
+          <span className="text-xs font-semibold text-silver-300">Filter R/R minimum:</span>
+          {[0, 1.5, 2, 2.5, 3].map((rr) => (
+            <button
+              key={`rr-${rr}`}
+              type="button"
+              onClick={() => {
+                setMinRiskReward(rr);
+                void loadAccumulationRows();
+              }}
+              className="rounded-lg px-2.5 py-1 text-xs font-bold"
+              style={{
+                background: minRiskReward === rr ? "rgba(249,115,22,0.18)" : "rgba(255,255,255,0.04)",
+                color: minRiskReward === rr ? "#fb923c" : "#cbd5e1",
+                border: minRiskReward === rr ? "1px solid rgba(249,115,22,0.3)" : "1px solid rgba(226,232,240,0.06)",
+              }}
+            >
+              {rr === 0 ? "Off" : `1:${rr}`}
+            </button>
+          ))}
+          <span className="ml-auto text-[11px] text-silver-500">
+            {minRiskReward > 0
+              ? `Hanya kandidat dengan R/R minimal 1:${minRiskReward}`
+              : "Filter R/R nonaktif"}
+          </span>
+          <button
+            type="button"
+            onClick={() => void fetchLiveStatus(accumulationRows)}
+            disabled={liveStatusLoading || accumulationRows.length === 0}
+            className="rounded-lg px-2.5 py-1 text-xs font-bold disabled:opacity-50"
+            style={{ background: "rgba(59,130,246,0.14)", color: "#93c5fd", border: "1px solid rgba(59,130,246,0.24)" }}
+          >
+            {liveStatusLoading ? "Memuat live…" : `🔄 Refresh Live${liveStatusFetchedAt ? ` (${new Date(liveStatusFetchedAt).toLocaleTimeString("id-ID")})` : ""}`}
+          </button>
+        </div>
+
         {accumulationError ? <p className="text-sm text-red-400">{accumulationError}</p> : null}
 
         {accumulationLoading ? (
@@ -688,6 +832,197 @@ export default function AdminStockSummaryPanel() {
                 </div>
 
                 <p className="text-sm leading-relaxed text-silver-400">{item.summary}</p>
+
+                {/* Risk warnings (pump exhaustion, ATR caution) */}
+                {item.riskWarnings.length > 0 ? (
+                  <div className="rounded-2xl p-3" style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.22)" }}>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-red-300">⚠ Peringatan Risiko</p>
+                      {item.pumpExhaustion && item.changePercent != null ? (
+                        <span className="rounded-md px-2 py-0.5 text-[10px] font-bold" style={{ background: "rgba(239,68,68,0.18)", color: "#fca5a5" }}>
+                          PUMP +{item.changePercent.toFixed(1)}%
+                        </span>
+                      ) : null}
+                    </div>
+                    <ul className="space-y-1 text-xs leading-relaxed text-silver-300">
+                      {item.riskWarnings.map((warn) => (
+                        <li key={`${item.stockCode}-warn-${warn.slice(0, 20)}`}>{warn}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
+                {/* Trade Plan: Entry / SL / TP1 / TP2 / R:R */}
+                {item.tradePlan ? (
+                  <div className="rounded-2xl p-3" style={{ background: "rgba(16,185,129,0.06)", border: "1px solid rgba(16,185,129,0.18)" }}>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-emerald-300">Trade Plan (1-3 hari)</p>
+                      <span
+                        className="text-xs font-bold"
+                        style={{
+                          color: item.tradePlan.riskRewardRatio >= 2 ? "#6ee7b7" : item.tradePlan.riskRewardRatio >= 1.5 ? "#fcd34d" : "#fca5a5",
+                        }}
+                      >
+                        R/R 1:{item.tradePlan.riskRewardRatio.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                      <div>
+                        <p className="text-silver-500">Entry</p>
+                        <p className="font-bold text-silver-100">{formatNumber(item.tradePlan.entry)}</p>
+                      </div>
+                      <div>
+                        <p className="text-silver-500">Stop Loss</p>
+                        <p className="font-bold text-red-300">
+                          {formatNumber(item.tradePlan.stopLoss)}
+                          <span className="ml-1 text-[10px] text-silver-500">(-{item.tradePlan.riskPercent.toFixed(1)}%)</span>
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-silver-500">TP1</p>
+                        <p className="font-bold text-emerald-300">
+                          {formatNumber(item.tradePlan.takeProfit1)}
+                          <span className="ml-1 text-[10px] text-silver-500">(+{item.tradePlan.reward1Percent.toFixed(1)}%)</span>
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-silver-500">TP2</p>
+                        <p className="font-bold text-emerald-300">
+                          {formatNumber(item.tradePlan.takeProfit2)}
+                          <span className="ml-1 text-[10px] text-silver-500">(+{item.tradePlan.reward2Percent.toFixed(1)}%)</span>
+                        </p>
+                      </div>
+                    </div>
+                    <p className="mt-2 text-[10px] text-silver-500">{item.tradePlan.basis}. R/R TP2 = 1:{item.tradePlan.riskRewardRatio2.toFixed(2)}</p>
+                  </div>
+                ) : null}
+
+                {/* Live Status (real-time vs trade plan) */}
+                {(() => {
+                  const live = liveStatusMap[item.stockCode];
+                  if (!live || live.currentPrice == null) {
+                    return liveStatusLoading ? (
+                      <div className="rounded-2xl p-3 text-xs text-silver-400" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(226,232,240,0.06)" }}>
+                        Memuat live status…
+                      </div>
+                    ) : null;
+                  }
+
+                  const statusColor: Record<LiveStatus, { bg: string; border: string; color: string; emoji: string; label: string }> = {
+                    sl_hit: { bg: "rgba(239,68,68,0.12)", border: "rgba(239,68,68,0.32)", color: "#fca5a5", emoji: "🔴", label: "SL HIT — SKIP" },
+                    near_sl: { bg: "rgba(239,68,68,0.08)", border: "rgba(239,68,68,0.24)", color: "#fca5a5", emoji: "🟠", label: "DEKAT SL — RISIKO" },
+                    above_entry: { bg: "rgba(245,158,11,0.10)", border: "rgba(245,158,11,0.28)", color: "#fcd34d", emoji: "🟡", label: "SUDAH NAIK — TUNGGU PULLBACK" },
+                    setup_valid: { bg: "rgba(16,185,129,0.10)", border: "rgba(16,185,129,0.28)", color: "#6ee7b7", emoji: "🟢", label: "SETUP MASIH VALID" },
+                    better_entry: { bg: "rgba(16,185,129,0.14)", border: "rgba(16,185,129,0.34)", color: "#6ee7b7", emoji: "🟢", label: "ENTRY LEBIH BAIK DARI AWAL" },
+                    tp1_reached: { bg: "rgba(59,130,246,0.10)", border: "rgba(59,130,246,0.28)", color: "#93c5fd", emoji: "🔵", label: "TP1 TERSENTUH" },
+                    tp2_reached: { bg: "rgba(99,102,241,0.10)", border: "rgba(99,102,241,0.28)", color: "#a5b4fc", emoji: "🟣", label: "TP2 TERSENTUH" },
+                    no_plan: { bg: "rgba(255,255,255,0.03)", border: "rgba(226,232,240,0.06)", color: "#cbd5e1", emoji: "⚪", label: "TANPA TRADE PLAN" },
+                  };
+                  const c = statusColor[live.status];
+
+                  return (
+                    <div className="rounded-2xl p-3" style={{ background: c.bg, border: `1px solid ${c.border}` }}>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">{c.emoji}</span>
+                          <p className="text-[11px] uppercase tracking-[0.16em] font-bold" style={{ color: c.color }}>
+                            Live: {c.label}
+                          </p>
+                        </div>
+                        <span className="text-[10px] text-silver-500">{liveStatusFetchedAt ? new Date(liveStatusFetchedAt).toLocaleTimeString("id-ID") : ""}</span>
+                      </div>
+
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                        <div>
+                          <p className="text-silver-500">Now</p>
+                          <p className="font-bold text-silver-100">
+                            {formatNumber(live.currentPrice)}
+                            {live.changePercent != null ? (
+                              <span className={`ml-1 text-[10px] ${live.changePercent >= 0 ? "text-emerald-300" : "text-red-300"}`}>
+                                ({live.changePercent >= 0 ? "+" : ""}{live.changePercent.toFixed(2)}%)
+                              </span>
+                            ) : null}
+                          </p>
+                        </div>
+                        {live.pricedSinceEntry != null ? (
+                          <div>
+                            <p className="text-silver-500">vs Entry</p>
+                            <p className={`font-bold ${live.pricedSinceEntry >= 0 ? "text-emerald-300" : "text-red-300"}`}>
+                              {live.pricedSinceEntry >= 0 ? "+" : ""}{live.pricedSinceEntry.toFixed(2)}%
+                            </p>
+                          </div>
+                        ) : null}
+                        {live.distanceToSL != null ? (
+                          <div>
+                            <p className="text-silver-500">→ SL</p>
+                            <p className="font-bold text-red-300">{live.distanceToSL.toFixed(2)}%</p>
+                          </div>
+                        ) : null}
+                        {live.distanceToTP1 != null ? (
+                          <div>
+                            <p className="text-silver-500">→ TP1</p>
+                            <p className="font-bold text-emerald-300">{live.distanceToTP1.toFixed(2)}%</p>
+                          </div>
+                        ) : null}
+                      </div>
+
+                      {live.intradayLowHitSL ? (
+                        <p className="mt-2 text-[11px] font-semibold text-red-300">
+                          ⚠ Low intraday {live.low ? formatNumber(live.low) : "?"} sudah menyentuh SL — setup invalid meski close di atasnya.
+                        </p>
+                      ) : null}
+
+                      <p className="mt-2 text-xs leading-relaxed" style={{ color: c.color }}>{live.recommendation}</p>
+                    </div>
+                  );
+                })()}
+
+                {/* Setup tags + key indicators */}
+                {item.setups.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {item.setups.map((setup) => (
+                      <span
+                        key={`${item.stockCode}-setup-${setup}`}
+                        className="rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                        style={{ background: "rgba(249,115,22,0.14)", color: "#fb923c", border: "1px solid rgba(249,115,22,0.24)" }}
+                      >
+                        {setup}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+
+                {/* Indicator strip */}
+                {(item.atr14 != null || item.rvol != null || item.mfi14 != null || item.macdHistogram != null) ? (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[11px]">
+                    {item.atr14 != null ? (
+                      <div className="rounded-lg px-2 py-1.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(226,232,240,0.06)" }}>
+                        <p className="text-silver-500">ATR(14)</p>
+                        <p className="font-semibold text-silver-100">{item.atr14.toFixed(2)}</p>
+                      </div>
+                    ) : null}
+                    {item.rvol != null ? (
+                      <div className="rounded-lg px-2 py-1.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(226,232,240,0.06)" }}>
+                        <p className="text-silver-500">RVOL</p>
+                        <p className={`font-semibold ${item.rvol >= 2 ? "text-emerald-300" : "text-silver-100"}`}>{item.rvol.toFixed(2)}x</p>
+                      </div>
+                    ) : null}
+                    {item.mfi14 != null ? (
+                      <div className="rounded-lg px-2 py-1.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(226,232,240,0.06)" }}>
+                        <p className="text-silver-500">MFI(14)</p>
+                        <p className={`font-semibold ${item.mfi14 >= 80 ? "text-amber-300" : item.mfi14 >= 60 ? "text-emerald-300" : "text-silver-100"}`}>{item.mfi14.toFixed(0)}</p>
+                      </div>
+                    ) : null}
+                    {item.macdHistogram != null ? (
+                      <div className="rounded-lg px-2 py-1.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(226,232,240,0.06)" }}>
+                        <p className="text-silver-500">MACD H</p>
+                        <p className={`font-semibold ${item.macdHistogram > 0 && item.macdRising ? "text-emerald-300" : item.macdHistogram > 0 ? "text-silver-100" : "text-red-300"}`}>
+                          {item.macdHistogram.toFixed(3)} {item.macdRising ? "↑" : "↓"}
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 {item.bandarmologyPhase ? (
                   <div className="rounded-2xl p-3" style={{ background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.14)" }}>
