@@ -28,6 +28,12 @@ export type TelegramSettings = {
   watchlistAlertOpenGapMin: number;
   watchlistAlertUniverse: "watchlist" | "all";
   watchlistAlertMinGain: number;
+  // ── Member Telegram Bot (separate bot, NVIDIA NIM AI Brief + chart) ──
+  memberBotEnabled: boolean;
+  memberBotToken: string;
+  memberBotWebhookUrl: string;
+  memberBotRateLimitPerDay: number; // per chat_id, default 25
+  memberBotCacheMinutes: number; // brief cache TTL, default 30
 };
 
 export type TelegramSettingsPatch = Partial<TelegramSettings>;
@@ -56,6 +62,11 @@ const DEFAULT_TELEGRAM_SETTINGS: TelegramSettings = {
   watchlistAlertOpenGapMin: 2,
   watchlistAlertUniverse: "watchlist",
   watchlistAlertMinGain: 5,
+  memberBotEnabled: false,
+  memberBotToken: "",
+  memberBotWebhookUrl: "",
+  memberBotRateLimitPerDay: 25,
+  memberBotCacheMinutes: 30,
 };
 
 const POSTGRES_COLUMNS: Record<keyof TelegramSettings, string> = {
@@ -82,6 +93,11 @@ const POSTGRES_COLUMNS: Record<keyof TelegramSettings, string> = {
   watchlistAlertOpenGapMin: "watchlist_alert_open_gap_min",
   watchlistAlertUniverse: "watchlist_alert_universe",
   watchlistAlertMinGain: "watchlist_alert_min_gain",
+  memberBotEnabled: "member_bot_enabled",
+  memberBotToken: "member_bot_token",
+  memberBotWebhookUrl: "member_bot_webhook_url",
+  memberBotRateLimitPerDay: "member_bot_rate_limit_per_day",
+  memberBotCacheMinutes: "member_bot_cache_minutes",
 };
 
 let postgresColumnsReady = false;
@@ -113,7 +129,12 @@ export async function ensureTelegramSettingsColumns() {
         add column if not exists watchlist_alert_open_gap_enabled boolean not null default true,
         add column if not exists watchlist_alert_open_gap_min numeric not null default 2,
         add column if not exists watchlist_alert_universe text not null default 'watchlist',
-        add column if not exists watchlist_alert_min_gain numeric not null default 5
+        add column if not exists watchlist_alert_min_gain numeric not null default 5,
+        add column if not exists member_bot_enabled boolean not null default false,
+        add column if not exists member_bot_token text not null default '',
+        add column if not exists member_bot_webhook_url text not null default '',
+        add column if not exists member_bot_rate_limit_per_day integer not null default 25,
+        add column if not exists member_bot_cache_minutes integer not null default 30
     `);
   } catch (error) {
     if ((error as { code?: string }).code !== "42501") throw error;
@@ -160,6 +181,11 @@ function fromPostgres(row: Record<string, unknown> | undefined): TelegramSetting
     watchlistAlertOpenGapMin: Number(row.watchlist_alert_open_gap_min ?? 2),
     watchlistAlertUniverse: row.watchlist_alert_universe === "all" ? "all" : "watchlist",
     watchlistAlertMinGain: Number(row.watchlist_alert_min_gain ?? 5),
+    memberBotEnabled: Boolean(row.member_bot_enabled),
+    memberBotToken: String(row.member_bot_token ?? ""),
+    memberBotWebhookUrl: String(row.member_bot_webhook_url ?? ""),
+    memberBotRateLimitPerDay: Number(row.member_bot_rate_limit_per_day ?? 25),
+    memberBotCacheMinutes: Number(row.member_bot_cache_minutes ?? 30),
   };
 }
 
@@ -189,6 +215,11 @@ function fromMongo(settings: any): TelegramSettings {
     watchlistAlertOpenGapMin: settings?.watchlistAlertOpenGapMin ?? 2,
     watchlistAlertUniverse: settings?.watchlistAlertUniverse || "watchlist",
     watchlistAlertMinGain: settings?.watchlistAlertMinGain || 5,
+    memberBotEnabled: settings?.memberBotEnabled || false,
+    memberBotToken: settings?.memberBotToken || "",
+    memberBotWebhookUrl: settings?.memberBotWebhookUrl || "",
+    memberBotRateLimitPerDay: settings?.memberBotRateLimitPerDay || 25,
+    memberBotCacheMinutes: settings?.memberBotCacheMinutes || 30,
   };
 }
 

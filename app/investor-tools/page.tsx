@@ -42,6 +42,47 @@ type RiskResult = {
   supportComparison: LevelComparison | null;
   resistanceComparison: LevelComparison | null;
 };
+type AiBriefFundamental = {
+  sector: string | null;
+  industry: string | null;
+  marketCap: number | null;
+  trailingPE: number | null;
+  priceToBook: number | null;
+  beta: number | null;
+  dividendYield: number | null;
+  fiftyTwoWeekHigh: number | null;
+  fiftyTwoWeekLow: number | null;
+  revenueGrowth: number | null;
+  earningsGrowth: number | null;
+  profitMargin: number | null;
+  roe: number | null;
+  debtToEquity: number | null;
+  recommendationMean: number | null;
+  numberOfAnalysts: number | null;
+  insidersPercentHeld: number | null;
+  institutionsPercentHeld: number | null;
+  longBusinessSummary: string | null;
+};
+
+type AiBriefAccumulation = {
+  available: boolean;
+  ticker: string;
+  daysAnalyzed: number;
+  latestTradeDate: string | null;
+  totalNetForeign: number;
+  positiveForeignDays: number;
+  negativeForeignDays: number;
+  largestForeignBuyDay: { date: string; netForeign: number } | null;
+  largestForeignSellDay: { date: string; netForeign: number } | null;
+  averageDailyValue: number;
+  averageDailyVolume: number;
+  averageBidOfferRatio: number | null;
+  closeNearHighDays: number;
+  foreignAccumulationLabel: "Akumulasi Kuat" | "Akumulasi Moderat" | "Netral" | "Distribusi Moderat" | "Distribusi Kuat";
+  domesticPressureLabel: "Tekanan Beli Kuat" | "Tekanan Beli Moderat" | "Netral" | "Tekanan Jual Moderat" | "Tekanan Jual Kuat";
+  summary: string;
+};
+
 type AiBriefResponse = {
   ticker: string;
   name: string;
@@ -50,6 +91,10 @@ type AiBriefResponse = {
   quote: Quote;
   technical: TechnicalResult;
   news: NewsItem[];
+  sectorNews?: NewsItem[];
+  fundamental?: AiBriefFundamental | null;
+  accumulation?: AiBriefAccumulation | null;
+  newsFromCache?: boolean;
 };
 type Settings = { enabledInvestorTools?: string[] };
 type RightsIssueResult = {
@@ -503,14 +548,208 @@ export default function InvestorToolsPage() {
                   </div>
                   <BriefContent text={aiBrief.brief} />
                 </div>
+
+                {/* Fundamental snapshot */}
+                {aiBrief.fundamental && (aiBrief.fundamental.trailingPE != null || aiBrief.fundamental.marketCap != null) ? (
+                  <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(226,232,240,0.08)" }}>
+                    <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                      <p className="text-sm font-semibold text-silver-100">Fundamental Snapshot</p>
+                      {aiBrief.fundamental.sector ? (
+                        <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: "rgba(59,130,246,0.12)", color: "#93c5fd" }}>
+                          {aiBrief.fundamental.sector}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                      {aiBrief.fundamental.marketCap != null ? (
+                        <div>
+                          <p className="text-silver-500">Market Cap</p>
+                          <p className="font-semibold text-silver-100">
+                            {aiBrief.fundamental.marketCap >= 1e12
+                              ? `Rp ${(aiBrief.fundamental.marketCap / 1e12).toFixed(2)} T`
+                              : `Rp ${(aiBrief.fundamental.marketCap / 1e9).toFixed(2)} M`}
+                          </p>
+                        </div>
+                      ) : null}
+                      {aiBrief.fundamental.trailingPE != null ? (
+                        <div>
+                          <p className="text-silver-500">PE</p>
+                          <p className="font-semibold text-silver-100">{aiBrief.fundamental.trailingPE.toFixed(2)}x</p>
+                        </div>
+                      ) : null}
+                      {aiBrief.fundamental.priceToBook != null ? (
+                        <div>
+                          <p className="text-silver-500">PBV</p>
+                          <p className="font-semibold text-silver-100">{aiBrief.fundamental.priceToBook.toFixed(2)}x</p>
+                        </div>
+                      ) : null}
+                      {aiBrief.fundamental.beta != null ? (
+                        <div>
+                          <p className="text-silver-500">Beta</p>
+                          <p className="font-semibold text-silver-100">{aiBrief.fundamental.beta.toFixed(2)}</p>
+                        </div>
+                      ) : null}
+                      {aiBrief.fundamental.dividendYield != null ? (
+                        <div>
+                          <p className="text-silver-500">Div Yield</p>
+                          <p className="font-semibold text-emerald-300">{(aiBrief.fundamental.dividendYield * 100).toFixed(2)}%</p>
+                        </div>
+                      ) : null}
+                      {aiBrief.fundamental.roe != null ? (
+                        <div>
+                          <p className="text-silver-500">ROE</p>
+                          <p className={`font-semibold ${aiBrief.fundamental.roe >= 0 ? "text-emerald-300" : "text-red-300"}`}>
+                            {(aiBrief.fundamental.roe * 100).toFixed(2)}%
+                          </p>
+                        </div>
+                      ) : null}
+                      {aiBrief.fundamental.revenueGrowth != null ? (
+                        <div>
+                          <p className="text-silver-500">Revenue Growth</p>
+                          <p className={`font-semibold ${aiBrief.fundamental.revenueGrowth >= 0 ? "text-emerald-300" : "text-red-300"}`}>
+                            {(aiBrief.fundamental.revenueGrowth * 100).toFixed(2)}%
+                          </p>
+                        </div>
+                      ) : null}
+                      {aiBrief.fundamental.debtToEquity != null ? (
+                        <div>
+                          <p className="text-silver-500">D/E Ratio</p>
+                          <p className="font-semibold text-silver-100">{aiBrief.fundamental.debtToEquity.toFixed(2)}</p>
+                        </div>
+                      ) : null}
+                    </div>
+                    {aiBrief.fundamental.recommendationMean != null ? (
+                      <p className="mt-3 text-xs text-silver-400">
+                        Rekomendasi analis: <span className="font-semibold text-silver-200">
+                          {aiBrief.fundamental.recommendationMean <= 1.5
+                            ? "Strong Buy"
+                            : aiBrief.fundamental.recommendationMean <= 2.5
+                              ? "Buy"
+                              : aiBrief.fundamental.recommendationMean <= 3.5
+                                ? "Hold"
+                                : aiBrief.fundamental.recommendationMean <= 4.5
+                                  ? "Sell"
+                                  : "Strong Sell"}
+                        </span> ({aiBrief.fundamental.recommendationMean.toFixed(2)}/5)
+                        {aiBrief.fundamental.numberOfAnalysts ? `, ${aiBrief.fundamental.numberOfAnalysts} analis` : ""}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {/* Accumulation snapshot */}
+                {aiBrief.accumulation && aiBrief.accumulation.available ? (
+                  <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(226,232,240,0.08)" }}>
+                    <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                      <p className="text-sm font-semibold text-silver-100">Akumulasi & Foreign-Domestic Flow</p>
+                      <span className="text-[11px] text-silver-500">{aiBrief.accumulation.daysAnalyzed} hari · last {aiBrief.accumulation.latestTradeDate}</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
+                      <div className="rounded-xl p-3" style={{
+                        background: aiBrief.accumulation.foreignAccumulationLabel.includes("Akumulasi")
+                          ? "rgba(16,185,129,0.10)"
+                          : aiBrief.accumulation.foreignAccumulationLabel.includes("Distribusi")
+                            ? "rgba(239,68,68,0.10)"
+                            : "rgba(255,255,255,0.03)",
+                        border: "1px solid rgba(226,232,240,0.06)",
+                      }}>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-silver-500">Foreign Flow</p>
+                        <p className="text-sm font-bold mt-1" style={{
+                          color: aiBrief.accumulation.foreignAccumulationLabel.includes("Akumulasi")
+                            ? "#6ee7b7"
+                            : aiBrief.accumulation.foreignAccumulationLabel.includes("Distribusi")
+                              ? "#fca5a5"
+                              : "#cbd5e1",
+                        }}>
+                          {aiBrief.accumulation.foreignAccumulationLabel}
+                        </p>
+                        <p className="text-[11px] text-silver-400 mt-1">
+                          Net: {aiBrief.accumulation.totalNetForeign >= 0 ? "+" : ""}
+                          {aiBrief.accumulation.totalNetForeign.toLocaleString("id-ID")} ·
+                          {" "}{aiBrief.accumulation.positiveForeignDays}/{aiBrief.accumulation.daysAnalyzed} hari net buy
+                        </p>
+                      </div>
+                      <div className="rounded-xl p-3" style={{
+                        background: aiBrief.accumulation.domesticPressureLabel.includes("Beli")
+                          ? "rgba(16,185,129,0.10)"
+                          : aiBrief.accumulation.domesticPressureLabel.includes("Jual")
+                            ? "rgba(239,68,68,0.10)"
+                            : "rgba(255,255,255,0.03)",
+                        border: "1px solid rgba(226,232,240,0.06)",
+                      }}>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-silver-500">Domestic Flow</p>
+                        <p className="text-sm font-bold mt-1" style={{
+                          color: aiBrief.accumulation.domesticPressureLabel.includes("Beli")
+                            ? "#6ee7b7"
+                            : aiBrief.accumulation.domesticPressureLabel.includes("Jual")
+                              ? "#fca5a5"
+                              : "#cbd5e1",
+                        }}>
+                          {aiBrief.accumulation.domesticPressureLabel}
+                        </p>
+                        <p className="text-[11px] text-silver-400 mt-1">
+                          {aiBrief.accumulation.averageBidOfferRatio != null
+                            ? `Bid/Offer ${aiBrief.accumulation.averageBidOfferRatio.toFixed(2)}x · `
+                            : ""}
+                          Close near high {aiBrief.accumulation.closeNearHighDays}/{aiBrief.accumulation.daysAnalyzed} hari
+                        </p>
+                      </div>
+                    </div>
+                    <p className="text-xs leading-relaxed text-silver-400">{aiBrief.accumulation.summary}</p>
+                  </div>
+                ) : null}
                 {aiBrief.news.length > 0 ? (
                   <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(226,232,240,0.08)" }}>
-                    <p className="text-sm font-semibold text-silver-100">News yang ikut dibaca AI</p>
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <p className="text-sm font-semibold text-silver-100">📰 Berita Ticker (langsung mention saham)</p>
+                      <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full" style={{
+                        background: aiBrief.newsFromCache ? "rgba(99,102,241,0.14)" : "rgba(16,185,129,0.14)",
+                        color: aiBrief.newsFromCache ? "#a5b4fc" : "#6ee7b7",
+                      }}>
+                        {aiBrief.newsFromCache ? "📦 Dari cache 30 hari" : "🔄 Fresh fetch"}
+                      </span>
+                    </div>
                     <div className="space-y-2 mt-3">
-                      {aiBrief.news.slice(0, 3).map((item) => (
+                      {aiBrief.news.slice(0, 5).map((item) => (
                         <div key={`${item.title}-${item.pubDate}`} className="rounded-xl p-3" style={{ background: "rgba(15,23,42,0.45)" }}>
                           <p className="text-xs font-semibold text-silver-100">{item.title}</p>
-                          <p className="text-[11px] text-silver-500 mt-1">{item.sentiment} · {item.sentimentReason}</p>
+                          <p className="text-[11px] text-silver-500 mt-1">
+                            {new Date(item.pubDate).toLocaleDateString("id-ID", { day: "2-digit", month: "short" })} ·{" "}
+                            <span className={
+                              item.sentiment === "positive" ? "text-emerald-300" :
+                              item.sentiment === "negative" ? "text-red-300" : "text-silver-400"
+                            }>
+                              {item.sentiment}
+                            </span> · {item.sentimentReason}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(226,232,240,0.06)" }}>
+                    <p className="text-xs text-silver-500">Belum ada berita yang langsung menyebut ticker {shortTicker(aiBrief.ticker)} dalam 30 hari terakhir.</p>
+                  </div>
+                )}
+
+                {/* Sector-relevant news (fallback when ticker-specific is sparse) */}
+                {aiBrief.sectorNews && aiBrief.sectorNews.length > 0 ? (
+                  <div className="rounded-2xl p-4" style={{ background: "rgba(99,102,241,0.04)", border: "1px solid rgba(99,102,241,0.16)" }}>
+                    <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+                      <p className="text-sm font-semibold text-silver-100">
+                        🌐 Konteks Sektor{aiBrief.fundamental?.sector ? ` · ${aiBrief.fundamental.sector}` : ""}
+                      </p>
+                      <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: "rgba(99,102,241,0.16)", color: "#a5b4fc" }}>
+                        Berita sektor (relevansi tidak langsung)
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      {aiBrief.sectorNews.slice(0, 5).map((item) => (
+                        <div key={`sector-${item.title}-${item.pubDate}`} className="rounded-xl p-3" style={{ background: "rgba(15,23,42,0.45)" }}>
+                          <p className="text-xs font-semibold text-silver-100">{item.title}</p>
+                          <p className="text-[11px] text-silver-500 mt-1">
+                            {new Date(item.pubDate).toLocaleDateString("id-ID", { day: "2-digit", month: "short" })} · {item.sentimentReason}
+                          </p>
                         </div>
                       ))}
                     </div>
@@ -696,27 +935,94 @@ function Input({ value, onChange, placeholder, type = "text" }: { value: string;
 }
 
 function BriefContent({ text }: { text: string }) {
-  const blocks = text.split(/\n\n+/).map((item) => item.trim()).filter(Boolean);
-  return (
-    <div className="space-y-4">
-      {blocks.map((block, index) => {
-        const lines = block.split("\n").map((line) => line.trim()).filter(Boolean);
-        const isList = lines.every((line) => line.startsWith("-") || /^\d+\./.test(line));
+  // Normalize text first: insert newlines around common section markers and bullet markers
+  // so the AI's single-line output gets parsed into proper sections.
+  const normalized = (() => {
+    let s = text.trim();
+    // Strip markdown bold and italic markers — we'll add our own emphasis
+    s = s.replace(/\*\*(.+?)\*\*/g, "$1");
+    // Insert newline before numbered section headers: "1. Ringkasan", "2. Yang", etc.
+    s = s.replace(/(\s)(\d+\.\s+(?:Ringkasan|Yang\s+\w+|Rencana\s+\w+|Kesimpulan|Catatan))/gi, "\n\n$2");
+    // Insert newline before inline bullets (* or -) that follow a colon or another bullet
+    s = s.replace(/(\S)\s+\*\s+/g, "$1\n* ");
+    s = s.replace(/(\S)\s+-\s{2,}/g, "$1\n- ");
+    // Collapse 3+ newlines into 2
+    s = s.replace(/\n{3,}/g, "\n\n");
+    return s.trim();
+  })();
 
-        if (isList) {
+  const blocks = normalized.split(/\n\n+/).map((b) => b.trim()).filter(Boolean);
+
+  // Section header detector: matches "1. Ringkasan singkat:", "2. Yang Menarik:", etc.
+  const headerRegex = /^(\d+)\.\s+([^:\n]+?):\s*([\s\S]*)$/;
+
+  return (
+    <div className="space-y-5">
+      {blocks.map((block, index) => {
+        // Try to parse as a section: "N. Title: optional inline content + bullets"
+        const headerMatch = block.match(headerRegex);
+
+        if (headerMatch) {
+          const [, num, title, body] = headerMatch;
+          // Body may contain bullets separated by * or -
+          const lines = body.split(/\n/).map((l) => l.trim()).filter(Boolean);
+          const intro: string[] = [];
+          const bullets: string[] = [];
+          for (const line of lines) {
+            if (/^[*\-•]\s+/.test(line)) {
+              bullets.push(line.replace(/^[*\-•]\s+/, ""));
+            } else {
+              intro.push(line);
+            }
+          }
+
           return (
-            <div key={index} className="space-y-2">
-              {lines.map((line, lineIndex) => (
-                <div key={lineIndex} className="flex items-start gap-2 text-sm text-silver-300 leading-7">
-                  <span style={{ color: "#fb923c" }}>&bull;</span>
-                  <span>{line.replace(/^[-*]\s*/, "").replace(/^\d+\.\s*/, "")}</span>
-                </div>
-              ))}
-            </div>
+            <section key={index} className="space-y-2">
+              <div className="flex items-baseline gap-2">
+                <span className="text-[10px] font-bold tabular-nums text-amber-300/90">
+                  {String(num).padStart(2, "0")}
+                </span>
+                <h4 className="text-sm font-bold text-silver-100">{title.trim()}</h4>
+              </div>
+              {intro.length > 0 ? (
+                <p className="text-sm leading-relaxed text-silver-300">{intro.join(" ")}</p>
+              ) : null}
+              {bullets.length > 0 ? (
+                <ul className="space-y-1.5 ml-1">
+                  {bullets.map((bullet, bi) => (
+                    <li key={bi} className="flex items-start gap-2 text-sm leading-relaxed text-silver-300">
+                      <span className="mt-1.5 h-1 w-1 rounded-full bg-amber-300 shrink-0" />
+                      <span>{bullet}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </section>
           );
         }
 
-        return <p key={index} className="text-sm leading-7 text-silver-300">{block}</p>;
+        // Plain bullet block (no section title)
+        const lines = block.split("\n").map((l) => l.trim()).filter(Boolean);
+        const isList = lines.length > 1 && lines.every((line) => /^[*\-•]\s+/.test(line) || /^\d+\.\s+/.test(line));
+        if (isList) {
+          return (
+            <ul key={index} className="space-y-1.5">
+              {lines.map((line, li) => (
+                <li key={li} className="flex items-start gap-2 text-sm leading-relaxed text-silver-300">
+                  <span className="mt-1.5 h-1 w-1 rounded-full bg-amber-300 shrink-0" />
+                  <span>{line.replace(/^[*\-•]\s+/, "").replace(/^\d+\.\s+/, "")}</span>
+                </li>
+              ))}
+            </ul>
+          );
+        }
+
+        // Plain paragraph
+        return (
+          <p key={index} className="text-sm leading-relaxed text-silver-300">
+            {block}
+          </p>
+        );
       })}
     </div>
   );

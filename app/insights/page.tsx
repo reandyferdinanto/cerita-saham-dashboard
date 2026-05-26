@@ -1,8 +1,9 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   ArrowUpRight,
   BookOpen,
@@ -182,7 +183,9 @@ function NewsCard({
   );
 }
 
-export default function InsightsPage() {
+function InsightsPageContent() {
+  const searchParams = useSearchParams();
+  const queryFilter = (searchParams.get("q") || "").trim().toUpperCase();
   const [news, setNews] = useState<NewsItem[]>([]);
   const [newsLoading, setNewsLoading] = useState(true);
   const [articles, setArticles] = useState<ArticleItem[]>([]);
@@ -222,7 +225,21 @@ export default function InsightsPage() {
 
   const featuredArticle = articles[0];
   const secondaryArticles = articles.slice(1, 7);
-  const visibleNews = useMemo(() => (news.length > 0 ? news : DEFAULT_MARKET_NEWS), [news]);
+  const visibleNews = useMemo(() => {
+    const base = news.length > 0 ? news : DEFAULT_MARKET_NEWS;
+    if (!queryFilter) return base;
+    const filtered = base.filter((item) => {
+      const haystack = `${item.title} ${item.description}`.toUpperCase();
+      return haystack.includes(queryFilter);
+    });
+    return filtered.length > 0 ? filtered : base;
+  }, [news, queryFilter]);
+
+  const filteredCount = useMemo(() => {
+    if (!queryFilter) return 0;
+    const base = news.length > 0 ? news : DEFAULT_MARKET_NEWS;
+    return base.filter((item) => `${item.title} ${item.description}`.toUpperCase().includes(queryFilter)).length;
+  }, [news, queryFilter]);
   const autoArticleCount = articles.filter(isAutoArticle).length;
   const manualArticleCount = articles.filter((article) => !isAutoArticle(article)).length;
   const ipotNewsCount = visibleNews.filter((item) => item.source.toLowerCase().includes("ipot")).length;
@@ -258,6 +275,21 @@ export default function InsightsPage() {
               <p className="mt-4 max-w-2xl text-[0.95rem] leading-7 text-[oklch(78%_0.025_105)] sm:mt-6 sm:text-base sm:leading-8">
                 Special Article, AI Article 5 hari terakhir, dan market wire dari Detik, IPOT, CNBC Indonesia, serta Bisnis.com dikumpulkan dalam satu halaman yang lebih rapi buat riset harian.
               </p>
+
+              {queryFilter ? (
+                <div className="mt-5 inline-flex items-center gap-3 rounded-full border border-amber-300/30 bg-amber-300/10 px-4 py-2 text-sm">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-amber-300">Filter aktif</span>
+                  <span className="font-bold text-amber-100">{queryFilter}</span>
+                  <span className="text-xs text-amber-200/80">
+                    {filteredCount > 0
+                      ? `${filteredCount} berita cocok`
+                      : "Tidak ada berita cocok — menampilkan semua headline"}
+                  </span>
+                  <Link href="/insights" className="text-xs font-semibold text-amber-300 hover:text-amber-200 underline-offset-2 hover:underline">
+                    Hapus filter
+                  </Link>
+                </div>
+              ) : null}
             </div>
 
             <div className="mt-6 grid grid-cols-2 gap-2.5 sm:mt-8 sm:grid-cols-4 sm:gap-3">
@@ -433,5 +465,14 @@ export default function InsightsPage() {
         />
       )}
     </div>
+  );
+}
+
+
+export default function InsightsPage() {
+  return (
+    <Suspense fallback={<div className="h-[600px]" />}>
+      <InsightsPageContent />
+    </Suspense>
   );
 }

@@ -6,11 +6,12 @@ import { connectDB } from "@/lib/db";
 import User from "@/lib/models/User";
 import Article from "@/lib/models/Article";
 import { buildArticleExternalContext } from "@/lib/adminArticleContext";
+import OpenAI from "openai";
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1";
 const GROQ_MODEL = process.env.GROQ_ARTICLE_MODEL || "llama-3.3-70b-versatile";
 
-type AssistantIntent = "open_watchlist" | "create_article" | "list_articles" | "users" | "help";
+type AssistantIntent = "open_watchlist" | "create_article" | "list_articles" | "users" | "navigate" | "help";
 
 type StockNewsItem = {
   title: string;
@@ -28,6 +29,36 @@ function getGroqKey() {
   }
 
   return apiKey;
+}
+
+function targetToHref(target: string, ticker?: string | null): string {
+  const t = ticker?.toUpperCase().replace(/\.JK$/i, "");
+  switch (target) {
+    case "guidance":
+      return "/guidance";
+    case "members":
+      return "/admin?tab=members";
+    case "articles_admin":
+      return "/admin?tab=articles";
+    case "stock_summary":
+      return t ? `/admin?tab=stock-summary&ticker=${t}` : "/admin?tab=stock-summary";
+    case "search":
+      return t ? `/search?q=${t}` : "/search";
+    case "insights":
+      return t ? `/insights?q=${t}` : "/insights";
+    case "dashboard":
+      return "/";
+    case "watchlist":
+      return "/watchlist";
+    case "investor_tools":
+      return "/investor-tools";
+    case "simulation":
+      return "/simulation";
+    case "research":
+      return "/research";
+    default:
+      return "/";
+  }
 }
 
 function detectIntent(message: string): AssistantIntent {
@@ -372,6 +403,124 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    if (intent === "help") {
+      // AI-powered intent classifier: navigation OR chat
+      const nvidiaKey = process.env.NVIDIA_API_KEY;
+      if (!nvidiaKey) {
+        return NextResponse.json({
+          intent,
+          reply:
+            "Saya bisa bantu buka watchlist, menyiapkan draft artikel, menampilkan artikel terbaru, atau memfilter user. Coba: 'buka watchlist', 'buatkan artikel tentang kondisi pasar saat ini', 'ada artikel apa saja', atau 'lihat user aktif'.",
+        });
+      }
+
+      const nvidia = new OpenAI({
+        apiKey: nvidiaKey,
+        baseURL: "https://integrate.api.nvidia.com/v1",
+      });
+
+      // STEP 1: Use AI as a router to detect navigation intent + ticker
+      const routerSystemPrompt = [
+        "Kamu adalah router untuk Admin Copilot anomalisaham. Klasifikasi pesan user dan kembalikan HANYA JSON valid (tanpa markdown, tanpa code fence, tanpa penjelasan).",
+        "",
+        "Available routes:",
+        '- "guidance" → halaman panduan / help / cara pakai',
+        '- "members" → admin manage members (approve user, lihat user, member terbaru)',
+        '- "articles_admin" → admin manage articles',
+        '- "stock_summary" → analisa akumulasi / bandar / saham siap jalan / stock summary harian',
+        '- "search" → halaman riset saham (chart, news, fundamental, technical signal)',
+        '- "insights" → halaman insight desk (artikel + berita pasar)',
+        '- "dashboard" → dashboard utama IHSG',
+        '- "watchlist" → halaman watchlist (member view)',
+        '- "investor_tools" → tools (risk calculator, AI brief, right issue, stock split)',
+        '- "simulation" → simulasi trading edukatif (avg down, pyramiding)',
+        '- "research" → halaman research bandar/smart money/backtest (admin only)',
+        '- "chat" → tidak ada navigasi, jawab via AI chat',
+        "",
+        'Format JSON wajib: {"action":"navigate"|"chat","target":"<route_name>"|null,"ticker":"<KODE>"|null,"reply":"<1 kalimat bahasa Indonesia>"}',
+        "",
+        "Contoh:",
+        '"buka panduan" → {"action":"navigate","target":"guidance","ticker":null,"reply":"Oke, membuka halaman panduan."}',
+        '"dimana approve member" → {"action":"navigate","target":"members","ticker":null,"reply":"Membuka halaman approve member."}',
+        '"saya mau analisa saham coal" → {"action":"navigate","target":"search","ticker":"COAL","reply":"Membuka halaman riset saham COAL."}',
+        '"apakah saham gula ada akumulasi?" → {"action":"navigate","target":"stock_summary","ticker":"GULA","reply":"Membuka halaman analisa akumulasi untuk cek GULA."}',
+        '"adakah berita tentang kblf" → {"action":"navigate","target":"insights","ticker":"KLBF","reply":"Membuka halaman insight untuk berita KLBF."}',
+        '"buka risk calculator" → {"action":"navigate","target":"investor_tools","ticker":null,"reply":"Membuka investor tools."}',
+        '"apa itu pocket pivot?" → {"action":"chat","target":null,"ticker":null,"reply":""}',
+        '"halo" → {"action":"chat","target":null,"ticker":null,"reply":""}',
+        "",
+        "Catatan:",
+        "- Ticker IDX umumnya 3-4 huruf kapital (BBCA, KLBF, INET, COAL, GULA, GOTO, BMRI)",
+        "- Jika user salah ketik (kblf → KLBF), perbaiki ke kode IDX standar",
+        "- Pertanyaan teori, definisi, strategi, analisa konsep tanpa ticker → chat",
+        "- Sapaan / chit-chat → chat",
+      ].join("\n");
+
+      let navigation: {
+        action: "navigate" | "chat";
+        target: string | null;
+        ticker: string | null;
+        reply: string;
+      } = { action: "chat", target: null, ticker: null, reply: "" };
+
+      try {
+        const routerCompletion = await nvidia.chat.completions.create({
+          model: process.env.NVIDIA_MODEL || "openai/gpt-oss-20b",
+          messages: [
+            { role: "system", content: routerSystemPrompt },
+            { role: "user", content: message },
+          ],
+          temperature: 0.1,
+          top_p: 1,
+          max_tokens: 256,
+        });
+
+        const raw = routerCompletion.choices[0]?.message?.content?.trim() || "{}";
+        navigation = parseJsonObject(raw);
+      } catch (routerErr) {
+        console.error("Navigation router failed:", routerErr);
+      }
+
+      // STEP 2: If navigation detected, return navigate action
+      if (navigation.action === "navigate" && navigation.target) {
+        const ticker = navigation.ticker?.toUpperCase().replace(/\.JK$/i, "");
+        const href = targetToHref(navigation.target, ticker);
+        return NextResponse.json({
+          intent: "navigate",
+          reply: navigation.reply || "Sedang membuka halaman.",
+          action: { type: "navigate", href },
+        });
+      }
+
+      // STEP 3: Fall back to general AI chat
+      const completion = await nvidia.chat.completions.create({
+        model: process.env.NVIDIA_MODEL || "openai/gpt-oss-20b",
+        messages: [
+          {
+            role: "system",
+            content: [
+              "Kamu adalah Admin Copilot untuk platform anomalisaham — dashboard analisis saham IDX.",
+              "Jawab dalam bahasa Indonesia yang ringkas dan to-the-point.",
+              "Kamu bisa membantu admin dengan: analisis saham, penjelasan teknikal, strategi trading, bandarmology, dan operasional platform.",
+              "Jika admin bertanya tentang navigasi (buka watchlist, buat artikel, lihat user), sarankan perintah yang tepat.",
+              "Jangan mengarang data harga atau angka spesifik yang tidak diberikan.",
+            ].join(" "),
+          },
+          { role: "user", content: message },
+        ],
+        temperature: 0.7,
+        top_p: 1,
+        max_tokens: 1024,
+      });
+
+      const aiReply = completion.choices[0]?.message?.content?.trim() || "Maaf, saya tidak bisa memproses permintaan ini.";
+
+      return NextResponse.json({
+        intent,
+        reply: aiReply,
+      });
+    }
+
     return NextResponse.json({
       intent,
       reply:
@@ -383,7 +532,9 @@ export async function POST(req: NextRequest) {
     const message =
       error instanceof Error && error.message === "GROQ_API_KEY is not configured"
         ? "GROQ_API_KEY belum dikonfigurasi"
-        : "Asisten admin gagal memproses permintaan";
+        : error instanceof Error && error.message.includes("NVIDIA")
+          ? "NVIDIA API gagal — cek API key"
+          : "Asisten admin gagal memproses permintaan";
 
     return NextResponse.json({ error: message }, { status: 500 });
   }

@@ -90,6 +90,24 @@ export default function AdminAssistantPopup() {
   });
   const buttonRef = useRef<HTMLButtonElement | null>(null);
 
+  // Popup drag (only when open + desktop)
+  const popupDragRef = useRef<{
+    pointerId: number | null;
+    startX: number;
+    startY: number;
+    originX: number;
+    originY: number;
+    moved: boolean;
+  }>({
+    pointerId: null,
+    startX: 0,
+    startY: 0,
+    originX: 0,
+    originY: 0,
+    moved: false,
+  });
+  const [popupDragging, setPopupDragging] = useState(false);
+
   const suggestions = useMemo(
     () => ["Buka watchlist", "Buatkan artikel tentang INET", "Tampilkan user yang baru join"],
     []
@@ -258,6 +276,75 @@ export default function AdminAssistantPopup() {
     }
   };
 
+  // ---- Popup header drag handlers ----
+  // Dragging the popup header moves the parent container (which the popup is anchored to).
+  // Only active on desktop because mobile uses fullscreen layout.
+  const computeCurrentParentPos = (): Position => {
+    if (position) return position;
+    // Fallback to default desktop position: right-5 bottom-5 → (vw - BUTTON - 20, vh - BUTTON - 20)
+    const vw = typeof window !== "undefined" ? window.innerWidth : 1024;
+    const vh = typeof window !== "undefined" ? window.innerHeight : 768;
+    return { left: vw - BUTTON_SIZE - 20, top: vh - BUTTON_SIZE - 20 };
+  };
+
+  const onPopupHeaderPointerDown: React.PointerEventHandler<HTMLDivElement> = (event) => {
+    if (!isDesktop) return;
+    // Skip drag if user clicked on a button or other interactive element
+    if ((event.target as HTMLElement).closest("button")) return;
+    if (event.button !== 0 && event.pointerType === "mouse") return;
+
+    const parentPos = computeCurrentParentPos();
+    popupDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: parentPos.left,
+      originY: parentPos.top,
+      moved: false,
+    };
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // ignore
+    }
+  };
+
+  const onPopupHeaderPointerMove: React.PointerEventHandler<HTMLDivElement> = (event) => {
+    const meta = popupDragRef.current;
+    if (meta.pointerId !== event.pointerId) return;
+    const dx = event.clientX - meta.startX;
+    const dy = event.clientY - meta.startY;
+    if (!meta.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+    meta.moved = true;
+    setPopupDragging(true);
+    setPosition(
+      clampToViewport({
+        left: meta.originX + dx,
+        top: meta.originY + dy,
+      })
+    );
+  };
+
+  const onPopupHeaderPointerUp: React.PointerEventHandler<HTMLDivElement> = (event) => {
+    const meta = popupDragRef.current;
+    if (meta.pointerId !== event.pointerId) return;
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch {
+      // ignore
+    }
+    if (meta.moved && position) {
+      try {
+        localStorage.setItem(POSITION_STORAGE_KEY, JSON.stringify(position));
+      } catch {
+        // ignore
+      }
+    }
+    popupDragRef.current.pointerId = null;
+    popupDragRef.current.moved = false;
+    setPopupDragging(false);
+  };
+
   const containerStyle: React.CSSProperties = position
     ? { left: position.left, top: position.top, right: "auto", bottom: "auto", width: BUTTON_SIZE, height: BUTTON_SIZE }
     : { width: BUTTON_SIZE, height: BUTTON_SIZE };
@@ -334,10 +421,45 @@ export default function AdminAssistantPopup() {
                 />
               </div>
 
-              <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "rgba(226,232,240,0.08)" }}>
-                <div>
-                  <p className="text-sm font-semibold text-silver-100">Admin Copilot</p>
-                  <p className="text-[11px] text-silver-500">Navigasi cepat dan bantuan operasional admin</p>
+              <div
+                className="flex items-center justify-between px-4 py-3 border-b select-none"
+                style={{
+                  borderColor: "rgba(226,232,240,0.08)",
+                  cursor: isDesktop ? (popupDragging ? "grabbing" : "grab") : "default",
+                  touchAction: isDesktop ? "none" : "auto",
+                }}
+                onPointerDown={onPopupHeaderPointerDown}
+                onPointerMove={onPopupHeaderPointerMove}
+                onPointerUp={onPopupHeaderPointerUp}
+                onPointerCancel={onPopupHeaderPointerUp}
+                title={isDesktop ? "Tahan dan geser untuk pindahkan" : undefined}
+              >
+                <div className="flex items-center gap-2.5">
+                  {/* Drag handle indicator (desktop only) */}
+                  {isDesktop ? (
+                    <span
+                      aria-hidden="true"
+                      className="hidden md:flex flex-col gap-0.5 items-center justify-center opacity-40 hover:opacity-80 transition"
+                      style={{ width: 12 }}
+                    >
+                      <span className="flex gap-0.5">
+                        <span className="h-[3px] w-[3px] rounded-full bg-silver-400" />
+                        <span className="h-[3px] w-[3px] rounded-full bg-silver-400" />
+                      </span>
+                      <span className="flex gap-0.5">
+                        <span className="h-[3px] w-[3px] rounded-full bg-silver-400" />
+                        <span className="h-[3px] w-[3px] rounded-full bg-silver-400" />
+                      </span>
+                      <span className="flex gap-0.5">
+                        <span className="h-[3px] w-[3px] rounded-full bg-silver-400" />
+                        <span className="h-[3px] w-[3px] rounded-full bg-silver-400" />
+                      </span>
+                    </span>
+                  ) : null}
+                  <div>
+                    <p className="text-sm font-semibold text-silver-100">Admin Copilot</p>
+                    <p className="text-[11px] text-silver-500">Navigasi cepat dan bantuan operasional admin</p>
+                  </div>
                 </div>
                 <div className="flex items-center gap-1">
                   {position ? (

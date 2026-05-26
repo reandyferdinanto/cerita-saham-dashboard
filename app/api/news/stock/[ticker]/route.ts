@@ -157,7 +157,21 @@ function analyzeSentiment(title: string, description: string): {
 }
 
 // ── Check if a news item mentions the ticker ──
-// Matches: exact ticker (BBCA), ticker.JK, full name substring
+// Strict matching: ticker code as word, or $TICKER, or 2+ specific company name parts
+const GENERIC_NAME_WORDS = new Set([
+  "PT", "TBK", "INDONESIA", "INDONESIAN", "INTERNATIONAL", "INTERNASIONAL",
+  "GLOBAL", "GROUP", "GRUP", "MEDIA", "DIGITAL", "ENERGY", "ENERGI", "RESOURCES",
+  "PERSADA", "PRATAMA", "NUSANTARA", "SARANA", "SEJAHTERA", "PERKASA", "JAYA",
+  "MITRA", "MAKMUR", "INVESTAMA", "INVESTINDO", "ABADI", "MULIA", "AGUNG",
+  "BANK", "BANKING", "ASIA", "MEDICAL", "MEDIKAL", "HEALTH", "HEALTHCARE",
+  "FARMA", "FARMASI", "PHARMA", "PHARMACEUTICAL", "RAYA", "INTI", "PRIMA",
+  "MANDIRI", "BAKRIE", "INDAH", "TECHNOLOGY", "TEKNOLOGI", "TELEKOMUNIKASI",
+  "TELECOM", "RESOURCE", "MINERAL", "MINING", "TAMBANG", "PETROL", "PETROLEUM",
+  "OIL", "GAS", "PROPERTY", "PROPERTI", "INDUSTRI", "INDUSTRIES", "INDUSTRY",
+  "FINANSIAL", "FINANCE", "FINANCIAL", "MULTI", "USAHA", "BUMI", "ANEKA",
+  "KORPORA", "PERSERO", "PERSERO)", "(PERSERO)",
+]);
+
 function mentionsTicker(
   title: string,
   description: string,
@@ -167,17 +181,33 @@ function mentionsTicker(
   const clean = ticker.replace(".JK", "").toUpperCase();
   const haystack = (title + " " + description).toUpperCase();
 
-  // Word-boundary-like match: ticker surrounded by non-alpha chars or start/end
+  // 1. Ticker as proper word (BBCA surrounded by non-letters) — highest confidence
   const tickerRe = new RegExp(`(?<![A-Z])${clean}(?![A-Z])`, "i");
   if (tickerRe.test(haystack)) return true;
 
-  // Company name match (if provided and longer than 4 chars to avoid false positives)
+  // 2. $TICKER style (Stockbit/social style)
+  if (haystack.includes(`$${clean}`)) return true;
+
+  // 3. Company name match — STRICT: require either
+  //    a) 2+ specific (non-generic) name parts present, OR
+  //    b) 1 very specific (≥9 char, non-generic) name part
   if (companyName && companyName.length > 4) {
-    const nameParts = companyName.toUpperCase().split(/\s+/).filter((p) => p.length > 3);
-    // At least 2 consecutive name parts must appear, or single part > 6 chars
-    for (const part of nameParts) {
-      if (part.length > 6 && haystack.includes(part)) return true;
+    const allParts = companyName
+      .toUpperCase()
+      .replace(/[().,]/g, " ")
+      .split(/\s+/)
+      .filter((p) => p.length > 3);
+    const specificParts = allParts.filter((p) => !GENERIC_NAME_WORDS.has(p));
+
+    let matchCount = 0;
+    let veryLongMatch = false;
+    for (const part of specificParts) {
+      if (haystack.includes(part)) {
+        matchCount += 1;
+        if (part.length >= 9) veryLongMatch = true;
+      }
     }
+    if (matchCount >= 2 || veryLongMatch) return true;
   }
 
   return false;
