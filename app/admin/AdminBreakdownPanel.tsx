@@ -9,6 +9,11 @@ const AdminBreakdownChart = dynamic(() => import("@/app/admin/AdminBreakdownChar
   loading: () => <div className="h-[300px] rounded-2xl bg-silver-100/[0.035] sm:h-[350px] lg:h-[430px] lg:rounded-3xl" />,
 });
 
+const IntradayMiniChart = dynamic(() => import("@/app/admin/IntradayMiniChart"), {
+  ssr: false,
+  loading: () => <div className="h-[180px] rounded-xl bg-silver-100/[0.035]" />,
+});
+
 type BreakdownContextRow = {
   index: number;
   date: string;
@@ -187,6 +192,8 @@ export default function AdminBreakdownPanel() {
   const [note, setNote] = useState("");
   const [saved, setSaved] = useState<SavedBreakdown[]>([]);
   const [saveMessage, setSaveMessage] = useState("");
+  const [intradayData, setIntradayData] = useState<Record<string, OHLCData[]>>({});
+  const [intradayLoading, setIntradayLoading] = useState(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -206,6 +213,40 @@ export default function AdminBreakdownPanel() {
   const selectedCandle = selectedIndex == null ? null : history[selectedIndex] ?? null;
   const beforeCount = contextRows.filter((row) => row.index < (selectedIndex ?? -1)).length;
   const afterCount = contextRows.filter((row) => row.index > (selectedIndex ?? Number.MAX_SAFE_INTEGER)).length;
+
+  // Fetch intraday data (5m, 15m, 1h) when a candle is selected
+  useEffect(() => {
+    if (!selectedTicker || !selectedCandle) { setIntradayData({}); return; }
+    const candleDate = String(selectedCandle.time);
+    let cancelled = false;
+
+    async function fetchIntraday() {
+      setIntradayLoading(true);
+      const results: Record<string, OHLCData[]> = {};
+      const intervals = ["5m", "15m", "60m"] as const;
+
+      await Promise.all(intervals.map(async (interval) => {
+        try {
+          const res = await fetch(`/api/stocks/history/${encodeURIComponent(selectedTicker)}?range=5d&interval=${interval}`, { cache: "no-store" });
+          if (!res.ok) return;
+          const data = await res.json();
+          if (!Array.isArray(data)) return;
+          // Filter to only the selected date
+          const filtered = data.filter((item: OHLCData) => {
+            const t = typeof item.time === "number" ? new Date(item.time * 1000) : new Date(item.time);
+            return t.toISOString().slice(0, 10) === candleDate && item.close != null;
+          });
+          results[interval] = filtered;
+        } catch {}
+      }));
+
+      if (!cancelled) { setIntradayData(results); setIntradayLoading(false); }
+    }
+
+    void fetchIntraday();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTicker, selectedCandle?.time]);
 
   const searchStocks = useCallback((value: string) => {
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
@@ -395,6 +436,27 @@ export default function AdminBreakdownPanel() {
                 </div>
               ) : null}
               <AdminBreakdownChart data={history} selectedIndex={selectedIndex} onSelect={setSelectedIndex} />
+              {selectedCandle && (
+                <div className="mt-4">
+                  <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-silver-600">Intraday {formatDate(selectedCandle.time)}</p>
+                  {intradayLoading ? (
+                    <p className="text-xs text-silver-500">Memuat intraday...</p>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                      {(["5m", "15m", "60m"] as const).map((tf) => (
+                        <div key={tf} className="rounded-xl border border-silver-200/10 bg-silver-100/[0.025] p-2">
+                          <p className="mb-1 text-center text-[10px] font-bold uppercase tracking-[0.14em] text-silver-500">{tf === "60m" ? "1H" : tf.toUpperCase()}</p>
+                          {intradayData[tf] && intradayData[tf].length > 0 ? (
+                            <IntradayMiniChart data={intradayData[tf]} height={150} />
+                          ) : (
+                            <div className="flex h-[150px] items-center justify-center text-[10px] text-silver-600">Tidak ada data</div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           ) : (
             <div className="flex h-[300px] items-center justify-center rounded-2xl bg-silver-100/[0.035] px-6 text-center text-sm text-silver-500 sm:h-[350px] lg:h-[430px] lg:rounded-3xl">

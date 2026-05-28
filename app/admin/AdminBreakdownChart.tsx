@@ -6,6 +6,7 @@ import {
   ColorType,
   createChart,
   createSeriesMarkers,
+  HistogramSeries,
   LineSeries,
   type CandlestickData,
   type IChartApi,
@@ -143,6 +144,19 @@ export default function AdminBreakdownChart({ data, selectedIndex, onSelect, hei
         crosshairMarkerVisible: false,
       }).setData(lineData);
     });
+
+    const volSeries = chart.addSeries(HistogramSeries, {
+      priceFormat: { type: "volume" },
+      priceScaleId: "vol",
+    });
+    chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+    volSeries.setData(
+      data.map((item) => ({
+        time: asChartTime(item.time),
+        value: item.volume ?? 0,
+        color: item.close >= item.open ? "rgba(16,185,129,0.25)" : "rgba(239,68,68,0.25)",
+      }))
+    );
 
     const timeToIndex = new Map(data.map((item, index) => [String(item.time), index]));
     const handleClick = (param: { time?: unknown }) => {

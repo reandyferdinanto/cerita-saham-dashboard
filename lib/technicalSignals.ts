@@ -68,6 +68,9 @@ export interface TechnicalResult {
   ma20: number | null;
   ma50: number | null;
   ma200: number | null;
+  ema9: number | null;
+  ema20: number | null;
+  ema50: number | null;
   srLevels: { type: "R" | "S"; price: number; strength: number }[];
   radarMomentum: RadarMomentumResult | null;
 }
@@ -580,6 +583,14 @@ export function calcTechnicalSignals(bars: OHLCVBar[]): TechnicalResult {
   const ma20 = sma20arr[sma20arr.length - 1] ?? null;
   const ma50 = sma50arr[sma50arr.length - 1] ?? null;
   const ma200 = sma200arr[sma200arr.length - 1] ?? null;
+
+  const ema9arr = ema(closes, 9);
+  const ema20arr = ema(closes, 20);
+  const ema50arr = ema(closes, 50);
+  const ema9 = ema9arr.length > 0 && !Number.isNaN(ema9arr[ema9arr.length - 1]) ? ema9arr[ema9arr.length - 1] : null;
+  const ema20val = ema20arr.length > 0 && !Number.isNaN(ema20arr[ema20arr.length - 1]) ? ema20arr[ema20arr.length - 1] : null;
+  const ema50val = ema50arr.length > 0 && !Number.isNaN(ema50arr[ema50arr.length - 1]) ? ema50arr[ema50arr.length - 1] : null;
+
   const lastClose = closes[closes.length - 1];
 
   const rsi = calcRSI(closes);
@@ -841,6 +852,9 @@ export function calcTechnicalSignals(bars: OHLCVBar[]): TechnicalResult {
     ma20,
     ma50,
     ma200,
+    ema9,
+    ema20: ema20val,
+    ema50: ema50val,
     srLevels,
     radarMomentum,
   };

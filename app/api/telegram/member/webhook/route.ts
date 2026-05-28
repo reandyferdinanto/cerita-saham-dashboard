@@ -3,11 +3,11 @@ import { getQuote, getHistory, searchStocks } from "@/lib/yahooFinance";
 import { takeChartScreenshot } from "@/lib/chartScreenshot";
 import { calcTechnicalSignals } from "@/lib/technicalSignals";
 import { getNewsWithCache, type CachedNewsItem } from "@/lib/data/newsCache";
-import { getFundamentalSnapshot, formatMarketCap, formatPercent } from "@/lib/data/fundamentalSnapshot";
+import { getFundamentalSnapshot } from "@/lib/data/fundamentalSnapshot";
 import { getAccumulationSnapshot } from "@/lib/data/accumulationSnapshot";
 import { fetchSectorNews } from "@/lib/data/sectorNews";
 import { getTelegramSettings } from "@/lib/data/telegramSettings";
-import OpenAI from "openai";
+import { generateRuleBasedBrief } from "@/lib/ruleBasedBrief";
 import fs from "fs/promises";
 import path from "path";
 
@@ -80,12 +80,10 @@ async function sendTelegramPhoto(chatId: number, photoPath: string, caption: str
   }
 }
 
-// ── AI Brief generator using NVIDIA NIM ───────────────────────────────────────
+// ── Rule-based Brief generator (no AI dependency) ─────────────────────────────
 async function generateMemberBrief(ticker: string, name: string, origin: string): Promise<string> {
-  const nvidiaKey = process.env.NVIDIA_API_KEY;
   const yahooSymbol = ticker.toUpperCase().endsWith(".JK") ? ticker.toUpperCase() : `${ticker.toUpperCase()}.JK`;
 
-  // Gather all context (parallel)
   const newsFetcher = async (): Promise<CachedNewsItem[]> => {
     try {
       const res = await fetch(`${origin}/api/news/stock/${encodeURIComponent(yahooSymbol)}?name=${encodeURIComponent(name)}`, { cache: "no-store" });
@@ -99,15 +97,13 @@ async function generateMemberBrief(ticker: string, name: string, origin: string)
         description: item.description || "", sentiment: item.sentiment,
         sentimentScore: item.sentimentScore, sentimentReason: item.sentimentReason,
       }));
-    } catch {
-      return [];
-    }
+    } catch { return []; }
   };
 
   const [quote, history, newsResult, fundamental, accumulation] = await Promise.all([
     getQuote(yahooSymbol),
     getHistory(yahooSymbol, new Date(Date.now() - 220 * 24 * 60 * 60 * 1000).toISOString().split("T")[0], undefined, "1d"),
-    getNewsWithCache(yahooSymbol, newsFetcher, { limit: 25 }),
+    getNewsWithCache(yahooSymbol, newsFetcher, { limit: 25 }).catch(async () => ({ items: await newsFetcher(), fromCache: false })),
     getFundamentalSnapshot(yahooSymbol).catch(() => null),
     getAccumulationSnapshot(yahooSymbol, 10).catch(() => null),
   ]);
@@ -122,104 +118,14 @@ async function generateMemberBrief(ticker: string, name: string, origin: string)
     sectorNews = await fetchSectorNews(origin, fundamental.sector, fundamental.industry, 5).catch(() => []);
   }
 
-  const supports = technical.srLevels.filter((l) => l.type === "S").map((l) => l.price).sort((a, b) => b - a).slice(0, 2);
-  const resistances = technical.srLevels.filter((l) => l.type === "R").map((l) => l.price).sort((a, b) => a - b).slice(0, 2);
-
-  // Build prompt (compact for member bot — token-efficient)
-  const promptParts: string[] = [
-    `Buat brief saham ${ticker.toUpperCase()} (${name}) untuk member ritel via Telegram. RINGKAS, DIBAWAH 1500 KARAKTER.`,
-    ``,
-    `Harga: Rp ${quote.price.toLocaleString("id-ID")} (${quote.changePercent.toFixed(2)}%)`,
-    `Teknikal: ${technical.conclusionTitle} (skor ${technical.score}/100, action ${technical.actionBias})`,
-    `RSI: ${technical.rsi?.toFixed(1) || "-"} | Support: ${supports.join(", ") || "-"} | Resistance: ${resistances.join(", ") || "-"}`,
-  ];
-
-  if (fundamental) {
-    const fundLine: string[] = [];
-    if (fundamental.sector) fundLine.push(`sektor ${fundamental.sector}`);
-    if (fundamental.marketCap) fundLine.push(`mcap ${formatMarketCap(fundamental.marketCap)}`);
-    if (fundamental.trailingPE != null) fundLine.push(`PE ${fundamental.trailingPE.toFixed(1)}x`);
-    if (fundamental.priceToBook != null) fundLine.push(`PBV ${fundamental.priceToBook.toFixed(1)}x`);
-    if (fundamental.revenueGrowth != null) fundLine.push(`rev growth ${formatPercent(fundamental.revenueGrowth, 1)}`);
-    if (fundamental.roe != null) fundLine.push(`ROE ${formatPercent(fundamental.roe, 1)}`);
-    if (fundLine.length > 0) promptParts.push(`Fundamental: ${fundLine.join(", ")}`);
-  }
-
-  if (accumulation && accumulation.available) {
-    promptParts.push(
-      `Akumulasi 10H: foreign ${accumulation.foreignAccumulationLabel} (net ${
-        accumulation.totalNetForeign >= 0 ? "+" : ""
-      }${accumulation.totalNetForeign.toLocaleString("id-ID")}), domestic ${accumulation.domesticPressureLabel}.`
-    );
-  }
-
-  if (newsResult.items.length > 0) {
-    const top = newsResult.items.slice(0, 3).map((n) => `- ${n.title} (${n.sentiment})`).join("\n");
-    promptParts.push(`Berita ticker:\n${top}`);
-  } else if (sectorNews.length > 0) {
-    promptParts.push(`Berita sektor: ${sectorNews.slice(0, 2).map((n) => n.title).join("; ")}`);
-  } else {
-    promptParts.push(`Belum ada berita ticker spesifik dalam 30 hari.`);
-  }
-
-  promptParts.push(
-    ``,
-    `FORMAT (markdown Telegram):`,
-    `*${ticker.toUpperCase()} Brief*`,
-    ``,
-    `📊 Ringkasan singkat (2 kalimat).`,
-    ``,
-    `✅ *Yang Menarik:*`,
-    `• poin 1`,
-    `• poin 2`,
-    ``,
-    `⚠️ *Yang Diwaspadai:*`,
-    `• poin 1`,
-    `• poin 2`,
-    ``,
-    `🎯 *Plan:* entry, SL, TP konkret berdasarkan support/resistance.`,
-    ``,
-    `Catatan: Maks 1500 karakter. Bahasa Indonesia. Tanpa emoji selain yang dicontohkan. Berbasis data di atas saja.`
+  const { text } = generateRuleBasedBrief(
+    ticker, name,
+    { price: quote.price, changePercent: quote.changePercent },
+    technical, fundamental, accumulation,
+    newsResult.items, sectorNews
   );
 
-  if (!nvidiaKey) {
-    // Fallback brief tanpa AI
-    return [
-      `*${ticker.toUpperCase()} Brief (auto)*`,
-      ``,
-      `📊 Harga Rp ${quote.price.toLocaleString("id-ID")} (${quote.changePercent.toFixed(2)}%). ${technical.conclusionTitle}.`,
-      ``,
-      `Support: ${supports.join(", ") || "-"} | Resistance: ${resistances.join(", ") || "-"}`,
-      accumulation?.available ? `Akumulasi: ${accumulation.foreignAccumulationLabel} (foreign), ${accumulation.domesticPressureLabel} (domestic).` : "",
-      ``,
-      `_NVIDIA API key belum dikonfigurasi — brief AI tidak tersedia._`,
-    ]
-      .filter(Boolean)
-      .join("\n");
-  }
-
-  try {
-    const nvidia = new OpenAI({ apiKey: nvidiaKey, baseURL: "https://integrate.api.nvidia.com/v1" });
-    const completion = await nvidia.chat.completions.create({
-      model: process.env.NVIDIA_MODEL || "openai/gpt-oss-20b",
-      messages: [
-        {
-          role: "system",
-          content: "Kamu analis saham IDX untuk anomalisaham. Jawab ringkas, jujur, fokus risk/reward. Output: markdown Telegram-compatible.",
-        },
-        { role: "user", content: promptParts.join("\n") },
-      ],
-      temperature: 0.5,
-      top_p: 1,
-      max_tokens: 800,
-    });
-
-    const text = completion.choices[0]?.message?.content?.trim() || "";
-    return text || `Brief ${ticker.toUpperCase()} tidak tersedia saat ini.`;
-  } catch (error) {
-    console.error("[MEMBER BOT] NVIDIA error:", error);
-    return `Brief ${ticker.toUpperCase()} gagal di-generate. Coba beberapa saat lagi.`;
-  }
+  return text;
 }
 
 // ── Webhook handler ───────────────────────────────────────────────────────────

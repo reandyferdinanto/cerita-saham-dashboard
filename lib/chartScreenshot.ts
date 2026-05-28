@@ -10,8 +10,8 @@ export async function takeChartScreenshot(ticker: string, interval: string = "1d
     try {
         const page = await browser.newPage();
         
-        // Atur viewport agar cukup lebar untuk kontainer 1000x1050
-        await page.setViewportSize({ width: 1050, height: 1100 });
+        // Atur viewport agar cukup lebar untuk kontainer 1000x1250
+        await page.setViewportSize({ width: 1050, height: 1300 });
 
 
         const internalBaseUrl =
