@@ -154,6 +154,7 @@ export default function CandlestickChart({
   const [activeIndicators, setActiveIndicators] = useState<Set<IndicatorKey>>(
     new Set(["ema9", "ema20", "ema50", "macd", "sr", "radar"])
   );
+  const [showControls, setShowControls] = useState(true);
 
   const toggleIndicator = (key: IndicatorKey) => {
     setActiveIndicators((prev) => {
@@ -165,6 +166,15 @@ export default function CandlestickChart({
       }
       return next;
     });
+  };
+
+  const resetZoom = () => {
+    if (chartInst.current) {
+      chartInst.current.timeScale().setVisibleLogicalRange({
+        from: 0,
+        to: data.length + 15,
+      });
+    }
   };
 
   const showMACD = activeIndicators.has("macd");
@@ -608,60 +618,145 @@ export default function CandlestickChart({
 
   return (
     <div className="w-full">
-      {/* Indicator toggles */}
-      <div className="flex items-center gap-2 mb-3 overflow-x-auto pb-1 scrollbar-hide">
-        <span className="text-[10px] uppercase tracking-wider font-medium flex-shrink-0" style={{ color: "#334155" }}>Indikator:</span>
-        {INDICATOR_CONFIG.map(({ key, label, color }) => {
-          const active = activeIndicators.has(key);
-          return (
-            <button key={key} onClick={() => toggleIndicator(key)}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all flex-shrink-0"
-              style={{
-                background: active ? `${color}18` : "rgba(6,78,59,0.2)",
-                color: active ? color : "#475569",
-                border: `1px solid ${active ? `${color}40` : "rgba(226,232,240,0.06)"}`,
-              }}>
-              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: active ? color : "#334155" }} />
-              {label}
-            </button>
-          );
-        })}
+      {/* Enhanced Chart Controls */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+        {/* Indicator toggles */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
+          <span className="text-[10px] uppercase tracking-wider font-medium flex-shrink-0" style={{ color: "#334155" }}>Indikator:</span>
+          {INDICATOR_CONFIG.map(({ key, label, color }) => {
+            const active = activeIndicators.has(key);
+            return (
+              <button key={key} onClick={() => toggleIndicator(key)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all flex-shrink-0 hover:scale-105"
+                style={{
+                  background: active ? `${color}18` : "rgba(6,78,59,0.2)",
+                  color: active ? color : "#475569",
+                  border: `1px solid ${active ? `${color}40` : "rgba(226,232,240,0.06)"}`,
+                }}>
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: active ? color : "#334155" }} />
+                {label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Chart action buttons */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <button
+            onClick={resetZoom}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:scale-105"
+            style={{
+              background: "rgba(249,115,22,0.12)",
+              color: "#fb923c",
+              border: "1px solid rgba(249,115,22,0.2)",
+            }}
+            title="Reset zoom to show all data"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10H7" />
+            </svg>
+            Reset Zoom
+          </button>
+          
+          <button
+            onClick={() => setShowControls(!showControls)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:scale-105"
+            style={{
+              background: "rgba(100,116,139,0.12)",
+              color: "#94a3b8",
+              border: "1px solid rgba(100,116,139,0.2)",
+            }}
+            title={showControls ? "Hide controls" : "Show controls"}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              {showControls ? (
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+              )}
+            </svg>
+            {showControls ? "Hide" : "Show"}
+          </button>
+        </div>
       </div>
 
-      {/* Single chart div: price + MACD + Radar Momentum render here */}
-      <div ref={chartRef} className="w-full" />
+      {/* Chart container with improved styling */}
+      <div className="relative rounded-xl overflow-hidden" style={{ 
+        background: "rgba(6,20,50,0.25)", 
+        border: "1px solid rgba(226,232,240,0.08)",
+        boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)"
+      }}>
+        <div ref={chartRef} className="w-full" />
+      </div>
 
-      {/* MACD legend */}
-      {showMACD && (
-        <div className="flex items-center gap-3 px-1 mt-1 overflow-x-auto scrollbar-hide">
-          <span className="text-[10px] font-semibold uppercase tracking-wider flex-shrink-0" style={{ color: "#334155" }}>MACD (12,26,9)</span>
-          <span className="flex items-center gap-1 text-[10px] flex-shrink-0" style={{ color: "#3b82f6" }}>
-            <span className="w-5 h-0.5 inline-block rounded" style={{ background: "#3b82f6" }} /> MACD
-          </span>
-          <span className="flex items-center gap-1 text-[10px] flex-shrink-0" style={{ color: "#f97316" }}>
-            <span className="w-5 h-0.5 inline-block rounded" style={{ background: "#f97316" }} /> Signal
-          </span>
-          <span className="flex items-center gap-1 text-[10px] flex-shrink-0" style={{ color: "#10b981" }}>
-            <span className="w-4 h-3 inline-block rounded-sm" style={{ background: "rgba(16,185,129,0.5)" }} /> Histogram
-          </span>
-        </div>
-      )}
+      {/* Enhanced Legends with better styling */}
+      {showControls && (showMACD || showRadar) && (
+        <div className="mt-3 space-y-2">
+          {/* MACD legend */}
+          {showMACD && (
+            <div className="rounded-lg px-3 py-2 overflow-x-auto scrollbar-hide" style={{ 
+              background: "rgba(6,20,50,0.3)", 
+              border: "1px solid rgba(59,130,246,0.15)" 
+            }}>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full" style={{ background: "#10b981" }} />
+                  <span className="text-[10px] font-bold uppercase tracking-wider flex-shrink-0" style={{ color: "#10b981" }}>
+                    MACD (12,26,9)
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="flex items-center gap-1.5 text-[10px] flex-shrink-0" style={{ color: "#3b82f6" }}>
+                    <span className="w-6 h-0.5 inline-block rounded" style={{ background: "#3b82f6" }} /> 
+                    <span className="font-medium">MACD Line</span>
+                  </span>
+                  <span className="flex items-center gap-1.5 text-[10px] flex-shrink-0" style={{ color: "#f97316" }}>
+                    <span className="w-6 h-0.5 inline-block rounded" style={{ background: "#f97316" }} /> 
+                    <span className="font-medium">Signal</span>
+                  </span>
+                  <span className="flex items-center gap-1.5 text-[10px] flex-shrink-0" style={{ color: "#10b981" }}>
+                    <span className="w-5 h-3 inline-block rounded-sm" style={{ background: "rgba(16,185,129,0.5)" }} /> 
+                    <span className="font-medium">Histogram</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
 
-      {showRadar && (
-        <div className="flex items-center gap-3 px-1 mt-1 overflow-x-auto scrollbar-hide">
-          <span className="text-[10px] font-semibold uppercase tracking-wider flex-shrink-0" style={{ color: "#334155" }}>Radar Momentum</span>
-          <span className="flex items-center gap-1 text-[10px] flex-shrink-0" style={{ color: "#ffcfa6" }}>
-            <span className="w-5 h-0.5 inline-block rounded" style={{ background: "#ffcfa6" }} /> Momentum
-          </span>
-          <span className="flex items-center gap-1 text-[10px] flex-shrink-0" style={{ color: "#10b981" }}>
-            <span className="w-4 h-3 inline-block rounded-sm" style={{ background: "rgba(22,155,93,0.45)" }} /> Flux
-          </span>
-          <span className="flex items-center gap-1 text-[10px] flex-shrink-0" style={{ color: "#ffa600" }}>
-            <span className="w-4 h-1.5 inline-block rounded-sm" style={{ background: "#ffa600" }} /> Squeeze
-          </span>
-          <span className="flex items-center gap-1 text-[10px] flex-shrink-0" style={{ color: "#11cf77" }}>
-            <span className="w-5 h-0.5 inline-block rounded" style={{ background: "#11cf77" }} /> D+
-          </span>
+          {/* Radar legend */}
+          {showRadar && (
+            <div className="rounded-lg px-3 py-2 overflow-x-auto scrollbar-hide" style={{ 
+              background: "rgba(6,20,50,0.3)", 
+              border: "1px solid rgba(17,207,119,0.15)" 
+            }}>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full" style={{ background: "#11cf77" }} />
+                  <span className="text-[10px] font-bold uppercase tracking-wider flex-shrink-0" style={{ color: "#11cf77" }}>
+                    Radar Momentum
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="flex items-center gap-1.5 text-[10px] flex-shrink-0" style={{ color: "#ffcfa6" }}>
+                    <span className="w-6 h-0.5 inline-block rounded" style={{ background: "#ffcfa6" }} /> 
+                    <span className="font-medium">Momentum</span>
+                  </span>
+                  <span className="flex items-center gap-1.5 text-[10px] flex-shrink-0" style={{ color: "#10b981" }}>
+                    <span className="w-5 h-3 inline-block rounded-sm" style={{ background: "rgba(22,155,93,0.45)" }} /> 
+                    <span className="font-medium">Flux</span>
+                  </span>
+                  <span className="flex items-center gap-1.5 text-[10px] flex-shrink-0" style={{ color: "#ffa600" }}>
+                    <span className="w-5 h-2 inline-block rounded-sm" style={{ background: "#ffa600" }} /> 
+                    <span className="font-medium">Squeeze</span>
+                  </span>
+                  <span className="flex items-center gap-1.5 text-[10px] flex-shrink-0" style={{ color: "#11cf77" }}>
+                    <span className="w-6 h-0.5 inline-block rounded" style={{ background: "#11cf77" }} /> 
+                    <span className="font-medium">Divergence</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
