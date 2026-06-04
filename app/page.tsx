@@ -51,7 +51,7 @@ const MARKET_NEWS_FALLBACK: MarketNewsItem[] = [
     source: "Market news",
   },
   {
-    title: "Jika feed sedang kosong, ticker ini otomatis update saat data masuk.",
+    title: "Feed otomatis update saat data masuk.",
     link: "https://www.indopremier.com/ipotnews/",
     source: "IPOT News",
   },
@@ -82,6 +82,16 @@ const FAQ_ITEMS = [
     answer:
       "Tidak. Prinsipnya bukan intraday. Paling cepat jual di H+2 atau esok lusa, jadi keputusan tetap punya ruang napas dan tidak terlalu impulsif.",
   },
+  {
+    question: "Apa bedanya dashboard ini dengan platform lain?",
+    answer:
+      "Fokus kami bukan sinyal instan, tapi membantu kamu membaca konteks pasar dan jejak akumulasi sebelum ramai. Jadi lebih ke alat bantu berpikir, bukan robot trading.",
+  },
+  {
+    question: "Data di dashboard ini real-time?",
+    answer:
+      "Data dari Yahoo Finance dengan delay wajar. Cukup untuk baca arah dan konteks, tapi bukan untuk scalping atau trading super cepat.",
+  },
 ];
 
 interface GlobalQuote {
@@ -102,6 +112,16 @@ function isDashboardHiddenStock(stock: { symbol?: string; ticker?: string; name?
   return HIDDEN_DASHBOARD_TICKERS.has(code) || name.includes(" bank ") || name.includes(" banking ");
 }
 
+function SkeletonQuote() {
+  return (
+    <div className="animate-pulse space-y-3">
+      <div className="h-3 w-20 bg-white/5 rounded" />
+      <div className="h-10 w-28 bg-white/5 rounded" />
+      <div className="h-3 w-16 bg-white/5 rounded" />
+    </div>
+  );
+}
+
 function PublicChartCtaModal({
   ticker,
   isLoggedIn,
@@ -112,8 +132,13 @@ function PublicChartCtaModal({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/70 px-4 pb-4 backdrop-blur-md sm:items-center sm:pb-0">
-      <div className="w-full max-w-lg overflow-hidden rounded-[28px] border border-silver-200/10 bg-[#06120e] shadow-2xl">
+    <div
+      className="fixed inset-0 z-[80] flex items-end justify-center bg-black/70 px-4 pb-4 backdrop-blur-md sm:items-center sm:pb-0"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
+    >
+      <div className="w-full max-w-lg overflow-hidden rounded-[28px] border border-silver-200/10 bg-[#06120e] shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-300">
         <div
           className="relative p-6 sm:p-7"
           style={{
@@ -123,7 +148,7 @@ function PublicChartCtaModal({
         >
           <button
             onClick={onClose}
-            className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full border border-silver-200/10 bg-silver-200/5 text-silver-400 transition hover:text-silver-100"
+            className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full border border-silver-200/10 bg-silver-200/5 text-silver-400 transition hover:text-silver-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#06120e]"
             aria-label="Tutup modal"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -134,8 +159,8 @@ function PublicChartCtaModal({
           <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-400 text-lg font-black text-[#1b130c]">
             {ticker.ticker.slice(0, 4)}
           </div>
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-orange-300">Akses penuh</p>
-          <h2 className="mt-3 max-w-md text-3xl font-black leading-tight text-silver-100">
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Akses penuh</p>
+          <h2 id="modal-title" className="mt-3 max-w-md text-3xl font-black leading-tight text-silver-100">
             Mau lihat grafik {ticker.ticker} lebih detail?
           </h2>
           <p className="mt-3 text-sm leading-relaxed text-silver-400">
@@ -154,13 +179,13 @@ function PublicChartCtaModal({
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
             <Link
               href={isLoggedIn ? "/pending" : "/register"}
-              className="inline-flex flex-1 items-center justify-center rounded-2xl bg-orange-400 px-5 py-3 text-sm font-black text-[#1b130c] transition hover:bg-orange-300"
+              className="inline-flex flex-1 items-center justify-center rounded-2xl bg-amber-300 px-5 py-3 text-sm font-black text-[#1b130c] transition hover:bg-amber-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#06120e]"
             >
               {isLoggedIn ? "Aktifkan akses" : "Daftar sekarang"}
             </Link>
             <Link
               href="/login"
-              className="inline-flex flex-1 items-center justify-center rounded-2xl border border-silver-200/10 bg-silver-200/5 px-5 py-3 text-sm font-bold text-silver-200 transition hover:bg-silver-200/10"
+              className="inline-flex flex-1 items-center justify-center rounded-2xl border border-silver-200/10 bg-silver-200/5 px-5 py-3 text-sm font-bold text-silver-200 transition hover:bg-silver-200/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#06120e]"
             >
               Saya sudah punya akun
             </Link>
@@ -195,24 +220,24 @@ export default function DashboardPage() {
   const dashboardMode = useMemo(() => {
     if (hasMemberAccess) {
       return {
-        eyebrow: "Radar anomali",
-        headline: "Cari jejak akumulasi sebelum pasar mulai ramai.",
-        body: "AnomaliSaham membantu membaca saham yang tampak sepi di permukaan, tetapi mulai janggal dari struktur harga, volume, dan support yang dijaga. Mulai dari konteks pasar, buka grafik, lalu susun skenario dengan sadar risiko.",
+        eyebrow: "Radar Anomali",
+        headline: "Temukan peluang sebelum pasar ramai.",
+        body: "Baca jejak akumulasi dari harga, volume, dan support. Cek konteks pasar dulu, lalu susun rencana dengan hitung risiko.",
         badge: "Akses aktif",
       };
     }
     if (user) {
       return {
-        eyebrow: "Radar anomali",
-        headline: "Belajar melihat peluang sebelum kelihatan jelas.",
-        body: "Mulai dari arah IHSG dan headline pasar, lalu pahami cara membaca support lock, sideways senyap, dan jejak akumulasi. Aktifkan akses untuk membuka grafik dan riset saham lebih dalam.",
+        eyebrow: "Radar Anomali",
+        headline: "Lihat peluang yang belum terlihat jelas.",
+        body: "Mulai dari arah IHSG dan headline pasar, lalu pahami cara membaca support lock, sideways senyap, dan jejak akumulasi. Aktifkan akses untuk riset lebih dalam.",
         badge: "Menunggu aktivasi",
       };
     }
     return {
-      eyebrow: "Radar anomali",
+      eyebrow: "Radar Anomali",
       headline: "Baca pasar dari yang belum ramai dibicarakan.",
-      body: "Filosofinya sederhana: peluang sering muncul saat harga terlihat biasa saja, tetapi volume, range, dan support mulai memberi petunjuk. Gunakan dashboard ini untuk membaca konteks besar sebelum masuk ke riset saham.",
+      body: "Peluang sering muncul saat harga terlihat biasa saja, tapi volume, range, dan support mulai memberi petunjuk. Gunakan dashboard ini untuk membaca konteks besar sebelum masuk ke riset saham.",
       badge: authLoading ? "Mengecek akses" : "Bisa dicoba",
     };
   }, [authLoading, hasMemberAccess, user]);
@@ -370,6 +395,12 @@ export default function DashboardPage() {
     return "Risiko tinggi";
   };
 
+  const getVixInsight = (vix: number) => {
+    if (vix < 20) return "Kondisi ideal untuk posisi normal.";
+    if (vix < 30) return "Pertimbangkan posisi lebih kecil.";
+    return "Kurangi eksposur atau tunggu stabilitas.";
+  };
+
   const ihsgIsUp = (ihsgQuote?.changePercent ?? 0) >= 0;
   const ihsgChangeText = ihsgQuote
     ? `${ihsgIsUp ? "+" : ""}${ihsgQuote.changePercent.toFixed(2)}%`
@@ -378,27 +409,33 @@ export default function DashboardPage() {
 
   return (
     <>
-    <div className="dashboard-typography mx-auto max-w-7xl space-y-14 px-3 py-6 sm:space-y-20 sm:px-4 sm:py-10">
+    <a
+      href="#main-content"
+      className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-amber-300 focus:text-[#1b130c] focus:rounded-xl focus:font-bold"
+    >
+      Skip to main content
+    </a>
+    <div id="main-content" className="dashboard-typography mx-auto max-w-7xl space-y-12 px-3 py-6 sm:space-y-16 sm:px-4 sm:py-10 lg:space-y-20">
       {/* HERO */}
-      <section className="relative overflow-hidden rounded-[28px] border border-white/[0.06] bg-[oklch(13%_0.018_150)] sm:rounded-[36px]">
+      <section className="relative overflow-hidden rounded-[28px] border border-white/[0.08] bg-[oklch(13%_0.018_150)] sm:rounded-[36px]" role="banner">
         {/* Subtle radial accent — single warm bloom */}
         <div
           className="pointer-events-none absolute inset-0 opacity-90"
           style={{
             background:
-              "radial-gradient(ellipse 60% 50% at 88% 0%, oklch(72% 0.13 70 / 0.14), transparent 60%), radial-gradient(ellipse 40% 50% at 0% 100%, oklch(56% 0.08 154 / 0.10), transparent 60%)",
+              "radial-gradient(ellipse 60% 50% at 88% 0%, oklch(72% 0.13 70 / 0.16), transparent 60%), radial-gradient(ellipse 40% 50% at 0% 100%, oklch(56% 0.08 154 / 0.12), transparent 60%)",
           }}
         />
         {/* Hairline grid */}
         <div className="pointer-events-none absolute inset-0 opacity-[0.04]" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,0.6) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.6) 1px, transparent 1px)", backgroundSize: "48px 48px" }} />
 
-        <div className="relative grid gap-10 p-6 sm:p-10 lg:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.65fr)] lg:gap-14 lg:p-14">
+        <div className="relative grid gap-10 p-6 sm:p-10 lg:grid-cols-[minmax(0,1.4fr)_minmax(300px,0.6fr)] lg:gap-14 lg:p-14">
           {/* LEFT: Editorial */}
-          <div className="flex min-h-0 flex-col justify-between lg:min-h-[420px]">
+          <div className="flex min-h-0 flex-col justify-between lg:min-h-[440px]">
             <div>
               {/* Eyebrow with hairline + dot */}
               <div className="mb-7 flex items-center gap-3">
-                <span className="h-[1px] w-8 bg-amber-300/40" />
+                <span className="h-[1px] w-8 bg-amber-300/40" aria-hidden="true" />
                 <span className="text-[10px] font-semibold uppercase tracking-[0.32em] text-amber-200/90">
                   {dashboardMode.eyebrow}
                 </span>
@@ -407,7 +444,7 @@ export default function DashboardPage() {
                 </span>
               </div>
 
-              <h1 className="max-w-4xl text-[2.4rem] font-bold leading-[0.96] tracking-[-0.045em] text-silver-100 sm:text-[3.2rem] lg:text-[4.4rem]">
+              <h1 className="max-w-4xl text-[2rem] font-bold leading-[0.96] tracking-[-0.045em] text-silver-100 sm:text-[2.8rem] lg:text-[4rem]">
                 {dashboardMode.headline}
               </h1>
               <p className="mt-7 max-w-2xl text-[15px] leading-[1.75] text-silver-400 sm:text-base">
@@ -419,18 +456,18 @@ export default function DashboardPage() {
             <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:items-center">
               <Link
                 href={hasMemberAccess ? "/search" : "/register"}
-                className="group inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-amber-300 px-6 py-3 text-[13px] font-bold text-[#1c1308] transition hover:bg-amber-200"
+                className="group inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-amber-300 px-6 py-3 text-[13px] font-bold text-[#1c1308] transition hover:bg-amber-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[oklch(13%_0.018_150)]"
               >
-                {hasMemberAccess ? "Cari saham sekarang" : "Daftar sekarang"}
-                <svg className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                {hasMemberAccess ? "Cari Saham" : "Mulai Sekarang"}
+                <svg className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
                 </svg>
               </Link>
               <Link
                 href="/insights"
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-white/10 px-6 py-3 text-[13px] font-semibold text-silver-300 transition hover:border-white/20 hover:text-silver-100"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-white/10 px-6 py-3 text-[13px] font-semibold text-silver-300 transition hover:border-white/20 hover:text-silver-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[oklch(13%_0.018_150)]"
               >
-                Baca insight
+                Baca Insight
               </Link>
             </div>
           </div>
@@ -440,20 +477,20 @@ export default function DashboardPage() {
             <p className="mb-5 text-[10px] font-semibold uppercase tracking-[0.32em] text-silver-500">
               {hasMemberAccess ? "Lanjutkan pantauan" : "Yang bisa dicek di sini"}
             </p>
-            <div className="space-y-px overflow-hidden rounded-[20px] border border-white/[0.06] bg-white/[0.015]">
+            <div className="space-y-px overflow-hidden rounded-[20px] border border-white/[0.08] bg-white/[0.02]">
               {(hasMemberAccess
                 ? [
                     { label: "Pantau pasar", value: "Lihat IHSG dan bursa global sebelum memilih saham." },
-                    { label: "Cari saham", value: "Ketik kode saham, lalu buka grafiknya langsung dari dashboard." },
+                    { label: "Cari saham", value: "Ketik kode saham, grafiknya langsung muncul di bawah." },
                     { label: "Susun rencana", value: "Lanjut ke insight dan tools saat butuh keputusan yang lebih rapi." },
                   ]
                 : [
                     { label: "Lihat arah pasar", value: "IHSG dan bursa global memberi gambaran awal hari ini." },
                     { label: "Coba cari saham", value: "Masukkan kode saham yang ingin kamu pantau." },
-                    { label: "Buka akses lengkap", value: "Daftar saat ingin membaca grafik dan riset saham lebih dalam." },
+                    { label: "Buka akses lengkap", value: "Daftar untuk akses grafik, insight, dan watchlist lengkap." },
                   ]
               ).map((row, idx) => (
-                <div key={row.label} className="group relative px-5 py-4 transition hover:bg-white/[0.02]">
+                <div key={row.label} className="group relative px-5 py-4 transition hover:bg-white/[0.03]">
                   <div className="flex items-baseline justify-between gap-3">
                     <p className="text-sm font-semibold text-silver-100">{row.label}</p>
                     <span className="text-[10px] font-semibold tabular-nums text-silver-600">{String(idx + 1).padStart(2, "0")}</span>
@@ -467,16 +504,16 @@ export default function DashboardPage() {
       </section>
 
       {/* MARKET NEWS TICKER */}
-      <section className="overflow-hidden border-y border-white/[0.06] py-3.5">
+      <section className="overflow-hidden border-y border-white/[0.08] py-3.5" aria-label="Market news ticker">
         <div className="flex items-center gap-5">
           <div className="shrink-0 flex items-center gap-2.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-amber-300 animate-pulse" />
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-300 animate-pulse" aria-hidden="true" />
             <span className="text-[10px] font-semibold uppercase tracking-[0.32em] text-silver-400">Market wire</span>
           </div>
-          <div className="hidden h-3 w-px bg-white/10 sm:block" />
+          <div className="hidden h-3 w-px bg-white/10 sm:block" aria-hidden="true" />
           <div className="relative min-w-0 flex-1 overflow-hidden">
-            <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-16 bg-gradient-to-r from-[oklch(15%_0.022_160)] to-transparent" />
-            <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-16 bg-gradient-to-l from-[oklch(15%_0.022_160)] to-transparent" />
+            <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-16 bg-gradient-to-r from-[oklch(15%_0.022_160)] to-transparent" aria-hidden="true" />
+            <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-16 bg-gradient-to-l from-[oklch(15%_0.022_160)] to-transparent" aria-hidden="true" />
             <div className="market-news-marquee flex w-max items-center gap-6 pr-6">
               {[...displayedMarketNews, ...displayedMarketNews].map((item, index) => (
                 <a
@@ -484,10 +521,10 @@ export default function DashboardPage() {
                   href={item.link}
                   target="_blank"
                   rel="noreferrer"
-                  className="group inline-flex items-center gap-3 text-[13px] text-silver-400 transition hover:text-silver-100"
+                  className="group inline-flex items-center gap-3 text-[13px] text-silver-400 transition hover:text-silver-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:rounded"
                 >
                   <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-silver-600 group-hover:text-amber-300">{item.source}</span>
-                  <span className="h-1 w-1 rounded-full bg-silver-700" />
+                  <span className="h-1 w-1 rounded-full bg-silver-700" aria-hidden="true" />
                   <span className="max-w-[460px] truncate">{item.title}</span>
                 </a>
               ))}
@@ -497,25 +534,35 @@ export default function DashboardPage() {
       </section>
        
       {/* MARKET TEMPERATURE */}
-      <section>
+      <section aria-labelledby="market-temp-heading">
         <div className="mb-6 flex items-center gap-3">
-          <span className="h-[1px] w-8 bg-amber-300/40" />
-          <span className="text-[10px] font-semibold uppercase tracking-[0.32em] text-silver-500">Suhu pasar</span>
+          <span className="h-[1px] w-8 bg-amber-300/40" aria-hidden="true" />
+          <h2 id="market-temp-heading" className="text-[10px] font-semibold uppercase tracking-[0.32em] text-silver-500">Suhu pasar</h2>
         </div>
 
-        <div className="grid grid-cols-1 gap-px overflow-hidden rounded-[24px] border border-white/[0.06] bg-white/[0.015] lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-px overflow-hidden rounded-[24px] border border-white/[0.08] bg-white/[0.02] lg:grid-cols-4">
           {/* VIX hero metric */}
           <div className="relative overflow-hidden bg-[oklch(13%_0.018_150)] p-6 sm:p-8">
             <p className="text-[10px] font-semibold uppercase tracking-[0.32em] text-silver-500">Suhu pasar global</p>
-            <div className="mt-6 flex items-baseline gap-3">
-              <span className={`text-[3.4rem] font-bold tabular-nums leading-none tracking-[-0.04em] ${vixQuote ? getVixColor(vixQuote.price) : 'text-silver-700'}`}>
-                {vixQuote ? vixQuote.price.toFixed(2) : "--.--"}
-              </span>
-              <span className="text-xs font-medium uppercase tracking-[0.2em] text-silver-600">VIX</span>
-            </div>
-            <p className={`mt-4 text-xs font-semibold uppercase tracking-[0.18em] ${vixQuote ? getVixColor(vixQuote.price) : 'text-silver-700'}`}>
-              {vixQuote ? getVixStatus(vixQuote.price) : "Memuat..."}
-            </p>
+            {vixQuote ? (
+              <>
+                <div className="mt-6 flex items-baseline gap-3">
+                  <span className={`text-[3.4rem] font-bold tabular-nums leading-none tracking-[-0.04em] ${getVixColor(vixQuote.price)}`}>
+                    {vixQuote.price.toFixed(2)}
+                  </span>
+                  <span className="text-xs font-medium uppercase tracking-[0.2em] text-silver-600">VIX</span>
+                </div>
+                <p className={`mt-4 text-xs font-semibold uppercase tracking-[0.18em] ${getVixColor(vixQuote.price)}`}>
+                  {getVixStatus(vixQuote.price)}
+                </p>
+                <div className="mt-4 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
+                  <p className="text-[10px] font-medium text-silver-500 mb-1">VIX INSIGHT</p>
+                  <p className="text-xs text-silver-300">{getVixInsight(vixQuote.price)}</p>
+                </div>
+              </>
+            ) : (
+              <SkeletonQuote />
+            )}
           </div>
 
           {/* US Indices */}
@@ -528,15 +575,23 @@ export default function DashboardPage() {
                   <span className="text-[10px] font-semibold uppercase tracking-[0.28em] text-silver-500">
                     {idx.badge === "US" ? "Bursa Amerika" : `Bursa ${idx.badge}`}
                   </span>
-                  <span className={`h-1.5 w-1.5 rounded-full ${isUp ? 'bg-emerald-400' : 'bg-rose-400'}`} />
+                  <span className={`h-1.5 w-1.5 rounded-full ${isUp ? 'bg-emerald-400' : 'bg-rose-400'}`} aria-hidden="true" />
                 </div>
                 <p className="mt-2 text-sm font-semibold text-silver-200">{idx.label}</p>
-                <p className="mt-6 text-3xl font-bold tabular-nums tracking-[-0.03em] text-silver-100">
-                  {q ? q.price.toLocaleString("en-US", { maximumFractionDigits: 1 }) : "---"}
-                </p>
-                <p className={`mt-2 text-xs font-semibold tabular-nums ${isUp ? "text-emerald-400" : "text-rose-400"}`}>
-                  {q ? `${isUp ? "+" : ""}${q.changePercent.toFixed(2)}%` : "0.00%"}
-                </p>
+                {q ? (
+                  <>
+                    <p className="mt-6 text-3xl font-bold tabular-nums tracking-[-0.03em] text-silver-100">
+                      {q.price.toLocaleString("en-US", { maximumFractionDigits: 1 })}
+                    </p>
+                    <p className={`mt-2 text-xs font-semibold tabular-nums ${isUp ? "text-emerald-400" : "text-rose-400"}`}>
+                      {`${isUp ? "+" : ""}${q.changePercent.toFixed(2)}%`}
+                    </p>
+                  </>
+                ) : (
+                  <div className="mt-6">
+                    <SkeletonQuote />
+                  </div>
+                )}
               </div>
             );
           })}
@@ -553,14 +608,14 @@ export default function DashboardPage() {
             </p>
             <p className="mt-3 text-sm leading-relaxed text-silver-500">
               {hasMemberAccess
-                ? "Pilih kode saham, grafik akan muncul di bawah pencarian tanpa modal."
+                ? "Ketik kode saham, grafiknya langsung muncul di bawah."
                 : "Cari kode saham dulu. Daftar untuk melihat grafik dan detailnya."}
             </p>
           </div>
 
           <div className="group relative">
-            <div className="relative flex items-center gap-4 rounded-[20px] border border-white/[0.08] bg-white/[0.02] px-5 py-4 transition focus-within:border-amber-300/40 focus-within:bg-white/[0.03] sm:px-6 sm:py-5">
-              <svg className="h-4 w-4 text-silver-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <div className="relative flex items-center gap-4 rounded-[20px] border border-white/[0.08] bg-white/[0.03] px-5 py-4 transition focus-within:border-amber-300/40 focus-within:bg-white/[0.04] sm:px-6 sm:py-5">
+              <svg className="h-4 w-4 text-silver-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
               <input
@@ -575,6 +630,7 @@ export default function DashboardPage() {
           </div>
 
           <div className="mt-5 flex flex-wrap justify-center gap-2">
+            <span className="text-[10px] font-medium text-silver-500 self-center mr-1">Populer:</span>
             {QUICK_TICKERS.map((stock) => (
               <button
                 key={stock.symbol}
@@ -591,7 +647,7 @@ export default function DashboardPage() {
               <div className="space-y-px">
                 {visibleSearchResults.slice(0, 6).map((res) => (
                   <button key={res.symbol} onClick={() => openStockFromSearch(res)}
-                    className="group flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-white/[0.025]">
+                    className="group flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-white/[0.03] focus-visible:outline-none focus-visible:bg-white/[0.03] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-300">
                     <div className="flex items-center gap-4 min-w-0">
                       <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.02] text-[11px] font-bold tracking-wide text-amber-300 transition group-hover:border-amber-300/30 group-hover:text-amber-200">
                         {res.symbol.replace(".JK", "")}
@@ -605,7 +661,7 @@ export default function DashboardPage() {
                       <span className={`hidden text-[10px] font-semibold uppercase tracking-[0.18em] sm:inline ${hasMemberAccess ? "text-emerald-400" : "text-amber-300"}`}>
                         {hasMemberAccess ? "Buka grafik" : "Daftar dulu"}
                       </span>
-                      <svg className="h-4 w-4 text-silver-600 transition group-hover:translate-x-0.5 group-hover:text-amber-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                      <svg className="h-4 w-4 text-silver-600 transition group-hover:translate-x-0.5 group-hover:text-amber-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
                     </div>
                   </button>
                 ))}
@@ -647,7 +703,7 @@ export default function DashboardPage() {
               <div className="mt-10 space-y-3">
                 {[
                   { label: "Timeframe", value: activeTimeframe.label },
-                  { label: "Sumber", value: "Yahoo Finance" },
+                  { label: "Update", value: "Setiap menit" },
                 ].map((item) => (
                   <div key={item.label} className="flex items-center justify-between border-t border-white/[0.06] pt-3">
                     <span className="text-[10px] font-semibold uppercase tracking-[0.24em] text-silver-600">{item.label}</span>

@@ -189,11 +189,17 @@ body {
 }
 
 .market-news-marquee {
-  animation: marketMarquee 42s linear infinite;
+  animation: marketMarquee 60s linear infinite;
 }
 
 .market-news-marquee:hover {
   animation-play-state: paused;
+}
+
+@media (min-width: 768px) {
+  .market-news-marquee {
+    animation-duration: 42s;
+  }
 }
 
 /* Hide scrollbar but keep scrollable */
