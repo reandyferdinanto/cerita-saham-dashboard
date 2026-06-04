@@ -195,10 +195,28 @@ function SearchPageInner() {
     setLoadingNews(true);
     setStockNews([]);
     try {
+      // Fetch both external news and article-based news
       const nameParam = companyName ? `?name=${encodeURIComponent(companyName)}` : "";
-      const res = await fetch(`/api/news/stock/${encodeURIComponent(ticker)}${nameParam}`);
-      const data = await res.json();
-      if (Array.isArray(data)) setStockNews(data);
+      const [externalRes, articlesRes] = await Promise.all([
+        fetch(`/api/news/stock/${encodeURIComponent(ticker)}${nameParam}`),
+        fetch(`/api/news/articles/${encodeURIComponent(ticker)}?limit=10&days=30`)
+      ]);
+      
+      const externalData = await externalRes.json();
+      const articlesData = await articlesRes.json();
+      
+      // Combine both sources
+      const externalNews = Array.isArray(externalData) ? externalData : [];
+      const articleNews = articlesData.articles || [];
+      
+      // Merge and sort by date (most recent first)
+      const combined = [...externalNews, ...articleNews].sort((a, b) => {
+        const dateA = new Date(a.pubDate).getTime();
+        const dateB = new Date(b.pubDate).getTime();
+        return dateB - dateA;
+      });
+      
+      setStockNews(combined);
     } catch {
       console.error("Failed to fetch stock news");
     } finally {
