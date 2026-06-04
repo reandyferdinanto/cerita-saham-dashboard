@@ -9,8 +9,9 @@ import AdminWatchlistPanel from "@/app/admin/AdminWatchlistPanel";
 import AdminStockSummaryPanel from "@/app/admin/AdminStockSummaryPanel";
 import AdminBreakdownPanel from "@/app/admin/AdminBreakdownPanel";
 import AdminTelegramPanel from "@/app/admin/AdminTelegramPanel";
+import AdminDivergenceScreener from "@/app/admin/divergence-screener/AdminDivergenceScreener";
 
-type AdminTab = "watchlist" | "stock-summary" | "breakdown" | "articles" | "members" | "telegram";
+type AdminTab = "watchlist" | "stock-summary" | "breakdown" | "articles" | "members" | "telegram" | "divergence-screener";
 
 const TAB_CONFIG: Array<{
   id: AdminTab;
@@ -70,6 +71,14 @@ const TAB_CONFIG: Array<{
     description: "Konfigurasi Bot Telegram untuk cek saham, gainer, dan loser otomatis.",
     helper: "Setup bot dan command market otomatis.",
   },
+  {
+    id: "divergence-screener",
+    label: "Divergence Screener",
+    shortLabel: "Divergence",
+    group: "Analisa",
+    description: "Deteksi divergence RSI dan MACD real-time di seluruh market untuk temukan peluang reversal.",
+    helper: "Screening divergence bullish/bearish dengan filter strength dan sektor.",
+  },
 ];
 
 function resolveTab(pathname: string, tabParam: string | null): AdminTab {
@@ -82,7 +91,8 @@ function resolveTab(pathname: string, tabParam: string | null): AdminTab {
     tabParam === "watchlist" || 
     tabParam === "stock-summary" || 
     tabParam === "breakdown" || 
-    tabParam === "telegram"
+    tabParam === "telegram" ||
+    tabParam === "divergence-screener"
   ) {
     return tabParam as AdminTab;
   }
@@ -90,6 +100,13 @@ function resolveTab(pathname: string, tabParam: string | null): AdminTab {
 }
 
 function TabIcon({ tab }: { tab: AdminTab }) {
+  if (tab === "divergence-screener") {
+    return (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+      </svg>
+    );
+  }
   if (tab === "telegram") {
     return (
       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -300,6 +317,7 @@ export default function AdminControlCenter() {
         {activeTab === "stock-summary" ? <AdminStockSummaryPanel /> : null}
         {activeTab === "breakdown" ? <AdminBreakdownPanel /> : null}
         {activeTab === "telegram" ? <AdminTelegramPanel /> : null}
+        {activeTab === "divergence-screener" ? <AdminDivergenceScreener /> : null}
         {activeTab === "articles" ? <AdminArticlesPageContent embedded /> : null}
         {activeTab === "members" ? <AdminUsersPageContent embedded /> : null}
       </section>

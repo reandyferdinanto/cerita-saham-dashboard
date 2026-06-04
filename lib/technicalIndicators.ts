@@ -286,6 +286,392 @@ export function calculateRSI(rows: OHLCVRow[], period = 14): number | null {
   return 100 - 100 / (1 + rs);
 }
 
+// ---------- RSI Divergence Detection ----------
+export type DivergenceType = "bullish" | "bearish" | "hidden_bullish" | "hidden_bearish" | null;
+
+export type RSIDivergence = {
+  detected: boolean;
+  type: "bullish" | "bearish";
+  strength: number;
+  priceLow: number;
+  priceHigh: number;
+  rsiLow: number;
+  rsiHigh: number;
+};
+
+export type DivergenceResult = {
+  type: DivergenceType;
+  strength: number; // 0-100 score
+  pricePoints: { index: number; value: number }[];
+  rsiPoints: { index: number; value: number }[];
+  description: string;
+};
+
+/**
+ * Detect RSI divergence by comparing price action vs RSI over lookback period.
+ * Regular Bullish: Price makes lower low, RSI makes higher low
+ * Regular Bearish: Price makes higher high, RSI makes lower high
+ * Hidden Bullish: Price makes higher low, RSI makes lower low (continuation)
+ * Hidden Bearish: Price makes lower high, RSI makes higher high (continuation)
+ */
+export function detectRSIDivergence(
+  rows: OHLCVRow[],
+  lookback = 14,
+  minBars = 5
+): DivergenceResult | null {
+  if (rows.length < lookback + 14) return null;
+
+  // Calculate RSI for each bar
+  const rsiValues: number[] = [];
+  for (let i = 0; i < lookback; i++) {
+    const rsi = calculateRSI(rows.slice(i), 14);
+    if (rsi !== null) rsiValues.push(rsi);
+    else rsiValues.push(50); // neutral fallback
+  }
+
+  if (rsiValues.length < minBars) return null;
+
+  // Find local extremes in price and RSI
+  const priceExtremes: { index: number; value: number; type: "high" | "low" }[] = [];
+  const rsiExtremes: { index: number; value: number; type: "high" | "low" }[] = [];
+
+  for (let i = 2; i < Math.min(lookback - 2, rsiValues.length - 2); i++) {
+    const price = safe(rows[i].close);
+    const rsi = rsiValues[i];
+
+    // Check if local high
+    if (
+      price > safe(rows[i - 1].close) &&
+      price > safe(rows[i - 2].close) &&
+      price > safe(rows[i + 1].close) &&
+      price > safe(rows[i + 2].close)
+    ) {
+      priceExtremes.push({ index: i, value: price, type: "high" });
+    }
+
+    // Check if local low
+    if (
+      price < safe(rows[i - 1].close) &&
+      price < safe(rows[i - 2].close) &&
+      price < safe(rows[i + 1].close) &&
+      price < safe(rows[i + 2].close)
+    ) {
+      priceExtremes.push({ index: i, value: price, type: "low" });
+    }
+
+    // RSI extremes
+    if (rsi > rsiValues[i - 1] && rsi > rsiValues[i - 2] && rsi > rsiValues[i + 1] && rsi > rsiValues[i + 2]) {
+      rsiExtremes.push({ index: i, value: rsi, type: "high" });
+    }
+    if (rsi < rsiValues[i - 1] && rsi < rsiValues[i - 2] && rsi < rsiValues[i + 1] && rsi < rsiValues[i + 2]) {
+      rsiExtremes.push({ index: i, value: rsi, type: "low" });
+    }
+  }
+
+  // Look for divergence patterns
+  let bestDivergence: DivergenceResult | null = null;
+  let maxStrength = 0;
+
+  // Check for regular bullish divergence (price lower low, RSI higher low)
+  const priceLows = priceExtremes.filter((p) => p.type === "low").slice(0, 3);
+  const rsiLows = rsiExtremes.filter((r) => r.type === "low").slice(0, 3);
+
+  if (priceLows.length >= 2 && rsiLows.length >= 2) {
+    const recentPriceLow = priceLows[0];
+    const olderPriceLow = priceLows[1];
+    const recentRsiLow = rsiLows[0];
+    const olderRsiLow = rsiLows[1];
+
+    if (recentPriceLow.value < olderPriceLow.value && recentRsiLow.value > olderRsiLow.value) {
+      const priceDiff = Math.abs(recentPriceLow.value - olderPriceLow.value) / olderPriceLow.value;
+      const rsiDiff = Math.abs(recentRsiLow.value - olderRsiLow.value);
+      const strength = Math.min(100, (priceDiff * 100 + rsiDiff) * 0.8);
+
+      if (strength > maxStrength) {
+        maxStrength = strength;
+        bestDivergence = {
+          type: "bullish",
+          strength: Math.round(strength),
+          pricePoints: [
+            { index: olderPriceLow.index, value: olderPriceLow.value },
+            { index: recentPriceLow.index, value: recentPriceLow.value },
+          ],
+          rsiPoints: [
+            { index: olderRsiLow.index, value: olderRsiLow.value },
+            { index: recentRsiLow.index, value: recentRsiLow.value },
+          ],
+          description: "Regular Bullish Divergence: Price lower low, RSI higher low",
+        };
+      }
+    }
+  }
+
+  // Check for regular bearish divergence (price higher high, RSI lower high)
+  const priceHighs = priceExtremes.filter((p) => p.type === "high").slice(0, 3);
+  const rsiHighs = rsiExtremes.filter((r) => r.type === "high").slice(0, 3);
+
+  if (priceHighs.length >= 2 && rsiHighs.length >= 2) {
+    const recentPriceHigh = priceHighs[0];
+    const olderPriceHigh = priceHighs[1];
+    const recentRsiHigh = rsiHighs[0];
+    const olderRsiHigh = rsiHighs[1];
+
+    if (recentPriceHigh.value > olderPriceHigh.value && recentRsiHigh.value < olderRsiHigh.value) {
+      const priceDiff = Math.abs(recentPriceHigh.value - olderPriceHigh.value) / olderPriceHigh.value;
+      const rsiDiff = Math.abs(recentRsiHigh.value - olderRsiHigh.value);
+      const strength = Math.min(100, (priceDiff * 100 + rsiDiff) * 0.8);
+
+      if (strength > maxStrength) {
+        maxStrength = strength;
+        bestDivergence = {
+          type: "bearish",
+          strength: Math.round(strength),
+          pricePoints: [
+            { index: olderPriceHigh.index, value: olderPriceHigh.value },
+            { index: recentPriceHigh.index, value: recentPriceHigh.value },
+          ],
+          rsiPoints: [
+            { index: olderRsiHigh.index, value: olderRsiHigh.value },
+            { index: recentRsiHigh.index, value: recentRsiHigh.value },
+          ],
+          description: "Regular Bearish Divergence: Price higher high, RSI lower high",
+        };
+      }
+    }
+  }
+
+  return bestDivergence;
+}
+
+// ---------- MACD Histogram Divergence Detection ----------
+export type MACDDivergence = {
+  detected: boolean;
+  type: "bullish" | "bearish";
+  strength: number;
+  priceLow: number;
+  priceHigh: number;
+  macdLow: number;
+  macdHigh: number;
+};
+
+export type MACDDivergenceResult = {
+  type: DivergenceType;
+  strength: number;
+  pricePoints: { index: number; value: number }[];
+  histogramPoints: { index: number; value: number }[];
+  description: string;
+};
+
+/**
+ * Detect MACD histogram divergence similar to RSI divergence
+ */
+export function detectMACDDivergence(
+  rows: OHLCVRow[],
+  lookback = 14
+): MACDDivergenceResult | null {
+  if (rows.length < lookback + 35) return null;
+
+  // Calculate MACD histogram for each bar
+  const histogramValues: number[] = [];
+  for (let i = 0; i < lookback; i++) {
+    const macd = calculateMACD(rows.slice(i));
+    if (macd !== null) histogramValues.push(macd.histogram);
+    else histogramValues.push(0);
+  }
+
+  // Find local extremes
+  const priceExtremes: { index: number; value: number; type: "high" | "low" }[] = [];
+  const histExtremes: { index: number; value: number; type: "high" | "low" }[] = [];
+
+  for (let i = 2; i < Math.min(lookback - 2, histogramValues.length - 2); i++) {
+    const price = safe(rows[i].close);
+    const hist = histogramValues[i];
+
+    // Price extremes
+    if (
+      price > safe(rows[i - 1].close) &&
+      price > safe(rows[i - 2].close) &&
+      price > safe(rows[i + 1].close) &&
+      price > safe(rows[i + 2].close)
+    ) {
+      priceExtremes.push({ index: i, value: price, type: "high" });
+    }
+    if (
+      price < safe(rows[i - 1].close) &&
+      price < safe(rows[i - 2].close) &&
+      price < safe(rows[i + 1].close) &&
+      price < safe(rows[i + 2].close)
+    ) {
+      priceExtremes.push({ index: i, value: price, type: "low" });
+    }
+
+    // Histogram extremes
+    if (hist > histogramValues[i - 1] && hist > histogramValues[i - 2] &&
+        hist > histogramValues[i + 1] && hist > histogramValues[i + 2]) {
+      histExtremes.push({ index: i, value: hist, type: "high" });
+    }
+    if (hist < histogramValues[i - 1] && hist < histogramValues[i - 2] &&
+        hist < histogramValues[i + 1] && hist < histogramValues[i + 2]) {
+      histExtremes.push({ index: i, value: hist, type: "low" });
+    }
+  }
+
+  let bestDivergence: MACDDivergenceResult | null = null;
+  let maxStrength = 0;
+
+  // Bullish divergence: price lower low, histogram higher low
+  const priceLows = priceExtremes.filter((p) => p.type === "low").slice(0, 2);
+  const histLows = histExtremes.filter((h) => h.type === "low").slice(0, 2);
+
+  if (priceLows.length >= 2 && histLows.length >= 2) {
+    const recentPriceLow = priceLows[0];
+    const olderPriceLow = priceLows[1];
+    const recentHistLow = histLows[0];
+    const olderHistLow = histLows[1];
+
+    if (recentPriceLow.value < olderPriceLow.value && recentHistLow.value > olderHistLow.value) {
+      const priceDiff = Math.abs(recentPriceLow.value - olderPriceLow.value) / olderPriceLow.value;
+      const histDiff = Math.abs(recentHistLow.value - olderHistLow.value);
+      const strength = Math.min(100, (priceDiff * 100 + histDiff * 10) * 0.7);
+
+      if (strength > maxStrength) {
+        maxStrength = strength;
+        bestDivergence = {
+          type: "bullish",
+          strength: Math.round(strength),
+          pricePoints: [
+            { index: olderPriceLow.index, value: olderPriceLow.value },
+            { index: recentPriceLow.index, value: recentPriceLow.value },
+          ],
+          histogramPoints: [
+            { index: olderHistLow.index, value: olderHistLow.value },
+            { index: recentHistLow.index, value: recentHistLow.value },
+          ],
+          description: "MACD Bullish Divergence: Price lower low, Histogram higher low",
+        };
+      }
+    }
+  }
+
+  // Bearish divergence: price higher high, histogram lower high
+  const priceHighs = priceExtremes.filter((p) => p.type === "high").slice(0, 2);
+  const histHighs = histExtremes.filter((h) => h.type === "high").slice(0, 2);
+
+  if (priceHighs.length >= 2 && histHighs.length >= 2) {
+    const recentPriceHigh = priceHighs[0];
+    const olderPriceHigh = priceHighs[1];
+    const recentHistHigh = histHighs[0];
+    const olderHistHigh = histHighs[1];
+
+    if (recentPriceHigh.value > olderPriceHigh.value && recentHistHigh.value < olderHistHigh.value) {
+      const priceDiff = Math.abs(recentPriceHigh.value - olderPriceHigh.value) / olderPriceHigh.value;
+      const histDiff = Math.abs(recentHistHigh.value - olderHistHigh.value);
+      const strength = Math.min(100, (priceDiff * 100 + histDiff * 10) * 0.7);
+
+      if (strength > maxStrength) {
+        maxStrength = strength;
+        bestDivergence = {
+          type: "bearish",
+          strength: Math.round(strength),
+          pricePoints: [
+            { index: olderPriceHigh.index, value: olderPriceHigh.value },
+            { index: recentPriceHigh.index, value: recentPriceHigh.value },
+          ],
+          histogramPoints: [
+            { index: olderHistHigh.index, value: olderHistHigh.value },
+            { index: recentHistHigh.index, value: recentHistHigh.value },
+          ],
+          description: "MACD Bearish Divergence: Price higher high, Histogram lower high",
+        };
+      }
+    }
+  }
+
+  return bestDivergence;
+}
+
+// ---------- Fibonacci Levels ----------
+export type FibonacciLevels = {
+  swingHigh: number;
+  swingLow: number;
+  range: number;
+  retracements: {
+    level: number;
+    percentage: string;
+    price: number;
+    label: string;
+  }[];
+  extensions: {
+    level: number;
+    percentage: string;
+    price: number;
+    label: string;
+  }[];
+  direction: "uptrend" | "downtrend";
+};
+
+/**
+ * Calculate Fibonacci retracement and extension levels from swing high/low
+ * For uptrend: retracements from high down to low, extensions above high
+ * For downtrend: retracements from low up to high, extensions below low
+ */
+export function calculateFibonacciLevels(
+  swingHigh: number,
+  swingLow: number,
+  currentPrice: number
+): FibonacciLevels | null {
+  if (!isValid(swingHigh) || !isValid(swingLow) || swingHigh <= swingLow) return null;
+
+  const range = swingHigh - swingLow;
+  const direction: "uptrend" | "downtrend" = currentPrice >= (swingHigh + swingLow) / 2 ? "uptrend" : "downtrend";
+
+  // Retracement levels (from high to low in uptrend)
+  const retracementLevels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0];
+  const retracements = retracementLevels.map((level) => ({
+    level,
+    percentage: `${(level * 100).toFixed(1)}%`,
+    price: Math.round(swingHigh - range * level),
+    label: level === 0 ? "Swing High" : level === 1 ? "Swing Low" : `${(level * 100).toFixed(1)}% Retracement`,
+  }));
+
+  // Extension levels (above high in uptrend)
+  const extensionLevels = [1.272, 1.618, 2.618];
+  const extensions = extensionLevels.map((level) => ({
+    level,
+    percentage: `${(level * 100).toFixed(1)}%`,
+    price: Math.round(swingHigh + range * (level - 1)),
+    label: `${(level * 100).toFixed(1)}% Extension`,
+  }));
+
+  return {
+    swingHigh,
+    swingLow,
+    range,
+    retracements,
+    extensions,
+    direction,
+  };
+}
+
+/**
+ * Find optimal Fibonacci levels based on recent price action
+ * Uses swing high/low detection with adaptive lookback
+ */
+export function findOptimalFibonacciLevels(
+  rows: OHLCVRow[],
+  lookback = 30
+): FibonacciLevels | null {
+  if (rows.length < lookback) return null;
+
+  const swingHigh = findRecentSwingHigh(rows, lookback);
+  const swingLow = findRecentSwingLow(rows, lookback);
+  const currentPrice = safe(rows[0]?.close);
+
+  if (!swingHigh || !swingLow || !currentPrice) return null;
+
+  return calculateFibonacciLevels(swingHigh, swingLow, currentPrice);
+}
+
 // ---------- Swing High/Low ----------
 export function findRecentSwingHigh(rows: OHLCVRow[], lookback = 20): number | null {
   if (rows.length < 2) return null;
@@ -404,6 +790,19 @@ export type SetupTag =
   | "MFI Strong"
   | "Close at High";
 
+export type StrategySignal = {
+  type: "LONG" | "SHORT" | "NEUTRAL";
+  strength: number; // 0-100
+  confidence: number; // 0-100
+  convergenceFactors: string[];
+  entryZone: { min: number; max: number } | null;
+  stopLoss: number | null;
+  targets: { tp1: number; tp2: number; tp3: number } | null;
+  riskReward: number | null;
+  timeframe: "scalp" | "swing";
+  description: string;
+};
+
 export type TechnicalSnapshot = {
   atr14: number | null;
   rvol: number | null;
@@ -420,7 +819,140 @@ export type TechnicalSnapshot = {
   swingLow20: number | null;
   setups: SetupTag[];
   tradePlan: TradePlan | null;
+  // Phase 1 additions
+  rsiDivergence: DivergenceResult | null;
+  macdDivergence: MACDDivergenceResult | null;
+  fibonacciLevels: FibonacciLevels | null;
+  strategySignal: StrategySignal | null;
 };
+
+/**
+ * Generate strategy signal based on convergence of multiple indicators
+ */
+export function generateStrategySignal(args: {
+  rsiDivergence: DivergenceResult | null;
+  macdDivergence: MACDDivergenceResult | null;
+  rsi14: number | null;
+  macd: MACDResult | null;
+  fibLevels: FibonacciLevels | null;
+  currentPrice: number;
+  tradePlan: TradePlan | null;
+}): StrategySignal | null {
+  const { rsiDivergence, macdDivergence, rsi14, macd, fibLevels, currentPrice, tradePlan } = args;
+
+  const convergenceFactors: string[] = [];
+  let strength = 0;
+  let confidence = 0;
+  let signalType: "LONG" | "SHORT" | "NEUTRAL" = "NEUTRAL";
+
+  // Check for bullish convergence
+  if (rsiDivergence?.type === "bullish") {
+    convergenceFactors.push(`RSI Bullish Divergence (${rsiDivergence.strength}%)`);
+    strength += rsiDivergence.strength * 0.4;
+    confidence += 25;
+  }
+
+  if (macdDivergence?.type === "bullish") {
+    convergenceFactors.push(`MACD Bullish Divergence (${macdDivergence.strength}%)`);
+    strength += macdDivergence.strength * 0.3;
+    confidence += 20;
+  }
+
+  if (rsi14 !== null && rsi14 < 40) {
+    convergenceFactors.push(`RSI Oversold (${rsi14.toFixed(1)})`);
+    strength += 15;
+    confidence += 15;
+  }
+
+  if (macd && macd.histogram > 0 && macd.histogramRising) {
+    convergenceFactors.push("MACD Bullish Crossover");
+    strength += 20;
+    confidence += 15;
+  }
+
+  // Check for bearish convergence
+  if (rsiDivergence?.type === "bearish") {
+    convergenceFactors.push(`RSI Bearish Divergence (${rsiDivergence.strength}%)`);
+    strength += rsiDivergence.strength * 0.4;
+    confidence += 25;
+    signalType = "SHORT";
+  }
+
+  if (macdDivergence?.type === "bearish") {
+    convergenceFactors.push(`MACD Bearish Divergence (${macdDivergence.strength}%)`);
+    strength += macdDivergence.strength * 0.3;
+    confidence += 20;
+    signalType = "SHORT";
+  }
+
+  if (rsi14 !== null && rsi14 > 70) {
+    convergenceFactors.push(`RSI Overbought (${rsi14.toFixed(1)})`);
+    strength += 15;
+    confidence += 15;
+    if (signalType === "NEUTRAL") signalType = "SHORT";
+  }
+
+  // Determine signal type based on convergence
+  if (convergenceFactors.length >= 2 && signalType === "NEUTRAL") {
+    signalType = "LONG";
+  }
+
+  if (convergenceFactors.length < 2) {
+    return null; // Not enough convergence
+  }
+
+  // Build entry zone and targets using Fibonacci levels
+  let entryZone: { min: number; max: number } | null = null;
+  let targets: { tp1: number; tp2: number; tp3: number } | null = null;
+  let stopLoss: number | null = tradePlan?.stopLoss ?? null;
+
+  if (fibLevels && signalType === "LONG") {
+    // Entry zone: between 38.2% and 61.8% retracement
+    const fib382 = fibLevels.retracements.find((r) => r.level === 0.382);
+    const fib618 = fibLevels.retracements.find((r) => r.level === 0.618);
+    if (fib382 && fib618) {
+      entryZone = { min: fib618.price, max: fib382.price };
+    }
+
+    // Targets: Fibonacci extensions
+    const ext127 = fibLevels.extensions.find((e) => e.level === 1.272);
+    const ext162 = fibLevels.extensions.find((e) => e.level === 1.618);
+    const ext262 = fibLevels.extensions.find((e) => e.level === 2.618);
+    if (ext127 && ext162 && ext262) {
+      targets = { tp1: ext127.price, tp2: ext162.price, tp3: ext262.price };
+    }
+
+    // Stop loss: below 78.6% retracement or swing low
+    const fib786 = fibLevels.retracements.find((r) => r.level === 0.786);
+    if (fib786) {
+      stopLoss = Math.min(stopLoss ?? fib786.price, fib786.price);
+    }
+  }
+
+  const riskReward = targets && stopLoss ? (targets.tp1 - currentPrice) / (currentPrice - stopLoss) : tradePlan?.riskRewardRatio ?? null;
+
+  const timeframe: "scalp" | "swing" = convergenceFactors.length >= 3 ? "swing" : "scalp";
+
+  const description =
+    signalType === "LONG"
+      ? `Bullish setup with ${convergenceFactors.length} convergence factors. Entry near Fibonacci support.`
+      : signalType === "SHORT"
+      ? `Bearish setup with ${convergenceFactors.length} convergence factors. Consider short position.`
+      : "Neutral - insufficient convergence for clear signal.";
+
+  return {
+    type: signalType,
+    strength: Math.min(100, Math.round(strength)),
+    confidence: Math.min(100, Math.round(confidence)),
+    convergenceFactors,
+    entryZone,
+    stopLoss,
+    targets,
+    riskReward,
+    timeframe,
+    description,
+  };
+}
 
 export function buildTechnicalSnapshot(rows: OHLCVRow[]): TechnicalSnapshot {
   const atr14 = calculateATR(rows, 14);
@@ -435,6 +967,11 @@ export function buildTechnicalSnapshot(rows: OHLCVRow[]): TechnicalSnapshot {
   const highBreak6M = detect6MonthHighBreak(rows, 126);
   const swingHigh20 = findRecentSwingHigh(rows, 20);
   const swingLow20 = findRecentSwingLow(rows, 20);
+
+  // Phase 1 additions
+  const rsiDivergence = detectRSIDivergence(rows, 20, 5);
+  const macdDivergence = detectMACDDivergence(rows, 20);
+  const fibonacciLevels = findOptimalFibonacciLevels(rows, 30);
 
   const setups: SetupTag[] = [];
   if (rvol != null && rvol >= 2) setups.push("RVOL>2");
@@ -462,6 +999,17 @@ export function buildTechnicalSnapshot(rows: OHLCVRow[]): TechnicalSnapshot {
       })
     : null;
 
+  const currentPrice = safe(today?.close);
+  const strategySignal = generateStrategySignal({
+    rsiDivergence,
+    macdDivergence,
+    rsi14,
+    macd,
+    fibLevels: fibonacciLevels,
+    currentPrice,
+    tradePlan,
+  });
+
   return {
     atr14,
     rvol,
@@ -478,5 +1026,9 @@ export function buildTechnicalSnapshot(rows: OHLCVRow[]): TechnicalSnapshot {
     swingLow20,
     setups,
     tradePlan,
+    rsiDivergence,
+    macdDivergence,
+    fibonacciLevels,
+    strategySignal,
   };
 }

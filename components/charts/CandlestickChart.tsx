@@ -15,6 +15,7 @@ import {
 import type { BaselineData, CandlestickData, HistogramData, LineData, SeriesMarker, Time } from "lightweight-charts";
 import { OHLCData } from "@/lib/types";
 import { calcRadarMomentum, OHLCVBar } from "@/lib/technicalSignals";
+import { FibonacciLevels, DivergenceResult, MACDDivergenceResult } from "@/lib/technicalIndicators";
 
 interface CandlestickChartProps {
   data: OHLCData[];
@@ -22,6 +23,9 @@ interface CandlestickChartProps {
   sl?: number | null;
   height?: number;
   mobileHeight?: number;
+  fibonacciLevels?: FibonacciLevels | null;
+  rsiDivergence?: DivergenceResult | null;
+  macdDivergence?: MACDDivergenceResult | null;
 }
 
 // ── Indicator helpers ──────────────────────────────────────────────────────────
@@ -120,7 +124,7 @@ function calcSRZones(data: OHLCData[], pivotLeft = 7, pivotRight = 7, atrLen = 1
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
-type IndicatorKey = "ema9" | "ema20" | "ema50" | "macd" | "sr" | "radar";
+type IndicatorKey = "ema9" | "ema20" | "ema50" | "macd" | "sr" | "radar" | "fib" | "div";
 
 const INDICATOR_CONFIG: { key: IndicatorKey; label: string; color: string }[] = [
   { key: "ema9",  label: "EMA9",  color: "#f59e0b" },
@@ -129,9 +133,20 @@ const INDICATOR_CONFIG: { key: IndicatorKey; label: string; color: string }[] = 
   { key: "macd",  label: "MACD",  color: "#10b981" },
   { key: "sr",    label: "S/R",   color: "#94a3b8" },
   { key: "radar", label: "Radar", color: "#11cf77" },
+  { key: "fib",   label: "Fibonacci", color: "#fbbf24" },
+  { key: "div",   label: "Divergence", color: "#ec4899" },
 ];
 
-export default function CandlestickChart({ data, tp, sl, height = 500, mobileHeight = 320 }: CandlestickChartProps) {
+export default function CandlestickChart({
+  data,
+  tp,
+  sl,
+  height = 500,
+  mobileHeight = 320,
+  fibonacciLevels,
+  rsiDivergence,
+  macdDivergence,
+}: CandlestickChartProps) {
   // Single chart ref: price, MACD, and Radar Momentum render in one chart instance.
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInst = useRef<IChartApi | null>(null);
@@ -284,6 +299,136 @@ export default function CandlestickChart({ data, tp, sl, height = 500, mobileHei
 
       res.forEach((level, i) => drawZoneBand(level.idx, level.price, srHalf, "rgba(239,68,68,0.10)", "rgba(239,68,68,0.45)", i === 0 ? "R1" : "R2"));
       sup.forEach((level, i) => drawZoneBand(level.idx, level.price, srHalf, "rgba(16,185,129,0.10)", "rgba(16,185,129,0.45)", i === 0 ? "S1" : "S2"));
+    }
+
+    // ── Fibonacci Levels ──
+    if (activeIndicators.has("fib") && fibonacciLevels) {
+      const fibColors = {
+        retracement: {
+          0: { color: "#ef4444", label: "0% (High)" },
+          0.236: { color: "#f97316", label: "23.6%" },
+          0.382: { color: "#fbbf24", label: "38.2%" },
+          0.5: { color: "#84cc16", label: "50%" },
+          0.618: { color: "#10b981", label: "61.8%" },
+          0.786: { color: "#06b6d4", label: "78.6%" },
+          1: { color: "#3b82f6", label: "100% (Low)" },
+        },
+        extension: {
+          1.272: { color: "#8b5cf6", label: "127.2%" },
+          1.618: { color: "#a855f7", label: "161.8%" },
+          2.618: { color: "#d946ef", label: "261.8%" },
+        }
+      };
+
+      // Draw retracement levels
+      fibonacciLevels.retracements.forEach((level) => {
+        const config = fibColors.retracement[level.level as keyof typeof fibColors.retracement];
+        if (config) {
+          candleSeries.createPriceLine({
+            price: level.price,
+            color: config.color,
+            lineWidth: 1,
+            lineStyle: LineStyle.Dashed,
+            axisLabelVisible: true,
+            title: config.label,
+          });
+        }
+      });
+
+      // Draw extension levels
+      fibonacciLevels.extensions.forEach((level) => {
+        const config = fibColors.extension[level.level as keyof typeof fibColors.extension];
+        if (config) {
+          candleSeries.createPriceLine({
+            price: level.price,
+            color: config.color,
+            lineWidth: 1,
+            lineStyle: LineStyle.Dotted,
+            axisLabelVisible: true,
+            title: config.label,
+          });
+        }
+      });
+    }
+
+    // ── Divergence Markers ──
+    if (activeIndicators.has("div") && (rsiDivergence || macdDivergence)) {
+      const divMarkers: SeriesMarker<Time>[] = [];
+
+      // RSI Divergence markers
+      if (rsiDivergence && rsiDivergence.type) {
+        const isBullish = rsiDivergence.type === "bullish";
+        rsiDivergence.pricePoints.forEach((point, idx) => {
+          if (idx < data.length) {
+            divMarkers.push({
+              time: asChartTime(data[data.length - 1 - point.index].time),
+              position: isBullish ? "belowBar" : "aboveBar",
+              color: isBullish ? "#10b981" : "#ef4444",
+              shape: isBullish ? "arrowUp" : "arrowDown",
+              text: `RSI ${isBullish ? "D+" : "D-"}`,
+            });
+          }
+        });
+
+        // Draw divergence lines connecting price points
+        if (rsiDivergence.pricePoints.length >= 2) {
+          const p1 = rsiDivergence.pricePoints[0];
+          const p2 = rsiDivergence.pricePoints[1];
+          if (p1.index < data.length && p2.index < data.length) {
+            chart.addSeries(LineSeries, {
+              color: isBullish ? "#10b981" : "#ef4444",
+              lineWidth: 2,
+              lineStyle: LineStyle.Dashed,
+              priceLineVisible: false,
+              lastValueVisible: false,
+              crosshairMarkerVisible: false,
+            }).setData([
+              { time: asChartTime(data[data.length - 1 - p1.index].time), value: p1.value },
+              { time: asChartTime(data[data.length - 1 - p2.index].time), value: p2.value },
+            ] as LineData<Time>[]);
+          }
+        }
+      }
+
+      // MACD Divergence markers
+      if (macdDivergence && macdDivergence.type) {
+        const isBullish = macdDivergence.type === "bullish";
+        macdDivergence.pricePoints.forEach((point, idx) => {
+          if (idx < data.length) {
+            divMarkers.push({
+              time: asChartTime(data[data.length - 1 - point.index].time),
+              position: isBullish ? "belowBar" : "aboveBar",
+              color: isBullish ? "#06b6d4" : "#f97316",
+              shape: isBullish ? "circle" : "circle",
+              text: `MACD ${isBullish ? "D+" : "D-"}`,
+            });
+          }
+        });
+
+        // Draw MACD divergence lines
+        if (macdDivergence.pricePoints.length >= 2) {
+          const p1 = macdDivergence.pricePoints[0];
+          const p2 = macdDivergence.pricePoints[1];
+          if (p1.index < data.length && p2.index < data.length) {
+            chart.addSeries(LineSeries, {
+              color: isBullish ? "#06b6d4" : "#f97316",
+              lineWidth: 2,
+              lineStyle: LineStyle.Dotted,
+              priceLineVisible: false,
+              lastValueVisible: false,
+              crosshairMarkerVisible: false,
+            }).setData([
+              { time: asChartTime(data[data.length - 1 - p1.index].time), value: p1.value },
+              { time: asChartTime(data[data.length - 1 - p2.index].time), value: p2.value },
+            ] as LineData<Time>[]);
+          }
+        }
+      }
+
+      // Apply all divergence markers to candlestick series
+      if (divMarkers.length > 0) {
+        createSeriesMarkers(candleSeries, divMarkers);
+      }
     }
 
     // ── MACD — same chart, dedicated "macd" price scale at the bottom ──
@@ -459,7 +604,7 @@ export default function CandlestickChart({ data, tp, sl, height = 500, mobileHei
       window.removeEventListener("resize", handleResize);
       chart.remove();
     };
-  }, [data, tp, sl, height, mobileHeight, activeIndicators, showMACD, showRadar]);
+  }, [data, tp, sl, height, mobileHeight, activeIndicators, showMACD, showRadar, fibonacciLevels, rsiDivergence, macdDivergence]);
 
   return (
     <div className="w-full">

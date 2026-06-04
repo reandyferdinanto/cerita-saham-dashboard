@@ -6,7 +6,11 @@ import dynamic from "next/dynamic";
 import GlassCard from "@/components/ui/GlassCard";
 import FundamentalSection from "@/components/ui/FundamentalSection";
 import TechnicalSignalPanel from "@/components/ui/TechnicalSignalPanel";
+import StrategySignalCard from "@/components/ui/StrategySignalCard";
+import DivergencePanel from "@/components/ui/DivergencePanel";
+import FibonacciLevelsDisplay from "@/components/ui/FibonacciLevelsDisplay";
 import { SearchResult, StockQuote, OHLCData } from "@/lib/types";
+import { buildTechnicalSnapshot, TechnicalSnapshot } from "@/lib/technicalIndicators";
 
 const CandlestickChart = dynamic(
   () => import("@/components/charts/CandlestickChart"),
@@ -142,6 +146,8 @@ function SearchPageInner() {
   const [loadingFundamental, setLoadingFundamental] = useState(false);
   const [popularStocks, setPopularStocks] = useState<PopularStockItem[]>([]);
   const [loadingPopularStocks, setLoadingPopularStocks] = useState(true);
+  const [technicalSnapshot, setTechnicalSnapshot] = useState<TechnicalSnapshot | null>(null);
+  const [loadingTechnical, setLoadingTechnical] = useState(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchParams = useSearchParams();
   const initializedRef = useRef(false);
@@ -280,6 +286,51 @@ function SearchPageInner() {
     },
     []
   );
+
+  // Calculate technical snapshot when history changes
+  useEffect(() => {
+    if (history.length >= 60 && selectedTicker) {
+      setLoadingTechnical(true);
+      try {
+        // Convert history to newest-first format for technical indicators
+        const reversedHistory = [...history].reverse();
+        const snapshot = buildTechnicalSnapshot(reversedHistory);
+        setTechnicalSnapshot(snapshot);
+      } catch (error) {
+        console.error("Failed to calculate technical snapshot:", error);
+        setTechnicalSnapshot(null);
+      } finally {
+        setLoadingTechnical(false);
+      }
+    } else {
+      setTechnicalSnapshot(null);
+    }
+  }, [history, selectedTicker]);
+
+  // Real-time data polling (60 seconds) for technical indicators
+  useEffect(() => {
+    if (!selectedTicker || history.length < 60) return;
+
+    const pollInterval = setInterval(async () => {
+      try {
+        // Fetch latest quote
+        const quoteRes = await fetch(`/api/stocks/quote/${encodeURIComponent(selectedTicker)}`);
+        const quoteData = await quoteRes.json();
+        
+        if (!quoteData.error && quoteData.price) {
+          // Update quote
+          setQuote(quoteData);
+          
+          // Refresh chart data with new price
+          await fetchChart(selectedTicker, activeTimeframe, quoteData.price);
+        }
+      } catch (error) {
+        console.error("Failed to poll real-time data:", error);
+      }
+    }, 60000); // 60 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [selectedTicker, activeTimeframe, fetchChart, history.length]);
 
   const selectStock = useCallback(
     async (ticker: string) => {
@@ -651,7 +702,13 @@ function SearchPageInner() {
               </div>
             ) : history.length > 0 ? (
               chartType === "candlestick" ? (
-                <CandlestickChart data={history} height={450} />
+                <CandlestickChart
+                  data={history}
+                  height={450}
+                  fibonacciLevels={technicalSnapshot?.fibonacciLevels ?? null}
+                  rsiDivergence={technicalSnapshot?.rsiDivergence ?? null}
+                  macdDivergence={technicalSnapshot?.macdDivergence ?? null}
+                />
               ) : (
                 <LineChart
                   data={history.map((d) => ({ time: d.time, value: d.close }))}
@@ -691,13 +748,39 @@ function SearchPageInner() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
             {/* Left Column */}
             <div className="space-y-5 flex flex-col">
-              {/* â”€â”€ Sinyal Teknikal â”€â”€ */}
+              {/* â"€â"€ Sinyal Teknikal â"€â"€ */}
               {history.length >= 20 && (
-            <TechnicalSignalPanel history={history} ticker={selectedTicker!} />
-          )}
+                <TechnicalSignalPanel history={history} ticker={selectedTicker!} />
+              )}
 
-          {/* â”€â”€ Related News & Sentiment â”€â”€ */}
-          <GlassCard hover={false}>
+              {/* â"€â"€ Strategy Signal Card â"€â"€ */}
+              {history.length >= 60 && (
+                <StrategySignalCard
+                  signal={technicalSnapshot?.strategySignal ?? null}
+                  loading={loadingTechnical}
+                />
+              )}
+
+              {/* â"€â"€ Divergence Analysis â"€â"€ */}
+              {history.length >= 60 && (
+                <DivergencePanel
+                  rsiDivergence={technicalSnapshot?.rsiDivergence ?? null}
+                  macdDivergence={technicalSnapshot?.macdDivergence ?? null}
+                  loading={loadingTechnical}
+                />
+              )}
+
+              {/* â"€â"€ Fibonacci Levels â"€â"€ */}
+              {history.length >= 60 && quote && (
+                <FibonacciLevelsDisplay
+                  fibLevels={technicalSnapshot?.fibonacciLevels ?? null}
+                  currentPrice={quote.price}
+                  loading={loadingTechnical}
+                />
+              )}
+
+              {/* â"€â"€ Related News & Sentiment â"€â"€ */}
+              <GlassCard hover={false}>
             {/* Header */}
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
