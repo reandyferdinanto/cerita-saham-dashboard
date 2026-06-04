@@ -1,3 +1,0 @@
-{"id":"99e7ea08-11b7-4acb-b153-3e4275b5c1ba","ts":"2026-06-04T08:57:24.292Z","path":"C:\\reandy\\ceritaSaham-Dashboard\\components\\charts\\CandlestickChart.tsx","version":"1.0.0","taskID":"9cb9beda-c90b-454f-9453-c9f6cd6d92a3"}
-{"id":"792cefa8-e4cb-4ef3-8d42-a5d312e0fa33","ts":"2026-06-04T08:57:44.258Z","path":"C:\\reandy\\ceritaSaham-Dashboard\\components\\charts\\CandlestickChart.tsx","version":"1.0.0","taskID":"9cb9beda-c90b-454f-9453-c9f6cd6d92a3"}
-{"id":"7000c87c-1264-488f-b92a-ddb7f55b1469","ts":"2026-06-04T08:58:03.770Z","path":"C:\\reandy\\ceritaSaham-Dashboard\\components\\charts\\CandlestickChart.tsx","version":"1.0.0","taskID":"9cb9beda-c90b-454f-9453-c9f6cd6d92a3"}
